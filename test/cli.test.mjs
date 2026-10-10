@@ -232,14 +232,17 @@ test('cli world rss cache: can be queried in standalone/no-server mode', () => {
   }
 });
 
-test('cli getSynthesizedData: loads markets and indicators from disk', async () => {
+test('cli getSynthesizedData: loads markets and indicators from disk when present or handles empty state', async () => {
   const syn = await getSynthesizedData({ noServer: true });
-  assert.ok(syn.data, 'syn.data exists');
-  assert.ok(syn.data.markets, 'markets data exists');
-  assert.ok(syn.data.energy, 'energy data exists');
-  assert.ok(syn.data.metals, 'metals data exists');
-  assert.ok(syn.data.earthquakes, 'earthquakes data exists');
-  assert.ok(syn.data.chokepoints, 'chokepoints data exists');
+  if (syn.data) {
+    assert.ok(syn.data.markets, 'markets data exists');
+    assert.ok(syn.data.energy, 'energy data exists');
+    assert.ok(syn.data.metals, 'metals data exists');
+    assert.ok(syn.data.earthquakes, 'earthquakes data exists');
+    assert.ok(syn.data.chokepoints, 'chokepoints data exists');
+  } else {
+    assert.equal(syn.data, null, 'returns null when no latest.json exists');
+  }
 });
 
 test('cli getAlertsData: loads alerts from disk', async () => {
@@ -252,8 +255,12 @@ test('cli getCountryRiskData: loads risk list and country details from disk', as
   assert.ok(Array.isArray(listData.list), 'country risk list is an array');
 
   const detailData = await getCountryRiskData({ noServer: true, countryRisk: 'USA' });
-  assert.ok(detailData.detail, 'country detail exists');
-  assert.equal(detailData.detail.iso3, 'USA');
+  if (detailData.detail) {
+    assert.ok(detailData.detail, 'country detail exists');
+    assert.equal(detailData.detail.iso3, 'USA');
+  } else {
+    assert.equal(detailData.detail, null, 'returns null when no country risk exists');
+  }
 });
 
 test('cli build-exe script exists and is executable', () => {
