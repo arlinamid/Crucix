@@ -131,3 +131,43 @@ test('getSetupHtml returns embedded HTML fallback when disk file does not exist'
     else delete process.env.CRUCIX_SETUP_HTML;
   }
 });
+
+test('startSetupWebServer supports autoExitOnSave and triggers exitHandler', async () => {
+  const tmpDir = mkdtempSync(join(tmpdir(), 'crucix-web-setup-exit-'));
+  const envPath = join(tmpDir, '.env');
+  let exitTriggered = false;
+  let webServer;
+
+  try {
+    webServer = await startSetupWebServer({
+      port: 39183,
+      envPath,
+      autoOpen: false,
+      autoExitOnSave: true,
+      onExit: () => {
+        exitTriggered = true;
+      },
+    });
+
+    const resSave = await fetch(`http://localhost:${webServer.port}/api/setup/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        PORT: '3119',
+        CRUCIX_LANG: 'hu',
+      }),
+    });
+    assert.equal(resSave.status, 200);
+    const saveJson = await resSave.json();
+    assert.equal(saveJson.ok, true);
+    assert.equal(saveJson.willExit, true);
+    assert.equal(saveJson.isStandalone, true);
+
+    // Wait for exitHandler timeout
+    await new Promise(r => setTimeout(r, 1200));
+    assert.equal(exitTriggered, true);
+  } finally {
+    if (webServer?.close) webServer.close();
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

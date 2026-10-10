@@ -423,6 +423,71 @@
       color: #ffd8d9;
     }
 
+    /* MODAL OVERLAY */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 8, 14, 0.88);
+      backdrop-filter: blur(14px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn 0.25s ease;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-card {
+      background: #06121f;
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      max-width: 520px;
+      width: 100%;
+      padding: 32px 24px;
+      text-align: center;
+      box-shadow: 0 0 50px rgba(100, 240, 200, 0.25);
+      animation: scaleUp 0.25s ease;
+    }
+    .modal-icon {
+      font-size: 48px;
+      margin-bottom: 14px;
+      display: inline-block;
+    }
+    .modal-title {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .modal-desc {
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .modal-countdown {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent2);
+      background: rgba(68, 204, 255, 0.08);
+      border: 1px solid rgba(68, 204, 255, 0.25);
+      padding: 10px 16px;
+      border-radius: 6px;
+      margin-bottom: 22px;
+      display: inline-block;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    @keyframes scaleUp { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
     @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 
     @media (max-width: 768px) {
@@ -692,12 +757,28 @@
           <span>📁 Célkonfiguráció: </span><strong id="targetEnvDisplay">~/.crucix/.env</strong>
         </div>
         <div class="footer-actions">
+          <button type="button" class="dashboard-btn" style="border-color: rgba(255,255,255,0.2); color: var(--dim);" onclick="exitSetup()">🚪 <span id="i18n-exit-btn">Bezárás & Kilépés</span></button>
           <a href="/" class="dashboard-btn" id="i18n-open-dash">Irány a Vezérlőpult</a>
           <button type="submit" class="save-btn" id="i18n-save-btn">💾 Beállítások Mentése</button>
         </div>
       </div>
 
     </form>
+  </div>
+
+  <!-- EXIT & COMPLETION MODAL -->
+  <div id="exitModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-icon">🎉</div>
+      <h2 class="modal-title" id="exitModalTitle">Beállítások Elmentve!</h2>
+      <p class="modal-desc" id="exitModalDesc">A konfiguráció sikeresen frissült a .env fájlban.</p>
+      <div class="modal-countdown" id="exitCountdown">Automatikus bezárás 3 másodperc múlva...</div>
+      <div class="modal-actions">
+        <button type="button" class="save-btn" id="exitModalCloseBtn" onclick="closeWindowNow()">🚪 <span id="i18n-close-now">Ablak Bezárása Most</span></button>
+        <button type="button" class="dashboard-btn" id="exitModalStayBtn" onclick="cancelExitModal()"><span id="i18n-stay-page">Maradok az oldalon</span></button>
+        <a href="/" class="dashboard-btn" id="exitModalDashBtn" style="display:none;">Irány a Vezérlőpult</a>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -720,6 +801,14 @@
         srvTitle: "Dashboard & Hálózat",
         openDash: "Irány a Vezérlőpult",
         saveBtn: "💾 Beállítások Mentése",
+        savedTitle: "Beállítások Sikeresen Mentve!",
+        savedDesc: "A konfiguráció frissült a .env fájlban.",
+        savedExitDesc: "A beállító varázsló befejeződött, a szerver leáll.",
+        closingIn: "Automatikus bezárás {sec} másodperc múlva...",
+        closeNow: "Ablak Bezárása Most",
+        stayOnPage: "Maradok az oldalon",
+        exitBtn: "Bezárás & Kilépés",
+        manualClose: "A beállító varázsló leállt. Nyugodtan zárd be ezt a böngészőfület (Ctrl+W)!",
       },
       en: {
         headerTitle: "Setup & Configuration Center",
@@ -739,6 +828,14 @@
         srvTitle: "Dashboard & Network",
         openDash: "Open Dashboard",
         saveBtn: "💾 Save Configuration",
+        savedTitle: "Settings Saved Successfully!",
+        savedDesc: "Configuration updated in .env.",
+        savedExitDesc: "Setup assistant completed, shutting down server.",
+        closingIn: "Closing automatically in {sec}s...",
+        closeNow: "Close Window Now",
+        stayOnPage: "Stay on Page",
+        exitBtn: "Close & Exit",
+        manualClose: "Setup server stopped. You can safely close this browser tab (Ctrl+W)!",
       },
       fr: {
         headerTitle: "Centre de Configuration",
@@ -758,6 +855,14 @@
         srvTitle: "Tableau de Bord & Réseau",
         openDash: "Ouvrir le Tableau de bord",
         saveBtn: "💾 Enregistrer la Configuration",
+        savedTitle: "Paramètres Enregistrés !",
+        savedDesc: "Configuration mise à jour dans le fichier .env.",
+        savedExitDesc: "L'assistant est terminé, le serveur s'arrête.",
+        closingIn: "Fermeture automatique dans {sec}s...",
+        closeNow: "Fermer l'onglet maintenant",
+        stayOnPage: "Rester sur la page",
+        exitBtn: "Fermer & Quitter",
+        manualClose: "Serveur arrêté. Vous pouvez fermer cet onglet (Ctrl+W)!",
       }
     };
 
@@ -789,6 +894,12 @@
       document.getElementById('i18n-srv-title').textContent = t.srvTitle;
       document.getElementById('i18n-open-dash').textContent = t.openDash;
       document.getElementById('i18n-save-btn').textContent = t.saveBtn;
+      const exitBtnEl = document.getElementById('i18n-exit-btn');
+      if (exitBtnEl) exitBtnEl.textContent = t.exitBtn;
+      const closeNowEl = document.getElementById('i18n-close-now');
+      if (closeNowEl) closeNowEl.textContent = t.closeNow;
+      const stayPageEl = document.getElementById('i18n-stay-page');
+      if (stayPageEl) stayPageEl.textContent = t.stayOnPage;
     }
 
     function showBanner(text, type = 'success') {
@@ -946,13 +1057,94 @@
         });
         const data = await res.json();
         if (data.ok) {
-          showBanner('🎉 <strong>A beállítások sikeresen elmentve!</strong> Most már megnyithatod a vezérlőpultot vagy újraindíthatod a Crucix szervert.', 'success');
+          showExitModal(data);
         } else {
           showBanner(`❌ Nem sikerült elmenteni: ${data.error || 'Ismeretlen hiba'}`, 'error');
         }
       } catch (err) {
         showBanner(`❌ Mentési hiba: ${err.message}`, 'error');
       }
+    }
+
+    let countdownInterval = null;
+
+    function showExitModal(data = {}) {
+      const modal = document.getElementById('exitModal');
+      const title = document.getElementById('exitModalTitle');
+      const desc = document.getElementById('exitModalDesc');
+      const countdown = document.getElementById('exitCountdown');
+      const dashBtn = document.getElementById('exitModalDashBtn');
+      const t = I18N[currentLang] || I18N.hu;
+
+      modal.classList.add('show');
+      title.textContent = t.savedTitle;
+
+      const willExit = Boolean(data.willExit);
+      if (willExit) {
+        desc.textContent = t.savedExitDesc;
+        dashBtn.style.display = 'none';
+      } else {
+        desc.textContent = t.savedDesc;
+        dashBtn.style.display = 'inline-flex';
+      }
+
+      let remaining = 3;
+      countdown.textContent = t.closingIn.replace('{sec}', remaining);
+
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        remaining--;
+        if (remaining > 0) {
+          countdown.textContent = t.closingIn.replace('{sec}', remaining);
+        } else {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+          closeWindowNow();
+        }
+      }, 1000);
+    }
+
+    function cancelExitModal() {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+      document.getElementById('exitModal').classList.remove('show');
+      const t = I18N[currentLang] || I18N.hu;
+      showBanner('✅ ' + t.savedDesc, 'success');
+    }
+
+    function closeWindowNow() {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+
+      // Try closing the browser tab
+      try {
+        window.open('', '_self', '');
+        window.close();
+      } catch (e) {}
+      window.close();
+
+      // If browser security prevented window.close(), show clear advice
+      setTimeout(() => {
+        const countdown = document.getElementById('exitCountdown');
+        const t = I18N[currentLang] || I18N.hu;
+        if (countdown) {
+          countdown.innerHTML = '✅ ' + t.manualClose;
+          countdown.style.background = 'rgba(100, 240, 200, 0.12)';
+          countdown.style.borderColor = 'var(--accent)';
+          countdown.style.color = 'var(--accent)';
+        }
+      }, 350);
+    }
+
+    async function exitSetup() {
+      try {
+        await fetch('/api/setup/exit', { method: 'POST' });
+      } catch {}
+      closeWindowNow();
     }
 
     window.addEventListener('DOMContentLoaded', () => {
