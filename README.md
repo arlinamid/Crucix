@@ -40,9 +40,9 @@ The server and data run on your machine. External feeds need network access; bro
 
 ## Documentation
 
-The README is the short version. Everything else has its own page:
+The README is the short version. Core documentation is provided in English:
 
-| | |
+| English Documentation | Description |
 |---|---|
 | [**Features by release**](docs/FEATURES.md) | What each version added: alert engine, country risk, record inspector, sweep archive, map layers, new sources |
 | [**Configuration**](docs/CONFIGURATION.md) | API keys, Telegram and Discord bots, the LLM layer, environment variables, npm scripts |
@@ -50,9 +50,21 @@ The README is the short version. Everything else has its own page:
 | [**HTTP API**](docs/API.md) | The JSON API: routes, parameters, errors, CORS, recipes |
 | [**Embedding**](docs/EMBEDDING.md) | Show Crucix or a status widget on your own site (iframe) |
 | [**Architecture**](docs/ARCHITECTURE.md) | The sweep cycle, components and design principles |
-| [**Operations**](docs/OPERATIONS.md) | LAN, Docker, local models and day-to-day use (Hungarian) |
 | [**Troubleshooting**](docs/TROUBLESHOOTING.md) | Start-up and data problems |
-| [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) | |
+| [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) | Project updates, contribution guidelines and security policy |
+
+### Non-English Documentation / Nemzetközi és magyar nyelvű dokumentáció
+
+Specialized operational guides, architecture audits, and regional research catalogs written in Hungarian are organized in this dedicated section:
+
+| Dokumentum / Document | Leírás / Description | Nyelv / Language |
+|---|---|---|
+| [**Üzemeltetési útmutató (Operations)**](docs/OPERATIONS.md) | Helyi hálózat (LAN), Docker, helyi nyelvi modellek, megbízhatóság és napi üzemeltetés | Magyar (HU) |
+| [**Világméretű RSS-katalógus**](data/world-rss/README.hu.md) | 195 ország, 539 médium RSS és keresési lefedettségének technikai jegyzéke | Magyar (HU) |
+| [**Interaktív bemutató oldal (Showcase)**](docs/site/index.html) | Kétnyelvű animált prezentáció és vizuális bemutató böngészőben | Magyar (HU) / Angol (EN) |
+| [**PR felülvizsgálati audit (2026-10-10)**](docs/audit/pr-review-2026-10-10.md) | Upstream PR-ek és hibajavítások szisztematikus összehasonlító auditja | Magyar (HU) |
+| [**Teljes architektúra audit (2026-10-01)**](docs/audit/full-review-2026-10-01.md) | Biztonsági, stabilitási és forrásintegrációs mélyelemzés | Magyar (HU) |
+| [**Elérhető források és licencek elemzése**](docs/audit/free-data-sources-2026-10-01.md) | 71 OSINT adatforrás jogi és technikai korlátainak elemzése | Magyar (HU) |
 
 > **Use it from your own code:** every panel is backed by a JSON route, so scripts, bots and other sites can read the same data (`curl http://localhost:3117/api/alerts/summary`). See the [HTTP API](docs/API.md) and [embedding](docs/EMBEDDING.md) guides.
 

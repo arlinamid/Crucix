@@ -1,5 +1,7 @@
 # Világméretű RSS-katalógus – 2026. október 10.
 
+> **Language note / Nyelvi megjegyzés:** Ez a dokumentum magyar nyelvű. For English data source overview, please refer to [DATA-SOURCES.md](../../docs/DATA-SOURCES.md).
+
 ## Eredmény és határok
 
 1579 jelöltet vizsgáltunk; 1168 cím adott cikkeket tartalmazó RSS/Atom XML-t. A javasolt angol-első konfiguráció 539 feedet tartalmaz. A további helyi nyelvű alternatívák száma 430.

@@ -4,6 +4,8 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   parseArgs,
+  getCliLanguage,
+  printHelp,
   formatAge,
   formatNumber,
   formatPct,
@@ -112,11 +114,18 @@ test('cli parseArgs: recognizes data flags', () => {
 
 test('cli formatters: formatAge, formatNumber, formatPct', () => {
   const now = Date.now();
-  assert.equal(formatAge(new Date(now - 10 * 1000).toISOString()), '10s ago');
-  assert.equal(formatAge(new Date(now - 120 * 1000).toISOString()), '2m ago');
-  assert.equal(formatAge(new Date(now - 7200 * 1000).toISOString()), '2h ago');
-  assert.equal(formatAge(new Date(now - 2 * 86400 * 1000).toISOString()), '2d ago');
-  assert.equal(formatAge(null), '');
+  assert.equal(formatAge(new Date(now - 10 * 1000).toISOString(), 'en'), '10s ago');
+  assert.equal(formatAge(new Date(now - 120 * 1000).toISOString(), 'en'), '2m ago');
+  assert.equal(formatAge(new Date(now - 7200 * 1000).toISOString(), 'en'), '2h ago');
+  assert.equal(formatAge(new Date(now - 2 * 86400 * 1000).toISOString(), 'en'), '2d ago');
+  assert.equal(formatAge(null, 'en'), '');
+
+  // Hungarian formatAge
+  assert.equal(formatAge(new Date(now - 10 * 1000).toISOString(), 'hu'), '10 mp ezelőtt');
+  assert.equal(formatAge(new Date(now - 120 * 1000).toISOString(), 'hu'), '2 perce');
+  assert.equal(formatAge(new Date(now - 7200 * 1000).toISOString(), 'hu'), '2 órája');
+  assert.equal(formatAge(new Date(now - 2 * 86400 * 1000).toISOString(), 'hu'), '2 napja');
+  assert.equal(formatAge(null, 'hu'), '');
 
   assert.equal(formatNumber(1234.56), '1,234.56');
   assert.equal(formatNumber(null), '--');
@@ -124,6 +133,47 @@ test('cli formatters: formatAge, formatNumber, formatPct', () => {
   assert.equal(formatPct(2.5), '+2.50%');
   assert.equal(formatPct(-1.75), '-1.75%');
   assert.equal(formatPct(null), '--');
+});
+
+test('cli i18n: getCliLanguage resolves language code correctly', () => {
+  assert.equal(getCliLanguage({ lang: 'hu' }), 'hu');
+  assert.equal(getCliLanguage({ lang: 'HU' }), 'hu');
+  assert.equal(getCliLanguage({ lang: 'fr' }), 'fr');
+  assert.equal(getCliLanguage({ lang: 'en' }), 'en');
+  assert.equal(getCliLanguage({ lang: 'de' }), 'en'); // unsupported defaults to en
+  assert.equal(getCliLanguage({}), 'en');
+
+  const parsed1 = parseArgs(['--lang', 'hu']);
+  assert.equal(getCliLanguage(parsed1), 'hu');
+
+  const parsed2 = parseArgs(['-L', 'fr']);
+  assert.equal(getCliLanguage(parsed2), 'fr');
+
+  const origEnv = process.env.CRUCIX_LANG;
+  try {
+    process.env.CRUCIX_LANG = 'hu';
+    assert.equal(getCliLanguage({}), 'hu');
+  } finally {
+    if (origEnv !== undefined) {
+      process.env.CRUCIX_LANG = origEnv;
+    } else {
+      delete process.env.CRUCIX_LANG;
+    }
+  }
+});
+
+test('cli i18n: printHelp executes cleanly in English and Hungarian', () => {
+  const origLog = console.log;
+  let logged = [];
+  console.log = (...args) => logged.push(args.join(' '));
+  try {
+    assert.doesNotThrow(() => printHelp('en'));
+    assert.doesNotThrow(() => printHelp('hu'));
+    assert.ok(logged.some(msg => msg.includes('Crucix Intelligence CLI')));
+    assert.ok(logged.some(msg => msg.includes('Használat:')));
+  } finally {
+    console.log = origLog;
+  }
 });
 
 test('cli loadFromDisk: reads history records without requiring web server', () => {

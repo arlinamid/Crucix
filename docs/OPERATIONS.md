@@ -1,5 +1,7 @@
 # Crucix üzemeltetési útmutató
 
+> **Language note / Nyelvi megjegyzés:** Ez a dokumentum magyar nyelvű. For English documentation, please refer to the main [README.md](../README.md), [CONFIGURATION.md](CONFIGURATION.md), and [API.md](API.md).
+
 Ez a fork Node.js 22 vagy 24 alatt, natív Windows/Linux környezetben és Dockerben ellenőrzött. A [teljes audit](audit/full-review-2026-10-01.md) és a [változásnapló](../CHANGELOG.md) részletezi a javításokat.
 
 ## Indítás és hozzáférés

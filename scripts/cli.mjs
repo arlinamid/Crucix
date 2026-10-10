@@ -83,6 +83,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     collector: false,
     interval: 15,
     history: false,
+    lang: null,
 
     // Data switches
     brief: false,
@@ -114,6 +115,10 @@ function parseArgs(argv = process.argv.slice(2)) {
     const arg = args[i];
     if (arg === '-h' || arg === '--help') {
       opts.help = true;
+    } else if (arg === '-L' || arg === '--lang') {
+      opts.lang = (args[++i] || 'en').toLowerCase().slice(0, 2);
+    } else if (arg.startsWith('--lang=')) {
+      opts.lang = arg.slice(7).toLowerCase().slice(0, 2);
     } else if (arg === '-H' || arg === '--history') {
       opts.history = true;
     } else if (arg === '-c' || arg === '--category' || arg === '-k' || arg === '--kind') {
@@ -232,13 +237,22 @@ function parseArgs(argv = process.argv.slice(2)) {
   return opts;
 }
 
-function printHelp() {
+function getCliLanguage(opts = {}) {
+  const candidate = opts.lang || process.env.CRUCIX_LANG || process.env.LANGUAGE || process.env.LANG || 'en';
+  const code = String(candidate).trim().toLowerCase().slice(0, 2);
+  return ['hu', 'fr'].includes(code) ? code : 'en';
+}
+
+function printHelpHungarian() {
   console.log(`
 Crucix Intelligence CLI — Parancssori Hír-, Esemény- és Hírszerzési Lekérdező
 ==========================================================================
 Használat:
   node scripts/cli.mjs [opciók]
   npm run cli -- [opciók]
+
+Nyelvválasztás:
+  -L, --lang <kód>                 Kimenet nyelve: en, hu, fr (alapértelmezett: en vagy CRUCIX_LANG)
 
 Intelligencia & Összefoglalók:
   -b, --brief                      Vezetői intelligencia összefoglaló (piaci irány, VIX, olaj, arany, OSINT)
@@ -324,6 +338,110 @@ Példák:
 `);
 }
 
+function printHelpEnglish() {
+  console.log(`
+Crucix Intelligence CLI — Command-Line Intelligence, Markets & News Query Terminal
+==================================================================================
+Usage:
+  node scripts/cli.mjs [options]
+  npm run cli -- [options]
+
+Language:
+  -L, --lang <code>                Output language: en, hu, fr (default: en or CRUCIX_LANG)
+
+Intelligence & Briefings:
+  -b, --brief                      Executive intelligence briefing (market direction, VIX, oil, gold, OSINT)
+  -a, --all                        Comprehensive report across all key intelligence areas in terminal
+  -A, --alerts                     List active and recent alerts (--all-alerts for resolved as well)
+  --status, --health               System health and status of all 71 OSINT data sources (OK, Stale, Failed)
+  --sources                        List all available OSINT data sources and their health
+  --source-data <source>           Show raw/parsed data for a specific source (e.g. USGS, YFinance, FIRMS)
+  --delta                          Recent sweep changes (new signals, escalations)
+  --sweeps                         Recorded sweep history and statistics
+
+Markets, Energy & Commodities:
+  -m, --markets, --finance         Stock indexes (S&P 500, Nasdaq, Dow), bond yields, VIX, Crypto (BTC)
+  --energy                         WTI & Brent crude oil, Natural Gas, EIA inventory
+  --metals                         Precious metals: Gold & Silver prices and daily moves
+  --commodities                    Combined commodities table (Energy & Metals)
+
+Geopolitics & Country Risk:
+  --risk [ISO3]                    Geopolitical country risk ranking (top risk countries)
+  --country-risk <ISO3>            Detailed risk profile for a specific country (e.g. UA, PAN, USA, IL)
+  --predictions                    Prediction markets (Manifold, Polymarket) and conflict forecasts
+
+Physical Security, Airspace & Maritime:
+  --earthquakes, --quakes          Earthquakes (USGS/EMSC: magnitude, location, tsunami flag)
+  --thermal, --fires               NASA FIRMS satellite thermal map and fire hotspots
+  --chokepoints, --maritime        Global maritime chokepoints and straits status (Hormuz, Suez, Malacca)
+  --air, --aviation                Air activity, OpenSky flights, military transponders
+  --disasters                      Combined natural disaster monitoring (quakes, storms, fires)
+
+Cybersecurity & Network:
+  --cyber                          CISA KEV actively exploited vulnerabilities & ThreatFox indicators
+  --outages                        Global internet outages and network anomalies (IODA)
+
+News & Event Archive (History):
+  -H, --history                    List recorded event history (search/filter compatible)
+  -c, --category <category>        Filter by category (e.g. news, cyber, outage, conflict, earthquake...)
+  --country <ISO code>             News by country (e.g. HU, DE, FR, JP, US, UA, IL, BR...)
+  -q, --search <term>              Text search across event history
+  --source <source>                Filter by news source (e.g. BBC, Reuters, USGS, CISA)
+  -l, --limit <count>              Number of items to display (default: 10)
+  --categories, --kinds            List all available event categories and their counts
+  --live                           Show live news ticker from current sweep
+  --json                           Raw JSON output (for scripts or AI pipelines)
+
+Time Window & Date Filtering:
+  --since <duration>, --window     Time window filtering (e.g. 14d, 2w, 7d, 48h, 24h)
+  -d, --days <days>                Filter events to the last N days (e.g. -d 14 or --days 7)
+  --from <YYYY-MM-DD>              Start date filter (e.g. 2026-09-26)
+  --to <YYYY-MM-DD>                End date filter (e.g. 2026-10-10)
+
+Serverless (Standalone / Offline) & Collector Modes:
+  --no-server, --standalone, -S    Direct disk / offline execution without web server.
+                                   Operates solely from local disk archives and cache.
+  --offline, --direct              Synonyms for --no-server
+  --sweep, --run-sweep             Run a single collection sweep in the terminal without backend server
+  --collector, --daemon, --watch   Start continuous terminal collector loop (no server)
+  --serve, --start-server          Start Crucix backend server in headless mode (no browser popup)
+  -i, --interval <minutes>         Data collection interval in minutes (for --collector, default: 15)
+
+World News Catalog (191+ Countries, 539 Outlets):
+  --countries                      List all supported countries and outlet counts
+  --feeds [ISO code]               List registered news feeds for a country (e.g. --feeds DE)
+  --search-feeds <name>            Search outlets in the world catalog (e.g. --search-feeds "Spiegel")
+
+Examples:
+  npm run cli -- -b                          # Executive intelligence briefing
+  npm run cli -- -m                          # Financial markets, VIX, gold, oil, crypto
+  npm run cli -- --earthquakes               # Latest earthquakes (USGS/EMSC)
+  npm run cli -- --thermal                   # NASA FIRMS satellite fire hotspots
+  npm run cli -- --risk                      # Geopolitical country risk rankings
+  npm run cli -- --risk UA                   # Ukraine detailed risk profile
+  npm run cli -- --cyber                     # Cyber vulnerabilities (CISA KEV)
+  npm run cli -- --alerts                    # Active alerts and threat level
+  npm run cli -- -c earthquake --since 14d   # Earthquakes from the last 2 weeks
+  npm run cli -- -c market --since 7d        # Market moves from the last 7 days
+  npm run cli -- --alerts --since 14d        # Alerts from the last 2 weeks
+  npm run cli -- -q "Trump" --since 14d      # Search news from the last 2 weeks
+  npm run cli -- --country JP --no-server    # Japan news from local cache
+  npm run cli -- --collector                 # Continuous terminal collector loop (15m sweep)
+  npm run cli -- --serve                     # Start backend server without browser popup
+  npm run cli -- --source-data USGS          # Raw data from USGS source
+  npm run cli -- -a                          # Comprehensive report across all areas
+  npm run cli -- -b --lang hu                # Briefing in Hungarian
+`);
+}
+
+function printHelp(lang = 'en') {
+  if (lang === 'hu') {
+    printHelpHungarian();
+  } else {
+    printHelpEnglish();
+  }
+}
+
 function fetchHttp(path, timeoutMs = 2500) {
   return new Promise((resolve, reject) => {
     const req = http.get(`http://${host}:${port}${path}`, { timeout: timeoutMs }, (res) => {
@@ -361,12 +479,21 @@ function readJsonSafe(filepath) {
   return null;
 }
 
-function formatAge(dateString) {
+function formatAge(dateString, lang = 'en') {
   if (!dateString) return '';
   const now = Date.now();
   const then = new Date(dateString).getTime();
   if (isNaN(then)) return '';
   const diffSec = Math.floor((now - then) / 1000);
+  if (lang === 'hu') {
+    if (diffSec < 60) return `${diffSec} mp ezelőtt`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin} perce`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours} órája`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} napja`;
+  }
   if (diffSec < 60) return `${diffSec}s ago`;
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `${diffMin}m ago`;
@@ -523,42 +650,62 @@ async function fetchCountryLive(countryCode, limit = 10) {
 
 // === Display Formatters ===
 
-function checkDataAvailable(synData) {
+function checkDataAvailable(synData, opts = {}) {
+  const lang = opts.lang || 'en';
   if (!synData.data && !synData.raw) {
-    console.log(`\n❌ Nincs elérhető intelligencia adat a lemezen (${latestFile}) és a szerver sem fut.`);
-    console.log(`\n👉 Megoldás:`);
-    console.log(`   1. Egyszeri adatgyűjtés futtatása a terminálban: npm run cli -- --sweep`);
-    console.log(`   2. Vagy indítsd el a folyamatos háttérszervert:   npm run dev\n`);
+    if (lang === 'hu') {
+      console.log(`\n❌ Nincs elérhető intelligencia adat a lemezen (${latestFile}) és a szerver sem fut.`);
+      console.log(`\n👉 Megoldás:`);
+      console.log(`   1. Egyszeri adatgyűjtés futtatása a terminálban: npm run cli -- --sweep`);
+      console.log(`   2. Vagy indítsd el a folyamatos háttérszervert:   npm run dev\n`);
+    } else {
+      console.log(`\n❌ No intelligence data available on disk (${latestFile}) and server is not running.`);
+      console.log(`\n👉 Solution:`);
+      console.log(`   1. Run a one-time sweep in the terminal: npm run cli -- --sweep`);
+      console.log(`   2. Or start the background server:       npm run dev\n`);
+    }
     return false;
   }
   return true;
 }
 
-function showBriefing(synData, alertsData, riskData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showBriefing(synData, alertsData, riskData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const d = synData.data || {};
   const raw = synData.raw || loadLatestRaw() || {};
   const hot = readJsonSafe(hotMemoryFile);
   const delta = hot?.runs?.[hot.runs.length - 1]?.delta;
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
+  const header = lang === 'hu' ? 'CRUCIX VEZETŐI INTELLIGENCIA ÖSSZEFOGLALÓ' : 'CRUCIX INTELLIGENCE BRIEFING';
   console.log(`\n=============================================================`);
-  console.log(`             CRUCIX INTELLIGENCE BRIEFING ${modeLabel}`);
+  console.log(`             ${header} ${modeLabel}`);
   console.log(`=============================================================`);
 
   const meta = d.meta || raw.crucix || {};
-  const sweepTime = meta.timestamp ? new Date(meta.timestamp).toISOString().replace('T', ' ').substring(0, 19) + ' UTC' : 'Ismeretlen';
-  console.log(`🕒 Időpont: ${sweepTime} | Források: ${meta.sourcesOk || '--'}/${meta.sourcesQueried || '--'} OK`);
+  const sweepTime = meta.timestamp ? new Date(meta.timestamp).toISOString().replace('T', ' ').substring(0, 19) + ' UTC' : (lang === 'hu' ? 'Ismeretlen' : 'Unknown');
+  const timeLabel = lang === 'hu' ? 'Időpont' : 'Time';
+  const sourcesLabel = lang === 'hu' ? 'Források' : 'Sources';
+  console.log(`🕒 ${timeLabel}: ${sweepTime} | ${sourcesLabel}: ${meta.sourcesOk || '--'}/${meta.sourcesQueried || '--'} OK`);
 
   // Direction & Threat
   if (delta?.summary) {
     const dirEmoji = { 'risk-off': '📉', 'risk-on': '📈', 'mixed': '↔️' }[delta.summary.direction] || '↔️';
-    console.log(`🧭 Piaci Trend & Delta : ${dirEmoji} ${String(delta.summary.direction).toUpperCase()} (${delta.summary.totalChanges || 0} változás, ${delta.summary.criticalChanges || 0} kritikus)`);
+    if (lang === 'hu') {
+      console.log(`🧭 Piaci Trend & Delta : ${dirEmoji} ${String(delta.summary.direction).toUpperCase()} (${delta.summary.totalChanges || 0} változás, ${delta.summary.criticalChanges || 0} kritikus)`);
+    } else {
+      console.log(`🧭 Market Trend & Delta : ${dirEmoji} ${String(delta.summary.direction).toUpperCase()} (${delta.summary.totalChanges || 0} changes, ${delta.summary.criticalChanges || 0} critical)`);
+    }
   }
 
-  const activeAlerts = (alertsData.alerts || []).filter(a => a.state === 'active');
+  const activeAlerts = (alertsData?.alerts || []).filter(a => a.state === 'active');
   const alertCount = activeAlerts.length;
-  console.log(`🛡️  Aktív Riasztások     : ${alertCount > 0 ? `🚨 ${alertCount} db aktív riasztás!` : '✅ 0 aktív (Nyugodt állapot)'}`);
+  if (lang === 'hu') {
+    console.log(`🛡️  Aktív Riasztások     : ${alertCount > 0 ? `🚨 ${alertCount} db aktív riasztás!` : '✅ 0 aktív (Nyugodt állapot)'}`);
+  } else {
+    console.log(`🛡️  Active Alerts        : ${alertCount > 0 ? `🚨 ${alertCount} active alert(s)!` : '✅ 0 active (Normal / Calm state)'}`);
+  }
 
   // Markets summary
   const energy = d.energy || {};
@@ -568,32 +715,46 @@ function showBriefing(synData, alertsData, riskData, opts) {
   const sp500 = yfQuotes['^GSPC']?.price;
   const btc = yfQuotes['BTC-USD']?.price;
 
-  console.log(`\n📊 Kulcs Indikátorok:`);
-  console.log(`   • VIX: ${vix ? formatNumber(vix) : '--'} | S&P 500: ${sp500 ? formatNumber(sp500) : '--'} | BTC: $${btc ? formatNumber(btc, 0) : '--'}`);
-  console.log(`   • WTI Olaj: $${energy.wti ? formatNumber(energy.wti) : '--'} | Brent: $${energy.brent ? formatNumber(energy.brent) : '--'} | Földgáz: $${energy.natgas ? formatNumber(energy.natgas) : '--'}`);
-  console.log(`   • Arany (Gold): $${metals.gold ? formatNumber(metals.gold) : '--'} | Ezüst (Silver): $${metals.silver ? formatNumber(metals.silver) : '--'}`);
+  if (lang === 'hu') {
+    console.log(`\n📊 Kulcs Indikátorok:`);
+    console.log(`   • VIX: ${vix ? formatNumber(vix) : '--'} | S&P 500: ${sp500 ? formatNumber(sp500) : '--'} | BTC: $${btc ? formatNumber(btc, 0) : '--'}`);
+    console.log(`   • WTI Olaj: $${energy.wti ? formatNumber(energy.wti) : '--'} | Brent: $${energy.brent ? formatNumber(energy.brent) : '--'} | Földgáz: $${energy.natgas ? formatNumber(energy.natgas) : '--'}`);
+    console.log(`   • Arany (Gold): $${metals.gold ? formatNumber(metals.gold) : '--'} | Ezüst (Silver): $${metals.silver ? formatNumber(metals.silver) : '--'}`);
+  } else {
+    console.log(`\n📊 Key Indicators:`);
+    console.log(`   • VIX: ${vix ? formatNumber(vix) : '--'} | S&P 500: ${sp500 ? formatNumber(sp500) : '--'} | BTC: $${btc ? formatNumber(btc, 0) : '--'}`);
+    console.log(`   • WTI Crude: $${energy.wti ? formatNumber(energy.wti) : '--'} | Brent: $${energy.brent ? formatNumber(energy.brent) : '--'} | NatGas: $${energy.natgas ? formatNumber(energy.natgas) : '--'}`);
+    console.log(`   • Gold: $${metals.gold ? formatNumber(metals.gold) : '--'} | Silver: $${metals.silver ? formatNumber(metals.silver) : '--'}`);
+  }
 
   // Earthquakes & Fires highlights
   const quakes = d.earthquakes || raw.sources?.USGS?.earthquakes || [];
   if (quakes.length > 0) {
     const topQ = quakes[0];
-    const tsu = topQ.tsunamiFlag ? ' 🌊 [TSUNAMI VESZÉLY!]' : '';
-    console.log(`\n🌍 Kiemelt Szeizmikus Esemény:`);
-    console.log(`   • [M ${topQ.magnitude}] ${topQ.place}${tsu} (${formatAge(topQ.time)})`);
+    const tsu = topQ.tsunamiFlag ? (lang === 'hu' ? ' 🌊 [TSUNAMI VESZÉLY!]' : ' 🌊 [TSUNAMI WARNING!]') : '';
+    const qTitle = lang === 'hu' ? 'Kiemelt Szeizmikus Esemény' : 'Featured Seismic Event';
+    console.log(`\n🌍 ${qTitle}:`);
+    console.log(`   • [M ${topQ.magnitude}] ${topQ.place}${tsu} (${formatAge(topQ.time, lang)})`);
   }
 
   const firms = raw.sources?.FIRMS;
   if (firms?.hotspots?.length > 0) {
     const totalDetections = firms.hotspots.reduce((acc, h) => acc + (h.totalDetections || 0), 0);
-    console.log(`\n🔥 Műholdas Hőtérkép (NASA FIRMS):`);
-    console.log(`   • ${totalDetections} termális detektálás regisztrálva (${firms.hotspots.map(h => `${h.region}: ${h.totalDetections}`).join(', ')})`);
+    if (lang === 'hu') {
+      console.log(`\n🔥 Műholdas Hőtérkép (NASA FIRMS):`);
+      console.log(`   • ${totalDetections} termális detektálás regisztrálva (${firms.hotspots.map(h => `${h.region}: ${h.totalDetections}`).join(', ')})`);
+    } else {
+      console.log(`\n🔥 Satellite Thermal Map (NASA FIRMS):`);
+      console.log(`   • ${totalDetections} thermal detections registered (${firms.hotspots.map(h => `${h.region}: ${h.totalDetections}`).join(', ')})`);
+    }
   }
 
   // OSINT & Telegram
   const tg = d.tg || raw.sources?.Telegram || {};
   const urgent = tg.urgent || [];
   if (urgent.length > 0) {
-    console.log(`\n📡 Sürgős OSINT Jelek (Telegram):`);
+    const tgTitle = lang === 'hu' ? 'Sürgős OSINT Jelek (Telegram)' : 'Urgent OSINT Signals (Telegram)';
+    console.log(`\n📡 ${tgTitle}:`);
     for (const post of urgent.slice(0, 3)) {
       const text = (post.text || '').replace(/\s+/g, ' ').substring(0, 110);
       console.log(`   • ${text}...`);
@@ -603,7 +764,8 @@ function showBriefing(synData, alertsData, riskData, opts) {
   // Top ideas
   const ideas = (d.ideas || []).slice(0, 3);
   if (ideas.length > 0) {
-    console.log(`\n💡 Elemzői Stratégiai Ötletek:`);
+    const ideasTitle = lang === 'hu' ? 'Elemzői Stratégiai Ötletek' : 'Analyst Strategic Ideas';
+    console.log(`\n💡 ${ideasTitle}:`);
     for (const idea of ideas) {
       const typeIcon = idea.type === 'long' ? '📈' : idea.type === 'hedge' ? '🛡️' : '👁️';
       console.log(`   ${typeIcon} [${idea.type?.toUpperCase()}] ${idea.title}`);
@@ -613,8 +775,9 @@ function showBriefing(synData, alertsData, riskData, opts) {
   console.log(`=============================================================\n`);
 }
 
-function showMarkets(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showMarkets(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const d = synData.data || {};
   const raw = synData.raw || loadLatestRaw() || {};
   const yf = raw.sources?.YFinance || {};
@@ -626,11 +789,12 @@ function showMarkets(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Piacok & Pénzügyi Indikátorok ${modeLabel} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Piacok & Pénzügyi Indikátorok' : 'Crucix Markets & Financial Indicators';
+  console.log(`\n=== ${title} ${modeLabel} ===\n`);
 
   const indexes = yf.indexes || markets.indexes || [];
   if (indexes.length > 0) {
-    console.log(`📈 Részvényindexek:`);
+    console.log(lang === 'hu' ? `📈 Részvényindexek:` : `📈 Stock Indexes:`);
     for (const idx of indexes) {
       console.log(`  • ${idx.name.padEnd(20)} : ${formatNumber(idx.price).padStart(10)}  (${formatPct(idx.changePct)})`);
     }
@@ -639,7 +803,7 @@ function showMarkets(synData, opts) {
 
   const commodities = yf.commodities || markets.commodities || [];
   if (commodities.length > 0) {
-    console.log(`⚡ Árupiac & Nyersanyagok:`);
+    console.log(lang === 'hu' ? `⚡ Árupiac & Nyersanyagok:` : `⚡ Commodities & Raw Materials:`);
     for (const c of commodities) {
       console.log(`  • ${c.name.padEnd(20)} : $${formatNumber(c.price).padStart(10)} (${formatPct(c.changePct)})`);
     }
@@ -648,7 +812,7 @@ function showMarkets(synData, opts) {
 
   const crypto = yf.crypto || markets.crypto || [];
   if (crypto.length > 0) {
-    console.log(`🪙 Kriptovaluták:`);
+    console.log(lang === 'hu' ? `🪙 Kriptovaluták:` : `🪙 Cryptocurrencies:`);
     for (const cr of crypto) {
       console.log(`  • ${cr.name.padEnd(20)} : $${formatNumber(cr.price).padStart(10)} (${formatPct(cr.changePct)})`);
     }
@@ -657,7 +821,7 @@ function showMarkets(synData, opts) {
 
   const rates = yf.rates || markets.rates || [];
   if (rates.length > 0) {
-    console.log(`📊 Kötvényhozamok & Kamatok:`);
+    console.log(lang === 'hu' ? `📊 Kötvényhozamok & Kamatok:` : `📊 Bond Yields & Rates:`);
     for (const r of rates) {
       console.log(`  • ${r.name.padEnd(20)} : ${formatNumber(r.price)}%`);
     }
@@ -665,8 +829,9 @@ function showMarkets(synData, opts) {
   }
 }
 
-function showEnergy(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showEnergy(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const d = synData.data || {};
   const raw = synData.raw || loadLatestRaw() || {};
   const energy = d.energy || {};
@@ -678,33 +843,49 @@ function showEnergy(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Energia & Árupiac ${modeLabel} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Energia & Árupiac' : 'Crucix Energy & Commodities';
+  console.log(`\n=== ${title} ${modeLabel} ===\n`);
 
-  console.log(`⚡ Kőolaj & Földgáz Árak:`);
+  console.log(lang === 'hu' ? `⚡ Kőolaj & Földgáz Árak:` : `⚡ Crude Oil & Natural Gas Prices:`);
   const wtiPct = yf['CL=F']?.changePct;
   const brentPct = yf['BZ=F']?.changePct;
   const natgasPct = yf['NG=F']?.changePct;
 
-  console.log(`  • WTI Nyersolaj   : $${formatNumber(energy.wti)} / hordó  ${wtiPct !== undefined ? `(${formatPct(wtiPct)})` : ''}`);
-  console.log(`  • Brent Nyersolaj : $${formatNumber(energy.brent)} / hordó ${brentPct !== undefined ? `(${formatPct(brentPct)})` : ''}`);
-  console.log(`  • Földgáz (NatGas): $${formatNumber(energy.natgas)} / MMBtu  ${natgasPct !== undefined ? `(${formatPct(natgasPct)})` : ''}`);
-
-  if (energy.crudeStocks) {
-    console.log(`\n📦 Nyersolaj Készletek (EIA):`);
-    console.log(`  • Készlet szint   : ${energy.crudeStocks} millió hordó`);
-  }
-
-  if (Array.isArray(energy.signals) && energy.signals.length > 0) {
-    console.log(`\n📡 Energiaipari Szignálok:`);
-    for (const s of energy.signals.slice(0, 5)) {
-      console.log(`  • ${s.title || s.label || JSON.stringify(s)}`);
+  if (lang === 'hu') {
+    console.log(`  • WTI Nyersolaj   : $${formatNumber(energy.wti)} / hordó  ${wtiPct !== undefined ? `(${formatPct(wtiPct)})` : ''}`);
+    console.log(`  • Brent Nyersolaj : $${formatNumber(energy.brent)} / hordó ${brentPct !== undefined ? `(${formatPct(brentPct)})` : ''}`);
+    console.log(`  • Földgáz (NatGas): $${formatNumber(energy.natgas)} / MMBtu  ${natgasPct !== undefined ? `(${formatPct(natgasPct)})` : ''}`);
+    if (energy.crudeStocks) {
+      console.log(`\n📦 Nyersolaj Készletek (EIA):`);
+      console.log(`  • Készlet szint   : ${energy.crudeStocks} millió hordó`);
+    }
+    if (Array.isArray(energy.signals) && energy.signals.length > 0) {
+      console.log(`\n📡 Energiaipari Szignálok:`);
+      for (const s of energy.signals.slice(0, 5)) {
+        console.log(`  • ${s.title || s.label || JSON.stringify(s)}`);
+      }
+    }
+  } else {
+    console.log(`  • WTI Crude Oil   : $${formatNumber(energy.wti)} / barrel  ${wtiPct !== undefined ? `(${formatPct(wtiPct)})` : ''}`);
+    console.log(`  • Brent Crude Oil : $${formatNumber(energy.brent)} / barrel ${brentPct !== undefined ? `(${formatPct(brentPct)})` : ''}`);
+    console.log(`  • Natural Gas     : $${formatNumber(energy.natgas)} / MMBtu   ${natgasPct !== undefined ? `(${formatPct(natgasPct)})` : ''}`);
+    if (energy.crudeStocks) {
+      console.log(`\n📦 Crude Oil Stocks (EIA):`);
+      console.log(`  • Inventory level : ${energy.crudeStocks} million barrels`);
+    }
+    if (Array.isArray(energy.signals) && energy.signals.length > 0) {
+      console.log(`\n📡 Energy Signals:`);
+      for (const s of energy.signals.slice(0, 5)) {
+        console.log(`  • ${s.title || s.label || JSON.stringify(s)}`);
+      }
     }
   }
   console.log('');
 }
 
-function showMetals(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showMetals(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const d = synData.data || {};
   const metals = d.metals || {};
 
@@ -714,16 +895,24 @@ function showMetals(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Nemesfémek ${modeLabel} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Nemesfémek' : 'Crucix Precious Metals';
+  console.log(`\n=== ${title} ${modeLabel} ===\n`);
 
-  console.log(`🥇 Arany & Ezüst Árak:`);
-  console.log(`  • Arany (Gold)  : $${formatNumber(metals.gold)} / oz   (${formatPct(metals.goldChangePct)})`);
-  console.log(`  • Ezüst (Silver): $${formatNumber(metals.silver)} / oz   (${formatPct(metals.silverChangePct)})`);
+  if (lang === 'hu') {
+    console.log(`🥇 Arany & Ezüst Árak:`);
+    console.log(`  • Arany (Gold)  : $${formatNumber(metals.gold)} / oz   (${formatPct(metals.goldChangePct)})`);
+    console.log(`  • Ezüst (Silver): $${formatNumber(metals.silver)} / oz   (${formatPct(metals.silverChangePct)})`);
+  } else {
+    console.log(`🥇 Gold & Silver Prices:`);
+    console.log(`  • Gold   : $${formatNumber(metals.gold)} / oz   (${formatPct(metals.goldChangePct)})`);
+    console.log(`  • Silver : $${formatNumber(metals.silver)} / oz   (${formatPct(metals.silverChangePct)})`);
+  }
   console.log('');
 }
 
-function showAlerts(alertsData, opts) {
-  let allList = alertsData.alerts || [];
+function showAlerts(alertsData, opts = {}) {
+  const lang = opts.lang || 'en';
+  let allList = alertsData?.alerts || [];
   if (opts.sinceMs) {
     const cutoff = Date.now() - opts.sinceMs;
     allList = allList.filter(a => {
@@ -753,24 +942,27 @@ function showAlerts(alertsData, opts) {
     return;
   }
 
-  const modeLabel = alertsData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  const timeDesc = opts.since ? ` [Elmúlt ${opts.since}]` : (opts.from ? ` [${opts.from}${opts.to ? ' - ' + opts.to : ''}]` : '');
-  console.log(`\n=== Crucix Riasztások ${modeLabel}${timeDesc} (Aktív: ${activeList.length} db, Összes: ${allList.length} db) ===\n`);
+  const modeLabel = alertsData?.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
+  const timeDesc = opts.since ? (lang === 'hu' ? ` [Elmúlt ${opts.since}]` : ` [Past ${opts.since}]`) : (opts.from ? ` [${opts.from}${opts.to ? ' - ' + opts.to : ''}]` : '');
+  const title = lang === 'hu' ? 'Crucix Riasztások' : 'Crucix Alerts';
+  const counts = lang === 'hu' ? `(Aktív: ${activeList.length} db, Összes: ${allList.length} db)` : `(Active: ${activeList.length}, Total: ${allList.length})`;
+  console.log(`\n=== ${title} ${modeLabel}${timeDesc} ${counts} ===\n`);
 
   if (items.length === 0) {
-    console.log(`✅ Nincs aktív riasztás.`);
+    console.log(lang === 'hu' ? `✅ Nincs aktív riasztás.` : `✅ No active alerts.`);
     return;
   }
 
   if (activeList.length === 0 && !opts.allAlerts) {
-    console.log(`ℹ️  Nincs aktív riasztás. (A legutóbbi ${items.length} feloldott riasztás megjelenítése):\n`);
+    console.log(lang === 'hu' ? `ℹ️  Nincs aktív riasztás. (A legutóbbi ${items.length} feloldott riasztás megjelenítése):\n` : `ℹ️  No active alerts. (Showing latest ${items.length} resolved alerts):\n`);
   }
 
   items.forEach((a, idx) => {
     const sev = a.severity ? `[${a.severity.toUpperCase()}]` : '[INFO]';
     const st = a.state ? `(${a.state})` : '';
-    const age = a.firstSeenAt ? formatAge(new Date(a.firstSeenAt).toISOString()) : '';
-    console.log(`${idx + 1}. ${sev} ${a.ruleName || a.ruleId || 'Riasztás'}: ${a.title || a.summary || ''} ${st} ${age}`);
+    const age = a.firstSeenAt ? formatAge(new Date(a.firstSeenAt).toISOString(), lang) : '';
+    const defaultRule = lang === 'hu' ? 'Riasztás' : 'Alert';
+    console.log(`${idx + 1}. ${sev} ${a.ruleName || a.ruleId || defaultRule}: ${a.title || a.summary || ''} ${st} ${age}`);
     if (a.summary && a.summary !== a.title) {
       console.log(`   📝 ${a.summary.substring(0, 150)}...`);
     }
@@ -778,34 +970,49 @@ function showAlerts(alertsData, opts) {
   console.log('');
 }
 
-function showRisk(riskData, opts) {
+function showRisk(riskData, opts = {}) {
+  const lang = opts.lang || 'en';
   if (opts.json) {
     console.log(JSON.stringify(riskData, null, 2));
     return;
   }
 
-  const modeLabel = riskData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
+  const modeLabel = riskData?.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
 
-  if (riskData.detail) {
+  if (riskData?.detail) {
     const det = riskData.detail;
-    console.log(`\n=== Crucix Ország Kockázati Profil: [${det.iso3}] ${det.name || ''} ${modeLabel} ===\n`);
-    console.log(`📊 Kockázati Pontszám: ${det.score !== null ? `${det.score}/100` : 'N/A'}`);
-    if (det.change24h !== undefined) console.log(`📈 24 órás változás   : ${det.change24h > 0 ? '+' : ''}${det.change24h}`);
-    if (det.coverage !== undefined) console.log(`📡 Adatlefedettség    : ${(det.coverage * 100).toFixed(0)}%`);
-    if (det.eventsCount !== undefined) console.log(`📌 Rögzített események: ${det.eventsCount} db`);
+    const title = lang === 'hu' ? `Crucix Ország Kockázati Profil: [${det.iso3}] ${det.name || ''}` : `Crucix Country Risk Profile: [${det.iso3}] ${det.name || ''}`;
+    console.log(`\n=== ${title} ${modeLabel} ===\n`);
+    const scoreLabel = lang === 'hu' ? 'Kockázati Pontszám' : 'Risk Score        ';
+    const scoreVal = det.score !== null ? `${det.score}/100` : 'N/A';
+    console.log(`📊 ${scoreLabel}: ${scoreVal}`);
+    if (det.change24h !== undefined) {
+      const changeLabel = lang === 'hu' ? '24 órás változás   ' : '24h change         ';
+      console.log(`📈 ${changeLabel}: ${det.change24h > 0 ? '+' : ''}${det.change24h}`);
+    }
+    if (det.coverage !== undefined) {
+      const covLabel = lang === 'hu' ? 'Adatlefedettség    ' : 'Data coverage      ';
+      console.log(`📡 ${covLabel}: ${(det.coverage * 100).toFixed(0)}%`);
+    }
+    if (det.eventsCount !== undefined) {
+      const evLabel = lang === 'hu' ? `📌 Rögzített események: ${det.eventsCount} db` : `📌 Recorded events    : ${det.eventsCount}`;
+      console.log(evLabel);
+    }
 
     if (Array.isArray(det.components) && det.components.length > 0) {
-      console.log(`\nKomponens Bontás:`);
+      console.log(lang === 'hu' ? `\nKomponens Bontás:` : `\nComponent Breakdown:`);
       for (const c of det.components) {
-        console.log(`  • ${c.key.padEnd(20)}: ${c.value !== null ? c.value : '--'} (Súly: ${c.weight})`);
+        const weightLabel = lang === 'hu' ? 'Súly' : 'Weight';
+        console.log(`  • ${c.key.padEnd(20)}: ${c.value !== null ? c.value : '--'} (${weightLabel}: ${c.weight})`);
       }
     }
     console.log('');
     return;
   }
 
-  const list = (riskData.list || []).slice(0, opts.limit);
-  console.log(`\n=== Crucix Geopolitikai Országkockázati Rangsor ${modeLabel} (Top ${list.length}) ===\n`);
+  const list = (riskData?.list || []).slice(0, opts.limit);
+  const rankingTitle = lang === 'hu' ? `Crucix Geopolitikai Országkockázati Rangsor` : `Crucix Geopolitical Country Risk Ranking`;
+  console.log(`\n=== ${rankingTitle} ${modeLabel} (Top ${list.length}) ===\n`);
 
   list.forEach((c, idx) => {
     const change = c.change24h ? `(${c.change24h > 0 ? '+' : ''}${c.change24h})` : '';
@@ -814,8 +1021,9 @@ function showRisk(riskData, opts) {
   console.log('');
 }
 
-function showEarthquakes(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showEarthquakes(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const d = synData.data || {};
   const raw = synData.raw || loadLatestRaw() || {};
   const quakes = (d.earthquakes || raw.sources?.USGS?.earthquakes || []).slice(0, opts.limit);
@@ -826,28 +1034,31 @@ function showEarthquakes(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Földrengések (USGS / EMSC) ${modeLabel} — Találatok: ${quakes.length} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Földrengések (USGS / EMSC)' : 'Crucix Earthquakes (USGS / EMSC)';
+  const countLabel = lang === 'hu' ? `Találatok: ${quakes.length}` : `Results: ${quakes.length}`;
+  console.log(`\n=== ${title} ${modeLabel} — ${countLabel} ===\n`);
 
   if (quakes.length === 0) {
-    console.log(`✅ Nem rögzítettünk jelentős földrengést a legutóbbi sweepben.`);
+    console.log(lang === 'hu' ? `✅ Nem rögzítettünk jelentős földrengést a legutóbbi sweepben.` : `✅ No significant earthquakes recorded in the latest sweep.`);
     return;
   }
 
   quakes.forEach((q, idx) => {
     const mag = q.magnitude ? `[M ${Number(q.magnitude).toFixed(1)}]` : '[M --]';
-    const place = q.place || q.title || 'Ismeretlen helyszín';
-    const age = q.time ? formatAge(q.time) : '';
-    const depth = q.depth ? `(${q.depth} km mélység)` : '';
-    const tsunami = q.tsunamiFlag ? ' 🌊 [TSUNAMI VESZÉLY JELZÉS!]' : '';
-    const felt = q.felt ? ` | Érezte: ${q.felt} fő` : '';
+    const place = q.place || q.title || (lang === 'hu' ? 'Ismeretlen helyszín' : 'Unknown location');
+    const age = q.time ? formatAge(q.time, lang) : '';
+    const depth = q.depth ? (lang === 'hu' ? `(${q.depth} km mélység)` : `(${q.depth} km depth)`) : '';
+    const tsunami = q.tsunamiFlag ? (lang === 'hu' ? ' 🌊 [TSUNAMI VESZÉLY JELZÉS!]' : ' 🌊 [TSUNAMI WARNING!]') : '';
+    const felt = q.felt ? (lang === 'hu' ? ` | Érezte: ${q.felt} fő` : ` | Felt: ${q.felt}`) : '';
     console.log(`${idx + 1}. ${mag} ${place} ${depth} ${tsunami} ${age}${felt}`);
     if (q.url) console.log(`   🔗 ${q.url}`);
   });
   console.log('');
 }
 
-function showThermal(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showThermal(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const raw = synData.raw || loadLatestRaw() || {};
   const firms = raw.sources?.FIRMS || {};
   const hotspots = firms.hotspots || [];
@@ -858,16 +1069,21 @@ function showThermal(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Termális Anomáliák & Tüzek (NASA FIRMS) ${modeLabel} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Termális Anomáliák & Tüzek (NASA FIRMS)' : 'Crucix Thermal Anomalies & Fires (NASA FIRMS)';
+  console.log(`\n=== ${title} ${modeLabel} ===\n`);
 
   if (hotspots.length === 0) {
-    console.log(`ℹ️  Nincs aktív termális hotspot adat.`);
+    console.log(lang === 'hu' ? `ℹ️  Nincs aktív termális hotspot adat.` : `ℹ️  No active thermal hotspot data.`);
     return;
   }
 
-  console.log(`📍 Megfigyelt Régiók Összesítése:`);
+  console.log(lang === 'hu' ? `📍 Megfigyelt Régiók Összesítése:` : `📍 Observed Regions Summary:`);
   for (const h of hotspots) {
-    console.log(`  • ${h.region.padEnd(16)}: ${h.totalDetections || 0} detektálás (${h.highConfidence || 0} magas megbízhatóságú, ${h.nightDetections || 0} éjszakai)`);
+    if (lang === 'hu') {
+      console.log(`  • ${h.region.padEnd(16)}: ${h.totalDetections || 0} detektálás (${h.highConfidence || 0} magas megbízhatóságú, ${h.nightDetections || 0} éjszakai)`);
+    } else {
+      console.log(`  • ${h.region.padEnd(16)}: ${h.totalDetections || 0} detections (${h.highConfidence || 0} high confidence, ${h.nightDetections || 0} night)`);
+    }
   }
 
   // Flatten high intensity hotspots
@@ -880,19 +1096,32 @@ function showThermal(synData, opts) {
   allIntense.sort((a, b) => (b.frp || 0) - (a.frp || 0));
 
   if (allIntense.length > 0) {
-    console.log(`\n🔥 Kiemelt Tűzpontok és FRP Intenzitás (Top ${Math.min(allIntense.length, opts.limit)}):`);
-    for (let i = 0; i < Math.min(allIntense.length, opts.limit); i++) {
+    const topCount = Math.min(allIntense.length, opts.limit);
+    const hotTitle = lang === 'hu' ? `🔥 Kiemelt Tűzpontok és FRP Intenzitás (Top ${topCount}):` : `🔥 Featured Fire Hotspots & FRP Intensity (Top ${topCount}):`;
+    console.log(`\n${hotTitle}`);
+    for (let i = 0; i < topCount; i++) {
       const it = allIntense[i];
-      const conf = it.confidence === 'h' ? 'Magas' : it.confidence === 'n' ? 'Közepes' : it.confidence;
-      const dn = it.daynight === 'D' ? 'Nappal' : 'Éjjel';
+      let conf = it.confidence;
+      if (lang === 'hu') {
+        conf = it.confidence === 'h' ? 'Magas' : it.confidence === 'n' ? 'Közepes' : it.confidence;
+      } else {
+        conf = it.confidence === 'h' ? 'High' : it.confidence === 'n' ? 'Medium' : it.confidence;
+      }
+      let dn = it.daynight;
+      if (lang === 'hu') {
+        dn = it.daynight === 'D' ? 'Nappal' : 'Éjjel';
+      } else {
+        dn = it.daynight === 'D' ? 'Day' : 'Night';
+      }
       console.log(`  ${i + 1}. [${it.region}] Lat: ${Number(it.lat).toFixed(2)}, Lon: ${Number(it.lon).toFixed(2)} | FRP: ${formatNumber(it.frp, 1)} MW | ${conf} (${dn}) - ${it.date || ''}`);
     }
   }
   console.log('');
 }
 
-function showChokepoints(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showChokepoints(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const d = synData.data || {};
   const raw = synData.raw || loadLatestRaw() || {};
   const chokepoints = d.chokepoints || raw.sources?.Maritime?.chokepoints || {};
@@ -903,12 +1132,13 @@ function showChokepoints(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Tengeri Fojtópontok & Szorosok ${modeLabel} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Tengeri Fojtópontok & Szorosok' : 'Crucix Maritime Chokepoints & Straits';
+  console.log(`\n=== ${title} ${modeLabel} ===\n`);
 
   const entries = Array.isArray(chokepoints) ? chokepoints : Object.entries(chokepoints).map(([k, v]) => ({ key: k, ...v }));
 
   entries.slice(0, opts.limit).forEach((cp, idx) => {
-    const label = cp.label || cp.name || cp.key || 'Szoros';
+    const label = cp.label || cp.name || cp.key || (lang === 'hu' ? 'Szoros' : 'Strait');
     const note = cp.note ? `| ${cp.note}` : '';
     const pos = (cp.lat !== undefined && cp.lon !== undefined) ? `(Lat: ${Number(cp.lat).toFixed(1)}, Lon: ${Number(cp.lon).toFixed(1)})` : '';
     console.log(`${(idx + 1 + '.').padEnd(4)} ${label.padEnd(24)} ${pos.padEnd(24)} ${note}`);
@@ -916,8 +1146,9 @@ function showChokepoints(synData, opts) {
   console.log('');
 }
 
-function showAir(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showAir(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const d = synData.data || {};
   const raw = synData.raw || loadLatestRaw() || {};
   const opensky = raw.sources?.OpenSky || {};
@@ -929,26 +1160,30 @@ function showAir(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Légtér & Katonai Repülés ${modeLabel} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Légtér & Katonai Repülés' : 'Crucix Airspace & Military Aviation';
+  console.log(`\n=== ${title} ${modeLabel} ===\n`);
 
   if (d.airMeta) {
-    console.log(`📡 OpenSky Forrás: ${d.airMeta.source || 'OpenSky'} (${d.airMeta.liveTotal || 0} repülő megfigyelve)`);
+    const obsWord = lang === 'hu' ? 'repülő megfigyelve' : 'flights observed';
+    console.log(`📡 OpenSky: ${d.airMeta.source || 'OpenSky'} (${d.airMeta.liveTotal || 0} ${obsWord})`);
   }
 
   const milObs = military.observations || military.signals || [];
   if (milObs.length > 0) {
-    console.log(`\n🎖️  Katonai Transzponderek Detektálva (${milObs.length} db):`);
+    const milTitle = lang === 'hu' ? `🎖️  Katonai Transzponderek Detektálva (${milObs.length} db):` : `🎖️  Military Transponders Detected (${milObs.length}):`;
+    console.log(`\n${milTitle}`);
     for (const m of milObs.slice(0, opts.limit)) {
       console.log(`  • ${m.title || m.summary || m.callsign || JSON.stringify(m)}`);
     }
   } else {
-    console.log(`ℹ️  Nincs különleges katonai transzponder riasztás.`);
+    console.log(lang === 'hu' ? `ℹ️  Nincs különleges katonai transzponder riasztás.` : `ℹ️  No unusual military transponder alerts.`);
   }
   console.log('');
 }
 
-function showCyber(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showCyber(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const raw = synData.raw || loadLatestRaw() || {};
   const cisa = raw.sources?.['CISA-KEV'] || {};
   const threatfox = raw.sources?.ThreatFox || {};
@@ -959,11 +1194,13 @@ function showCyber(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Kiberbiztonság & Sebezhetőségek ${modeLabel} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Kiberbiztonság & Sebezhetőségek' : 'Crucix Cybersecurity & Vulnerabilities';
+  console.log(`\n=== ${title} ${modeLabel} ===\n`);
 
   const vulns = cisa.vulnerabilities || cisa.signals || [];
   if (vulns.length > 0) {
-    console.log(`🛡️  CISA KEV Aktívan Kihasznált Sérülékenységek (${vulns.length} db):`);
+    const cisaTitle = lang === 'hu' ? `🛡️  CISA KEV Aktívan Kihasznált Sérülékenységek (${vulns.length} db):` : `🛡️  CISA KEV Actively Exploited Vulnerabilities (${vulns.length}):`;
+    console.log(cisaTitle);
     vulns.slice(0, opts.limit).forEach((v, idx) => {
       const cve = v.cveID || v.id || 'CVE';
       const prod = v.product ? `[${v.vendorProject || ''} ${v.product}]` : '';
@@ -972,12 +1209,13 @@ function showCyber(synData, opts) {
       if (v.shortDescription) console.log(`     📝 ${v.shortDescription.substring(0, 120)}...`);
     });
   } else {
-    console.log(`✅ Nem rögzítettünk új kritikus CISA KEV bejegyzést.`);
+    console.log(lang === 'hu' ? `✅ Nem rögzítettünk új kritikus CISA KEV bejegyzést.` : `✅ No new critical CISA KEV entries recorded.`);
   }
 
   const tfObs = threatfox.observations || [];
   if (tfObs.length > 0) {
-    console.log(`\n🦊 ThreatFox Indikátorok (${tfObs.length} db):`);
+    const tfTitle = lang === 'hu' ? `🦊 ThreatFox Indikátorok (${tfObs.length} db):` : `🦊 ThreatFox Indicators (${tfObs.length}):`;
+    console.log(`\n${tfTitle}`);
     for (const t of tfObs.slice(0, 5)) {
       console.log(`  • ${t.title || t.summary || JSON.stringify(t)}`);
     }
@@ -985,8 +1223,9 @@ function showCyber(synData, opts) {
   console.log('');
 }
 
-function showOutages(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showOutages(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const raw = synData.raw || loadLatestRaw() || {};
   const ioda = raw.sources?.IODA || {};
   const radar = raw.sources?.['Cloudflare-Radar'] || {};
@@ -997,7 +1236,8 @@ function showOutages(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Hálózati & Internet Kimaradások (IODA) ${modeLabel} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Hálózati & Internet Kimaradások (IODA)' : 'Crucix Network & Internet Outages (IODA)';
+  console.log(`\n=== ${title} ${modeLabel} ===\n`);
 
   const outages = ioda.outages || ioda.signals || [];
   if (outages.length > 0) {
@@ -1005,13 +1245,14 @@ function showOutages(synData, opts) {
       console.log(`${idx + 1}. ${o.title || o.entity || o.label || JSON.stringify(o)}`);
     });
   } else {
-    console.log(`✅ Nem detektáltunk kiterjedt globális internetkimaradást.`);
+    console.log(lang === 'hu' ? `✅ Nem detektáltunk kiterjedt globális internetkimaradást.` : `✅ No widespread global internet outages detected.`);
   }
   console.log('');
 }
 
-function showPredictions(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showPredictions(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const raw = synData.raw || loadLatestRaw() || {};
   const pm = raw.sources?.['Prediction-Markets'] || {};
   const predFile = readJsonSafe(predictionsFile);
@@ -1022,25 +1263,30 @@ function showPredictions(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Predikciós Piacok (Manifold / Polymarket) ${modeLabel} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Predikciós Piacok (Manifold / Polymarket)' : 'Crucix Prediction Markets (Manifold / Polymarket)';
+  console.log(`\n=== ${title} ${modeLabel} ===\n`);
 
   const obs = pm.observations || [];
   if (obs.length > 0) {
     obs.slice(0, opts.limit).forEach((m, idx) => {
       const prob = m.probabilityPct !== undefined ? `${m.probabilityPct}%` : '--%';
-      const vol = m.volume ? `(Volumen: ${Number(m.volume).toLocaleString()})` : '';
-      console.log(`${idx + 1}. "${m.title || 'Piac'}"`);
-      console.log(`   📊 Valószínűség: ${prob} ${vol} | Zárás: ${m.closesAt || '--'} [${m.platform || 'Market'}]`);
+      const volWord = lang === 'hu' ? 'Volumen' : 'Volume';
+      const vol = m.volume ? `(${volWord}: ${Number(m.volume).toLocaleString()})` : '';
+      const probWord = lang === 'hu' ? 'Valószínűség' : 'Probability';
+      const closesWord = lang === 'hu' ? 'Zárás' : 'Closes';
+      console.log(`${idx + 1}. "${m.title || 'Market'}"`);
+      console.log(`   📊 ${probWord}: ${prob} ${vol} | ${closesWord}: ${m.closesAt || '--'} [${m.platform || 'Market'}]`);
       if (m.url) console.log(`   🔗 ${m.url}`);
     });
   } else {
-    console.log(`ℹ️  Nincs aktív predikciós piaci megfigyelés.`);
+    console.log(lang === 'hu' ? `ℹ️  Nincs aktív predikciós piaci megfigyelés.` : `ℹ️  No active prediction market observations.`);
   }
   console.log('');
 }
 
-function showHealth(synData, opts) {
-  if (!checkDataAvailable(synData)) return;
+function showHealth(synData, opts = {}) {
+  const lang = opts.lang || 'en';
+  if (!checkDataAvailable(synData, opts)) return;
   const raw = synData.raw || loadLatestRaw() || {};
   const meta = raw.crucix || {};
   const sources = raw.sources || {};
@@ -1051,16 +1297,25 @@ function showHealth(synData, opts) {
   }
 
   const modeLabel = synData.isFromApi ? '[API]' : '[STANDALONE / NO-SERVER]';
-  console.log(`\n=== Crucix Rendszerállapot & Forrásdiagnosztika ${modeLabel} ===\n`);
+  const title = lang === 'hu' ? 'Crucix Rendszerállapot & Forrásdiagnosztika' : 'Crucix System Health & Source Diagnostics';
+  console.log(`\n=== ${title} ${modeLabel} ===\n`);
 
-  console.log(`⏱️  Futási idő:         ${meta.totalDurationMs ? (meta.totalDurationMs / 1000).toFixed(1) + ' mp' : '--'}`);
-  console.log(`📡 Források állapota:   ${meta.sourcesOk || 0} rendben / ${meta.sourcesQueried || 0} lekérdezve`);
-  if (meta.sourcesFailed > 0) console.log(`❌ Sikertelen források: ${meta.sourcesFailed}`);
-  if (meta.sourcesDisabled > 0) console.log(`⏸️  Letiltott források:  ${meta.sourcesDisabled}`);
-  console.log(`🕒 Utolsó sweep:        ${meta.timestamp || '--'}\n`);
+  if (lang === 'hu') {
+    console.log(`⏱️  Futási idő:         ${meta.totalDurationMs ? (meta.totalDurationMs / 1000).toFixed(1) + ' mp' : '--'}`);
+    console.log(`📡 Források állapota:   ${meta.sourcesOk || 0} rendben / ${meta.sourcesQueried || 0} lekérdezve`);
+    if (meta.sourcesFailed > 0) console.log(`❌ Sikertelen források: ${meta.sourcesFailed}`);
+    if (meta.sourcesDisabled > 0) console.log(`⏸️  Letiltott források:  ${meta.sourcesDisabled}`);
+    console.log(`🕒 Utolsó sweep:        ${meta.timestamp || '--'}\n`);
+  } else {
+    console.log(`⏱️  Runtime:           ${meta.totalDurationMs ? (meta.totalDurationMs / 1000).toFixed(1) + ' s' : '--'}`);
+    console.log(`📡 Sources status:     ${meta.sourcesOk || 0} OK / ${meta.sourcesQueried || 0} queried`);
+    if (meta.sourcesFailed > 0) console.log(`❌ Failed sources:     ${meta.sourcesFailed}`);
+    if (meta.sourcesDisabled > 0) console.log(`⏸️  Disabled sources:   ${meta.sourcesDisabled}`);
+    console.log(`🕒 Last sweep:         ${meta.timestamp || '--'}\n`);
+  }
 
   if (opts.sources) {
-    console.log(`Elérhető OSINT Források listája:`);
+    console.log(lang === 'hu' ? `Elérhető OSINT Források listája:` : `Available OSINT Sources List:`);
     const entries = Object.entries(sources).sort((a, b) => a[0].localeCompare(b[0]));
     entries.forEach(([name, s]) => {
       const st = s.error ? '❌ FAIL' : s.stale ? '⏳ STALE' : s.disabled ? '⏸️ DIS' : '✅ OK';
@@ -1070,14 +1325,20 @@ function showHealth(synData, opts) {
   }
 }
 
-function showSourceData(sourceName, synData, opts) {
+function showSourceData(sourceName, synData, opts = {}) {
+  const lang = opts.lang || 'en';
   const raw = synData.raw || loadLatestRaw() || {};
   const sources = raw.sources || {};
 
   const matchKey = Object.keys(sources).find(k => k.toLowerCase() === sourceName.toLowerCase());
   if (!matchKey || !sources[matchKey]) {
-    console.error(`❌ Nem található ilyen forrás: "${sourceName}".`);
-    console.log(`Tipp: Futtasd az 'npm run cli -- --sources' parancsot az elérhető források listájához.`);
+    if (lang === 'hu') {
+      console.error(`❌ Nem található ilyen forrás: "${sourceName}".`);
+      console.log(`Tipp: Futtasd az 'npm run cli -- --sources' parancsot az elérhető források listájához.`);
+    } else {
+      console.error(`❌ Source not found: "${sourceName}".`);
+      console.log(`Tip: Run 'npm run cli -- --sources' to list available sources.`);
+    }
     return;
   }
 
@@ -1087,12 +1348,14 @@ function showSourceData(sourceName, synData, opts) {
     return;
   }
 
-  console.log(`\n=== Crucix Forrásadatok: [${matchKey}] ===\n`);
+  const title = lang === 'hu' ? `Crucix Forrásadatok: [${matchKey}]` : `Crucix Source Data: [${matchKey}]`;
+  console.log(`\n=== ${title} ===\n`);
   console.log(JSON.stringify(data, null, 2));
   console.log('');
 }
 
-function showSweeps(opts) {
+function showSweeps(opts = {}) {
+  const lang = opts.lang || 'en';
   const data = readJsonSafe(sweepsFile);
   const sweeps = data?.sweeps || [];
 
@@ -1101,16 +1364,19 @@ function showSweeps(opts) {
     return;
   }
 
-  console.log(`\n=== Crucix Sweep Archívum (Összesen: ${sweeps.length} db) ===\n`);
+  const title = lang === 'hu' ? `Crucix Sweep Archívum (Összesen: ${sweeps.length} db)` : `Crucix Sweeps Archive (Total: ${sweeps.length})`;
+  console.log(`\n=== ${title} ===\n`);
   sweeps.slice(0, opts.limit).forEach((sw, idx) => {
-    const time = sw.timestamp ? formatAge(sw.timestamp) : '';
+    const time = sw.timestamp ? formatAge(sw.timestamp, lang) : '';
     const kb = sw.bytes ? `${(sw.bytes / 1024).toFixed(0)} KB` : '';
-    console.log(`${idx + 1}. [${sw.id || 'sweep'}] ${sw.ok}/${sw.total} forrás OK (${kb})  ${time}`);
+    const okWord = lang === 'hu' ? 'forrás OK' : 'sources OK';
+    console.log(`${idx + 1}. [${sw.id || 'sweep'}] ${sw.ok}/${sw.total} ${okWord} (${kb})  ${time}`);
   });
   console.log('');
 }
 
-function showDelta(opts) {
+function showDelta(opts = {}) {
+  const lang = opts.lang || 'en';
   const hot = readJsonSafe(hotMemoryFile);
   const lastRun = hot?.runs?.[hot.runs.length - 1];
   const delta = lastRun?.delta;
@@ -1120,18 +1386,28 @@ function showDelta(opts) {
     return;
   }
 
-  console.log(`\n=== Crucix Intelligencia Delta & Változások ===\n`);
+  const title = lang === 'hu' ? 'Crucix Intelligencia Delta & Változások' : 'Crucix Intelligence Delta & Changes';
+  console.log(`\n=== ${title} ===\n`);
   if (!delta || !delta.summary) {
-    console.log(`ℹ️  Nincs elérhető delta információ (még nem futott több egymást követő sweep).`);
+    console.log(lang === 'hu' ? `ℹ️  Nincs elérhető delta információ (még nem futott több egymást követő sweep).` : `ℹ️  No delta information available yet (requires consecutive sweeps).`);
     return;
   }
 
   const s = delta.summary;
-  console.log(`🧭 Piaci Irány:      ${String(s.direction).toUpperCase()}`);
-  console.log(`🔄 Összes változás:  ${s.totalChanges}`);
-  console.log(`🚨 Kritikus változás: ${s.criticalChanges}`);
-  if (s.signalBreakdown) {
-    console.log(`📊 Szignál Bontás:   ${s.signalBreakdown.new || 0} új, ${s.signalBreakdown.escalated || 0} eszkalálódott, ${s.signalBreakdown.deescalated || 0} de-eszkalálódott`);
+  if (lang === 'hu') {
+    console.log(`🧭 Piaci Irány:      ${String(s.direction).toUpperCase()}`);
+    console.log(`🔄 Összes változás:  ${s.totalChanges}`);
+    console.log(`🚨 Kritikus változás: ${s.criticalChanges}`);
+    if (s.signalBreakdown) {
+      console.log(`📊 Szignál Bontás:   ${s.signalBreakdown.new || 0} új, ${s.signalBreakdown.escalated || 0} eszkalálódott, ${s.signalBreakdown.deescalated || 0} de-eszkalálódott`);
+    }
+  } else {
+    console.log(`🧭 Market Direction:  ${String(s.direction).toUpperCase()}`);
+    console.log(`🔄 Total Changes:     ${s.totalChanges}`);
+    console.log(`🚨 Critical Changes:  ${s.criticalChanges}`);
+    if (s.signalBreakdown) {
+      console.log(`📊 Signal Breakdown:  ${s.signalBreakdown.new || 0} new, ${s.signalBreakdown.escalated || 0} escalated, ${s.signalBreakdown.deescalated || 0} de-escalated`);
+    }
   }
   console.log('');
 }
@@ -1140,18 +1416,27 @@ function showDelta(opts) {
 
 async function main() {
   const opts = parseArgs();
+  const lang = getCliLanguage(opts);
+  opts.lang = lang;
 
   if (opts.help) {
-    printHelp();
+    printHelp(lang);
     return;
   }
 
   // 0a. Start server in headless / data collector mode (no browser popup)
   if (opts.serve) {
-    console.log('\n🚀 Crucix háttérszerver indítása Fejetlen (Headless / Adatgyűjtő) módban...');
-    console.log('🌐 Express REST API elindul (3117-es porton), kiszolgálja a CLI-t és a helyi hálózatot.');
-    console.log('🛑 A böngésző automatikus megnyitása letiltva (nincs felugró web UI).');
-    console.log('🛑 Leállításhoz: Nyomj Ctrl+C billentyűt\n');
+    if (lang === 'hu') {
+      console.log('\n🚀 Crucix háttérszerver indítása Fejetlen (Headless / Adatgyűjtő) módban...');
+      console.log('🌐 Express REST API elindul (3117-es porton), kiszolgálja a CLI-t és a helyi hálózatot.');
+      console.log('🛑 A böngésző automatikus megnyitása letiltva (nincs felugró web UI).');
+      console.log('🛑 Leállításhoz: Nyomj Ctrl+C billentyűt\n');
+    } else {
+      console.log('\n🚀 Starting Crucix backend server in Headless (Collector) mode...');
+      console.log('🌐 Express REST API starting on port 3117, serving CLI and local network.');
+      console.log('🛑 Automatic browser launch disabled (no web UI popup).');
+      console.log('🛑 To stop: Press Ctrl+C\n');
+    }
     process.env.NO_AUTO_OPEN = '1';
     process.env.HEADLESS = '1';
     await import(pathToFileURL(join(ROOT, 'server.mjs')).href);
@@ -1161,21 +1446,32 @@ async function main() {
   // 0b. Continuous data collector loop without any web server
   if (opts.collector) {
     const intervalMinutes = opts.interval || 15;
-    console.log('\n🔄 Crucix Folyamatos Adatgyűjtő Ciklus (Headless Collector)');
-    console.log(`⏱️  Gyakoriság:    Minden ${intervalMinutes} percben`);
-    console.log(`💾 Célkönyvtár:   ${runsDir}`);
-    console.log('🛑 Leállításhoz:  Nyomj Ctrl+C billentyűt\n');
+    if (lang === 'hu') {
+      console.log('\n🔄 Crucix Folyamatos Adatgyűjtő Ciklus (Headless Collector)');
+      console.log(`⏱️  Gyakoriság:    Minden ${intervalMinutes} percben`);
+      console.log(`💾 Célkönyvtár:   ${runsDir}`);
+      console.log('🛑 Leállításhoz:  Nyomj Ctrl+C billentyűt\n');
+    } else {
+      console.log('\n🔄 Crucix Continuous Collector Loop (Headless Collector)');
+      console.log(`⏱️  Interval:       Every ${intervalMinutes} minutes`);
+      console.log(`💾 Destination:    ${runsDir}`);
+      console.log('🛑 To stop:        Press Ctrl+C\n');
+    }
 
     const runCollection = async () => {
       const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-      console.log(`[${nowStr}] 🚀 Ütemezett sweep futtatása...`);
+      console.log(lang === 'hu' ? `[${nowStr}] 🚀 Ütemezett sweep futtatása...` : `[${nowStr}] 🚀 Running scheduled sweep...`);
       try {
         const rawData = await fullBriefing();
         if (!existsSync(runsDir)) mkdirSync(runsDir, { recursive: true });
         saveSnapshot(runsDir, rawData);
-        console.log(`[${nowStr}] ✅ Adatgyűjtés kész: ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} mp | Források: ${rawData.crucix.sourcesOk}/${rawData.crucix.sourcesQueried} OK | Mentve: ${latestFile}\n`);
+        if (lang === 'hu') {
+          console.log(`[${nowStr}] ✅ Adatgyűjtés kész: ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} mp | Források: ${rawData.crucix.sourcesOk}/${rawData.crucix.sourcesQueried} OK | Mentve: ${latestFile}\n`);
+        } else {
+          console.log(`[${nowStr}] ✅ Data collection complete: ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} s | Sources: ${rawData.crucix.sourcesOk}/${rawData.crucix.sourcesQueried} OK | Saved: ${latestFile}\n`);
+        }
       } catch (err) {
-        console.error(`[${nowStr}] ❌ Hiba a sweep során: ${err.message}\n`);
+        console.error(lang === 'hu' ? `[${nowStr}] ❌ Hiba a sweep során: ${err.message}\n` : `[${nowStr}] ❌ Error during sweep: ${err.message}\n`);
       }
     };
 
@@ -1186,26 +1482,36 @@ async function main() {
 
   // 0c. Standalone sweep execution without server
   if (opts.sweep) {
-    console.log('\n🚀 Egyszeri intelligencia sweep futtatása háttérszerver nélkül...');
+    console.log(lang === 'hu' ? '\n🚀 Egyszeri intelligencia sweep futtatása háttérszerver nélkül...' : '\n🚀 Running one-time intelligence sweep without server...');
     const rawData = await fullBriefing();
     try {
       if (!existsSync(runsDir)) mkdirSync(runsDir, { recursive: true });
       saveSnapshot(runsDir, rawData);
     } catch (e) {
-      console.error(`⚠️ Nem sikerült elmenteni a pillanatképet (${latestFile}): ${e.message}`);
+      console.error(lang === 'hu' ? `⚠️ Nem sikerült elmenteni a pillanatképet (${latestFile}): ${e.message}` : `⚠️ Failed to save snapshot (${latestFile}): ${e.message}`);
     }
 
     if (opts.json) {
       console.log(JSON.stringify(rawData, null, 2));
       return;
     }
-    console.log(`\n=== Crucix Sweep Sikeresen Befejeződött ===`);
-    console.log(`⏱️  Futási idő:          ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} mp`);
-    console.log(`📡 Források állapota:    ${rawData.crucix.sourcesOk}/${rawData.crucix.sourcesQueried} aktív`);
-    if (rawData.crucix.sourcesFailed > 0) console.log(`❌ Sikertelen források:  ${rawData.crucix.sourcesFailed}`);
-    if (rawData.crucix.sourcesStale > 0)  console.log(`⏳ Elavult források:    ${rawData.crucix.sourcesStale}`);
-    console.log(`💾 Mentve:               ${latestFile}`);
-    console.log(`💡 Most már lekérdezheted: npm run cli -- -b  (vagy -m, --risk, -a)\n`);
+    if (lang === 'hu') {
+      console.log(`\n=== Crucix Sweep Sikeresen Befejeződött ===`);
+      console.log(`⏱️  Futási idő:          ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} mp`);
+      console.log(`📡 Források állapota:    ${rawData.crucix.sourcesOk}/${rawData.crucix.sourcesQueried} aktív`);
+      if (rawData.crucix.sourcesFailed > 0) console.log(`❌ Sikertelen források:  ${rawData.crucix.sourcesFailed}`);
+      if (rawData.crucix.sourcesStale > 0)  console.log(`⏳ Elavult források:    ${rawData.crucix.sourcesStale}`);
+      console.log(`💾 Mentve:               ${latestFile}`);
+      console.log(`💡 Most már lekérdezheted: npm run cli -- -b  (vagy -m, --risk, -a)\n`);
+    } else {
+      console.log(`\n=== Crucix Sweep Completed Successfully ===`);
+      console.log(`⏱️  Runtime:             ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} s`);
+      console.log(`📡 Sources status:       ${rawData.crucix.sourcesOk}/${rawData.crucix.sourcesQueried} active`);
+      if (rawData.crucix.sourcesFailed > 0) console.log(`❌ Failed sources:       ${rawData.crucix.sourcesFailed}`);
+      if (rawData.crucix.sourcesStale > 0)  console.log(`⏳ Stale sources:        ${rawData.crucix.sourcesStale}`);
+      console.log(`💾 Saved to:             ${latestFile}`);
+      console.log(`💡 You can now query:    npm run cli -- -b  (or -m, --risk, -a)\n`);
+    }
     return;
   }
 
@@ -1366,13 +1672,19 @@ async function main() {
       console.log(JSON.stringify(Object.fromEntries(sorted), null, 2));
       return;
     }
-    console.log(`\n=== Crucix Világ Hírforrás Katalógus (191+ Ország, 539 Forrás) ===\n`);
+    const catTitle = lang === 'hu' ? 'Crucix Világ Hírforrás Katalógus (191+ Ország, 539 Forrás)' : 'Crucix World News Catalog (191+ Countries, 539 Outlets)';
+    console.log(`\n=== ${catTitle} ===\n`);
     for (let i = 0; i < sorted.length; i += 6) {
-      const chunk = sorted.slice(i, i + 6).map(([c, cnt]) => `${c}: ${cnt} forrás`.padEnd(16));
+      const chunk = sorted.slice(i, i + 6).map(([c, cnt]) => `${c}: ${cnt} ${lang === 'hu' ? 'forrás' : 'outlets'}`.padEnd(16));
       console.log('  ' + chunk.join(' '));
     }
-    console.log(`\nÖsszesen: ${sorted.length} ország, ${WORLD_FEEDS.length} ellenőrzött médium.`);
-    console.log(`Használat: npm run cli -- --feeds <ISO kód> (pl. npm run cli -- --feeds DE)\n`);
+    if (lang === 'hu') {
+      console.log(`\nÖsszesen: ${sorted.length} ország, ${WORLD_FEEDS.length} ellenőrzött médium.`);
+      console.log(`Használat: npm run cli -- --feeds <ISO kód> (pl. npm run cli -- --feeds DE)\n`);
+    } else {
+      console.log(`\nTotal: ${sorted.length} countries, ${WORLD_FEEDS.length} verified media outlets.`);
+      console.log(`Usage: npm run cli -- --feeds <ISO code> (e.g. npm run cli -- --feeds DE)\n`);
+    }
     return;
   }
 
@@ -1383,13 +1695,14 @@ async function main() {
       console.log(JSON.stringify(feeds, null, 2));
       return;
     }
-    console.log(`\n=== Hírforrások [${opts.country}] — Találatok: ${feeds.length} médium ===\n`);
+    const fTitle = lang === 'hu' ? `Hírforrások [${opts.country}] — Találatok: ${feeds.length} médium` : `News Feeds [${opts.country}] — Results: ${feeds.length} outlets`;
+    console.log(`\n=== ${fTitle} ===\n`);
     if (!feeds.length) {
-      console.log(`Nincs regisztrált médium ehhez az országhoz.`);
+      console.log(lang === 'hu' ? `Nincs regisztrált médium ehhez az országhoz.` : `No registered news feeds for this country.`);
     } else {
       feeds.forEach((f, idx) => {
-        const lang = f.lang ? `[${f.lang.toUpperCase()}] ` : '';
-        console.log(`${idx + 1}. ${lang}${f.source} (${f.url})`);
+        const fLang = f.lang ? `[${f.lang.toUpperCase()}] ` : '';
+        console.log(`${idx + 1}. ${fLang}${f.source} (${f.url})`);
       });
     }
     console.log('');
@@ -1403,7 +1716,8 @@ async function main() {
       console.log(JSON.stringify(matches, null, 2));
       return;
     }
-    console.log(`\n=== Forrás keresés: "${opts.searchFeeds}" — Találatok: ${matches.length} ===\n`);
+    const sTitle = lang === 'hu' ? `Forrás keresés: "${opts.searchFeeds}" — Találatok: ${matches.length}` : `Feed Search: "${opts.searchFeeds}" — Results: ${matches.length}`;
+    console.log(`\n=== ${sTitle} ===\n`);
     matches.slice(0, opts.limit).forEach((f, idx) => {
       console.log(`${idx + 1}. [${f.country}] ${f.source} (${f.url})`);
     });
@@ -1438,7 +1752,11 @@ async function main() {
     }
 
     if (items.length === 0 || opts.live) {
-      console.log(`\n📡 Élő hírek lekérése a(z) [${opts.country}] ország forrásaiból (közvetlen hálózati letöltés)...`);
+      if (lang === 'hu') {
+        console.log(`\n📡 Élő hírek lekérése a(z) [${opts.country}] ország forrásaiból (közvetlen hálózati letöltés)...`);
+      } else {
+        console.log(`\n📡 Fetching live news for [${opts.country}] sources (direct network fetch)...`);
+      }
       items = await fetchCountryLive(opts.country, opts.limit);
       fromCache = false;
     }
@@ -1448,19 +1766,24 @@ async function main() {
         console.log(JSON.stringify(items, null, 2));
         return;
       }
-      const modeLabel = fromCache ? '30 perces gyorsítótár' : 'élő letöltés';
+      const modeLabel = fromCache ? (lang === 'hu' ? '30 perces gyorsítótár' : '30-minute cache') : (lang === 'hu' ? 'élő letöltés' : 'live fetch');
       const serverLabel = opts.noServer ? ' [STANDALONE / NO-SERVER]' : '';
-      console.log(`\n=== Crucix Hírek [${opts.country}] (${items.length} db, ${modeLabel})${serverLabel} ===\n`);
+      const nTitle = lang === 'hu' ? `Crucix Hírek [${opts.country}] (${items.length} db, ${modeLabel})` : `Crucix News [${opts.country}] (${items.length} items, ${modeLabel})`;
+      console.log(`\n=== ${nTitle}${serverLabel} ===\n`);
       items.forEach((item, idx) => {
-        const time = item.date ? formatAge(item.date) : '';
-        const lang = item.lang ? `[${item.lang.toUpperCase()}] ` : '';
-        console.log(`${idx + 1}. [${item.source}] ${lang}${item.title}  ${time}`);
+        const time = item.date ? formatAge(item.date, lang) : '';
+        const iLang = item.lang ? `[${item.lang.toUpperCase()}] ` : '';
+        console.log(`${idx + 1}. [${item.source}] ${iLang}${item.title}  ${time}`);
         if (item.url) console.log(`   🔗 ${item.url}`);
       });
       console.log('');
       return;
     } else {
-      console.log(`⚠️ Nem sikerült hírforrást találni ehhez a kódhoz: ${opts.country}. Ellenőrzöm az archívumot...`);
+      if (lang === 'hu') {
+        console.log(`⚠️ Nem sikerült hírforrást találni ehhez a kódhoz: ${opts.country}. Ellenőrzöm az archívumot...`);
+      } else {
+        console.log(`⚠️ Could not find news for code: ${opts.country}. Checking archive...`);
+      }
     }
   }
 
@@ -1493,7 +1816,7 @@ async function main() {
     }
 
     if (!items.length) {
-      console.error('❌ Nincs elérhető aktuális hír. (Futott már le sweep vagy RSS gyűjtés?)');
+      console.error(lang === 'hu' ? '❌ Nincs elérhető aktuális hír. (Futott már le sweep vagy RSS gyűjtés?)' : '❌ No current news available (has a sweep or RSS collection run?)');
       process.exit(1);
     }
 
@@ -1504,10 +1827,11 @@ async function main() {
     }
 
     const serverLabel = opts.noServer ? ' [STANDALONE / NO-SERVER]' : '';
-    console.log(`\n=== Crucix Élő Hírek (${items.length} db)${serverLabel} ===\n`);
+    const lTitle = lang === 'hu' ? `Crucix Élő Hírek (${items.length} db)` : `Crucix Live News (${items.length} items)`;
+    console.log(`\n=== ${lTitle}${serverLabel} ===\n`);
     items.forEach((item, idx) => {
-      const src = item.source || 'Ismeretlen';
-      const time = item.timestamp ? formatAge(item.timestamp) : '';
+      const src = item.source || (lang === 'hu' ? 'Ismeretlen' : 'Unknown');
+      const time = item.timestamp ? formatAge(item.timestamp, lang) : '';
       const headline = item.headline || item.title || '';
       const c = item.country ? `[${item.country}] ` : '';
       const url = item.url ? ` (${item.url})` : '';
@@ -1540,12 +1864,17 @@ async function main() {
             console.log(JSON.stringify(apiRes.stats.byKind, null, 2));
             return;
           }
-          console.log(`\n=== Crucix Elérhető Eseménykategóriák ===\n`);
+          const cTitle = lang === 'hu' ? 'Crucix Elérhető Eseménykategóriák' : 'Crucix Available Event Categories';
+          console.log(`\n=== ${cTitle} ===\n`);
           const entries = Object.entries(apiRes.stats.byKind).sort((a, b) => b[1] - a[1]);
           entries.forEach(([kind, count]) => {
-            console.log(`  • ${kind.padEnd(16)} : ${count} esemény`);
+            console.log(`  • ${kind.padEnd(16)} : ${count} ${lang === 'hu' ? 'esemény' : 'events'}`);
           });
-          console.log(`\nÖsszesen: ${apiRes.stats.totalRecords} rögzített esemény.\n`);
+          if (lang === 'hu') {
+            console.log(`\nÖsszesen: ${apiRes.stats.totalRecords} rögzített esemény.\n`);
+          } else {
+            console.log(`\nTotal: ${apiRes.stats.totalRecords} recorded events.\n`);
+          }
           return;
         }
       }
@@ -1566,13 +1895,18 @@ async function main() {
       console.log(JSON.stringify(byKind, null, 2));
       return;
     }
-    const modeDesc = opts.noServer ? 'Standalone lemez archívum' : 'Offline Archívum';
-    console.log(`\n=== Crucix Elérhető Eseménykategóriák (${modeDesc}) ===\n`);
+    const modeDesc = opts.noServer ? (lang === 'hu' ? 'Standalone lemez archívum' : 'Standalone disk archive') : (lang === 'hu' ? 'Offline Archívum' : 'Offline archive');
+    const cTitle = lang === 'hu' ? `Crucix Elérhető Eseménykategóriák (${modeDesc})` : `Crucix Available Event Categories (${modeDesc})`;
+    console.log(`\n=== ${cTitle} ===\n`);
     const entries = Object.entries(byKind).sort((a, b) => b[1] - a[1]);
     entries.forEach(([kind, count]) => {
-      console.log(`  • ${kind.padEnd(16)} : ${count} esemény`);
+      console.log(`  • ${kind.padEnd(16)} : ${count} ${lang === 'hu' ? 'esemény' : 'events'}`);
     });
-    console.log(`\nÖsszesen: ${records.length} rögzített esemény.\n`);
+    if (lang === 'hu') {
+      console.log(`\nÖsszesen: ${records.length} rögzített esemény.\n`);
+    } else {
+      console.log(`\nTotal: ${records.length} recorded events.\n`);
+    }
     return;
   }
 
@@ -1626,15 +1960,21 @@ async function main() {
     return;
   }
 
-  const titlePrefix = opts.category ? `Kategória: [${opts.category}]` : 'Minden kategória';
-  const filterDesc = opts.search ? ` | Keresés: "${opts.search}"` : '';
-  const timeDesc = opts.since ? ` | Időtartam: elmúlt ${opts.since}` : (opts.from ? ` | Időtartam: ${opts.from}${opts.to ? ' - ' + opts.to : ''}` : '');
+  const titlePrefix = opts.category ? (lang === 'hu' ? `Kategória: [${opts.category}]` : `Category: [${opts.category}]`) : (lang === 'hu' ? 'Minden kategória' : 'All categories');
+  const filterDesc = opts.search ? (lang === 'hu' ? ` | Keresés: "${opts.search}"` : ` | Search: "${opts.search}"`) : '';
+  const timeDesc = opts.since ? (lang === 'hu' ? ` | Időtartam: elmúlt ${opts.since}` : ` | Time window: past ${opts.since}`) : (opts.from ? (lang === 'hu' ? ` | Időtartam: ${opts.from}${opts.to ? ' - ' + opts.to : ''}` : ` | Time window: ${opts.from}${opts.to ? ' - ' + opts.to : ''}`) : '');
   const serverLabel = opts.noServer ? ' [STANDALONE / NO-SERVER]' : (isFromApi ? ' [API]' : ' [OFFLINE]');
-  console.log(`\n=== Crucix Események (${titlePrefix}${filterDesc}${timeDesc})${serverLabel} — Találatok: ${records.length} ===\n`);
+  const evTitle = lang === 'hu' ? `Crucix Események (${titlePrefix}${filterDesc}${timeDesc})${serverLabel} — Találatok: ${records.length}` : `Crucix Events (${titlePrefix}${filterDesc}${timeDesc})${serverLabel} — Results: ${records.length}`;
+  console.log(`\n=== ${evTitle} ===\n`);
 
   if (records.length === 0) {
-    console.log(`Nincs találat a megadott feltételekre.`);
-    console.log(`Tipp: Próbáld a kategóriák listázását: npm run cli -- --categories\n`);
+    if (lang === 'hu') {
+      console.log(`Nincs találat a megadott feltételekre.`);
+      console.log(`Tipp: Próbáld a kategóriák listázását: npm run cli -- --categories\n`);
+    } else {
+      console.log(`No events found matching the specified criteria.`);
+      console.log(`Tip: Try listing categories: npm run cli -- --categories\n`);
+    }
     return;
   }
 
@@ -1643,7 +1983,7 @@ async function main() {
     const countryCode = rec.country || rec.location?.label || '';
     const country = countryCode ? ` 📍 ${countryCode}` : '';
     const timeVal = rec.publishedAt || rec.observedAt || rec.collectedAt || rec.firstSeenAt || rec.firstSeen;
-    const age = timeVal ? ` (${formatAge(timeVal)})` : '';
+    const age = timeVal ? ` (${formatAge(timeVal, lang)})` : '';
     const srcName = typeof rec.source === 'string' ? rec.source : (rec.source?.name || rec.source?.hostname || '');
     const src = srcName ? `[${srcName}] ` : '';
     const url = rec.url || rec.source?.url;
@@ -1662,6 +2002,8 @@ if (entryHref && import.meta.url === entryHref) {
 
 export {
   parseArgs,
+  getCliLanguage,
+  printHelp,
   formatAge,
   formatNumber,
   formatPct,
