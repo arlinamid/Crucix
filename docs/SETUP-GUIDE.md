@@ -4,21 +4,27 @@ This guide walks through configuring the **Crucix Intelligence Engine**, using t
 
 ---
 
-## ⚡ Quick Setup (Interactive Wizard)
+## ⚡ Quick Setup (1-Click Web UI or Interactive CLI)
 
-Starting with v2.38.0, Crucix includes a built-in interactive setup assistant that walks you through configuring your environment, tests notification connections, and automatically creates or updates `.env`.
-
-Run in your terminal:
+To make configuration seamless, **you never need to manually copy and paste links into your browser**. Crucix can automatically pop open registration pages and bots in your default browser, or launch a dedicated 1-click web setup center:
 
 ```bash
-# Using the standalone binary:
+# 🌐 1-Click Web Setup Center (Recommended):
 crucix setup
+# or open directly in your browser:
+crucix setup --web
 
-# Or running from source:
+# 💻 Terminal text wizard (with automated browser popups):
+crucix setup --cli
+
+# When running from source:
 npm run setup
 ```
 
-*(If you run `crucix` for the first time without arguments on a system with no `.env` file, the setup wizard will launch automatically.)*
+When the Crucix server is already running (`crucix --serve` or `npm start`), the setup center is also directly accessible in your browser:
+👉 **`http://localhost:3117/setup.html`** (or by clicking **🔑 Keys & Setup** in the dashboard topbar).
+
+*(If you run `crucix` for the first time without arguments on a system with no `.env` file, Crucix will automatically offer to launch the wizard.)*
 
 ---
 

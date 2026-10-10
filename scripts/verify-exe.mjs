@@ -68,8 +68,8 @@ try {
       RUNS_DIR: join(testIsolatedDir, '.crucix', 'runs'),
     },
   });
-  assert.ok(isolatedOut.includes('Crucix World News Catalog'), 'A bináris nem működött izolált könyvtárban');
-  assert.ok(isolatedOut.includes('191+ Countries'), 'A katalógus nem érhető el forrásfájlok nélkül');
+  assert.ok(isolatedOut.includes('Crucix World News Catalog') || isolatedOut.includes('Crucix Világ Hírforrás Katalógus'), 'A bináris nem működött izolált könyvtárban');
+  assert.ok(isolatedOut.includes('191+ Countries') || isolatedOut.includes('191+ Ország'), 'A katalógus nem érhető el forrásfájlok nélkül');
   console.log('✅ Teljes önállóság (standalone isolation) sikeres: a bináris forrásfájlok nélkül is 100%-ban működik!');
 } finally {
   try {

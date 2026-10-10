@@ -44,6 +44,7 @@ import { installAlertRoutes } from './lib/alerts/routes.mjs';
 import { attachAlertSummary, runAlertStep } from './lib/alerts/sweep.mjs';
 import { SweepArchive } from './lib/sweeps/archive.mjs';
 import { installSweepRoutes } from './lib/sweeps/routes.mjs';
+import { installSetupRoutes } from './lib/setup-wizard.mjs';
 import { archiveSweep } from './lib/sweeps/step.mjs';
 import { WORLD_FEEDS, getFeedsByCountry } from './apis/utils/news-feeds.mjs';
 import { parseFeed } from './apis/utils/rss.mjs';
@@ -381,6 +382,7 @@ installAlertRoutes(app, { engine: alertEngine, getSnapshot: () => freshLiveSnaps
   broadcast({ type: 'alerts', data: summary, newIds });
 }, security: { publicUrl: config.alerts.publicUrl, allowedHosts: config.alerts.allowedHosts }, language: currentLanguage });
 installSweepRoutes(app, { archive: sweepArchive, getCurrent: () => currentData });
+installSetupRoutes(app, { security: { publicUrl: config.alerts?.publicUrl, allowedHosts: config.alerts?.allowedHosts } });
 
 function archivedSweepCount() {
   try { return sweepArchive.list().length; } catch { return 0; }

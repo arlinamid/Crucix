@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { parseEnvContent, updateEnvFile } from '../lib/setup-wizard.mjs';
+import { parseEnvContent, updateEnvFile, startSetupWebServer } from '../lib/setup-wizard.mjs';
 
 test('parseEnvContent correctly parses environment variables', () => {
   const content = `
@@ -61,6 +61,59 @@ test('updateEnvFile updates existing keys and preserves other lines', () => {
     assert.equal(values.HOST, '127.0.0.1');
     assert.equal(values.TELEGRAM_CHAT_ID, '98765');
   } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('startSetupWebServer serves setup page and handles save API', async () => {
+  const tmpDir = mkdtempSync(join(tmpdir(), 'crucix-web-setup-test-'));
+  const envPath = join(tmpDir, '.env');
+  let webServer;
+
+  try {
+    webServer = await startSetupWebServer({
+      port: 39182,
+      envPath,
+      autoOpen: false,
+    });
+
+    assert.ok(webServer.setupUrl.includes('39182'));
+
+    // Test GET /setup.html
+    const resPage = await fetch(`http://localhost:${webServer.port}/setup.html`);
+    assert.equal(resPage.status, 200);
+    const html = await resPage.text();
+    assert.ok(html.includes('CRUCIX'));
+    assert.ok(html.includes('BotFather'));
+
+    // Test POST /api/setup/save
+    const resSave = await fetch(`http://localhost:${webServer.port}/api/setup/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        PORT: '3118',
+        CRUCIX_LANG: 'hu',
+        TELEGRAM_BOT_TOKEN: '987654:XYZ',
+      }),
+    });
+    assert.equal(resSave.status, 200);
+    const saveJson = await resSave.json();
+    assert.equal(saveJson.ok, true);
+
+    // Verify .env was saved on disk
+    const content = readFileSync(envPath, 'utf8');
+    const { values } = parseEnvContent(content);
+    assert.equal(values.PORT, '3118');
+    assert.equal(values.CRUCIX_LANG, 'hu');
+    assert.equal(values.TELEGRAM_BOT_TOKEN, '987654:XYZ');
+
+    // Test GET /api/setup/config
+    const resConfig = await fetch(`http://localhost:${webServer.port}/api/setup/config`);
+    assert.equal(resConfig.status, 200);
+    const configJson = await resConfig.json();
+    assert.equal(configJson.values.TELEGRAM_BOT_TOKEN, '987654:XYZ');
+  } finally {
+    if (webServer?.close) webServer.close();
     rmSync(tmpDir, { recursive: true, force: true });
   }
 });

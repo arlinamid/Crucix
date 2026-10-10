@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crucix Intelligence — Beállító Központ</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌐</text></svg>">
+  <link rel="stylesheet" href="vendor/fonts.css">
+  <style>
+    :root {
+      --bg: #03080e;
+      --panel: rgba(5, 14, 24, 0.92);
+      --panel-border: rgba(100, 240, 200, 0.2);
+      --panel-border-focus: rgba(100, 240, 200, 0.6);
+      --accent: #64f0c8;
+      --accent2: #44ccff;
+      --danger: #ff5f63;
+      --warn: #ffb84c;
+      --text: #e8f4f0;
+      --dim: #8aa0a8;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'Space Grotesk', system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(68, 204, 255, 0.08) 0%, transparent 60%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 32px 32px, 32px 32px;
+      padding: 24px 16px 80px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* TOP HEADER */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--panel-border);
+      padding-bottom: 20px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: #03080e;
+      background: var(--accent);
+      padding: 6px 12px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      box-shadow: 0 0 16px rgba(100, 240, 200, 0.35);
+    }
+
+    .title-group h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: var(--mono);
+      color: var(--text);
+    }
+
+    .title-group p {
+      font-size: 13px;
+      color: var(--dim);
+      margin-top: 2px;
+    }
+
+    .lang-switcher {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--panel-border);
+      border-radius: 4px;
+      padding: 4px;
+    }
+
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: var(--dim);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 8px;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: all 0.2s;
+    }
+
+    .lang-btn.active {
+      background: var(--accent);
+      color: #03080e;
+    }
+
+    /* SECTIONS */
+    .section-card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      position: relative;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 12px;
+    }
+
+    .section-title {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-desc {
+      font-size: 13px;
+      color: var(--dim);
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+
+    /* ACTION BUTTONS (ONE-CLICK) */
+    .action-btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .click-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(68, 204, 255, 0.08);
+      border: 1px solid rgba(68, 204, 255, 0.35);
+      color: #d9f7ff;
+      padding: 9px 14px;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .click-btn:hover {
+      background: rgba(68, 204, 255, 0.2);
+      border-color: var(--accent2);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(68, 204, 255, 0.2);
+    }
+
+    .click-btn.tg {
+      background: rgba(41, 169, 234, 0.12);
+      border-color: rgba(41, 169, 234, 0.4);
+      color: #b8e6ff;
+    }
+    .click-btn.tg:hover {
+      background: rgba(41, 169, 234, 0.25);
+      border-color: #29a9ea;
+    }
+
+    .click-btn.gold {
+      background: rgba(255, 184, 76, 0.1);
+      border-color: rgba(255, 184, 76, 0.35);
+      color: #ffe6b8;
+    }
+    .click-btn.gold:hover {
+      background: rgba(255, 184, 76, 0.22);
+      border-color: var(--warn);
+    }
+
+    /* FORM ELEMENTS */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .form-input, .form-select {
+      background: rgba(3, 8, 14, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 10px 12px;
+      outline: none;
+      transition: all 0.2s;
+      width: 100%;
+    }
+
+    .form-input:focus, .form-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(100, 240, 200, 0.25);
+    }
+
+    .form-select option {
+      background: #060e16;
+      color: #fff;
+    }
+
+    /* TEST BUTTON & STATUS */
+    .test-btn-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .test-btn {
+      background: rgba(100, 240, 200, 0.1);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 8px 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .test-btn:hover {
+      background: var(--accent);
+      color: #03080e;
+    }
+
+    .test-status {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .test-status.ok { color: var(--accent); }
+    .test-status.err { color: var(--danger); }
+    .test-status.loading { color: var(--warn); }
+
+    /* OSINT SOURCE CARDS */
+    .source-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .source-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 12px 16px;
+      border-radius: 6px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .source-info {
+      flex: 1;
+      min-width: 240px;
+    }
+
+    .source-name {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .source-sub {
+      font-size: 12px;
+      color: var(--dim);
+      margin-top: 2px;
+    }
+
+    .source-input-wrap {
+      flex: 1;
+      min-width: 240px;
+    }
+
+    /* BOTTOM SAVE BAR */
+    .footer-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(4, 12, 20, 0.95);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid var(--panel-border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 100;
+      box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    .footer-info {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--dim);
+    }
+
+    .footer-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .save-btn {
+      background: var(--accent);
+      color: #03080e;
+      border: none;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 10px 22px;
+      border-radius: 4px;
+      cursor: pointer;
+      box-shadow: 0 0 16px rgba(100, 240, 200, 0.4);
+      transition: all 0.2s;
+    }
+
+    .save-btn:hover {
+      background: #7affd8;
+      box-shadow: 0 0 24px rgba(100, 240, 200, 0.6);
+      transform: translateY(-1px);
+    }
+
+    .dashboard-btn {
+      background: transparent;
+      border: 1px solid var(--accent2);
+      color: var(--accent2);
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 18px;
+      border-radius: 4px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .dashboard-btn:hover {
+      background: rgba(68, 204, 255, 0.15);
+      color: #fff;
+    }
+
+    /* BANNER */
+    .banner {
+      display: none;
+      padding: 14px 18px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-family: var(--mono);
+      font-size: 13px;
+      animation: fadeIn 0.3s ease;
+    }
+    .banner.show { display: block; }
+    .banner.success {
+      background: rgba(100, 240, 200, 0.12);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+    }
+    .banner.error {
+      background: rgba(255, 95, 99, 0.12);
+      border: 1px solid var(--danger);
+      color: #ffd8d9;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 768px) {
+      .footer-bar { flex-direction: column; gap: 10px; align-items: stretch; }
+      .footer-actions { justify-content: space-between; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- HEADER -->
+    <header>
+      <div class="logo-group">
+        <div class="logo-badge">CRUCIX</div>
+        <div class="title-group">
+          <h1 id="i18n-header-title">Beállító Központ</h1>
+          <p id="i18n-header-sub">Konfiguráld a kulcsokat, értesítéseket és az AI motort 1 kattintással</p>
+        </div>
+      </div>
+      <div class="lang-switcher">
+        <button class="lang-btn" data-lang="hu" onclick="switchLang('hu')">HU</button>
+        <button class="lang-btn" data-lang="en" onclick="switchLang('en')">EN</button>
+        <button class="lang-btn" data-lang="fr" onclick="switchLang('fr')">FR</button>
+      </div>
+    </header>
+
+    <!-- NOTIFICATION BANNER -->
+    <div id="statusBanner" class="banner"></div>
+
+    <form id="setupForm" onsubmit="event.preventDefault(); saveConfig();">
+
+      <!-- 1. TELEGRAM -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <span>📱</span> <span id="i18n-tg-title">Telegram Értesítések & Távvezérlés</span>
+          </div>
+        </div>
+        <p class="section-desc" id="i18n-tg-desc">
+          A Crucix valós idejű riasztásokat küld Telegramra (földrengések, piaci zuhanás, katonai eszkaláció), és válaszol parancsokra (/brief, /status, /sweep, /alerts).
+        </p>
+
+        <!-- 1-CLICK ACTION BUTTONS -->
+        <div class="action-btn-row">
+          <a href="https://t.me/BotFather" target="_blank" rel="noopener" class="click-btn tg">
+            <span>🤖</span> <strong id="i18n-tg-btn1">1. @BotFather Megnyitása (Új bot)</strong>
+          </a>
+          <a href="https://t.me/userinfobot" target="_blank" rel="noopener" class="click-btn tg">
+            <span>🆔</span> <strong id="i18n-tg-btn2">2. @userinfobot Megnyitása (Chat ID)</strong>
+          </a>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="TELEGRAM_BOT_TOKEN">Telegram Bot Token</label>
+            <input type="text" id="TELEGRAM_BOT_TOKEN" name="TELEGRAM_BOT_TOKEN" class="form-input" placeholder="pl. 7123456789:AAFlkjhGFD..." autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="TELEGRAM_CHAT_ID">Telegram Chat ID</label>
+            <input type="text" id="TELEGRAM_CHAT_ID" name="TELEGRAM_CHAT_ID" class="form-input" placeholder="pl. 123456789" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="test-btn-wrap">
+          <button type="button" class="test-btn" onclick="testTelegram()">⚡ <span id="i18n-tg-test">Telegram Kapcsolat Tesztelése</span></button>
+          <span id="tgTestStatus" class="test-status"></span>
+        </div>
+      </div>
+
+      <!-- 2. DISCORD -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <span>💬</span> <span id="i18n-dc-title">Discord Webhook Riasztások</span>
+          </div>
+        </div>
+        <p class="section-desc" id="i18n-dc-desc">
+          Közvetlen értesítések küldése egy Discord szervercsatornára. Nincs szükség bot fejlesztésre, elég a csatorna beállításokból kimásolni a Webhook URL-t.
+        </p>
+
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label class="form-label" for="DISCORD_WEBHOOK_URL">Discord Webhook URL</label>
+          <input type="url" id="DISCORD_WEBHOOK_URL" name="DISCORD_WEBHOOK_URL" class="form-input" placeholder="https://discord.com/api/webhooks/..." autocomplete="off">
+        </div>
+
+        <div class="test-btn-wrap">
+          <button type="button" class="test-btn" onclick="testDiscord()">⚡ <span id="i18n-dc-test">Discord Webhook Tesztelése</span></button>
+          <span id="dcTestStatus" class="test-status"></span>
+        </div>
+      </div>
+
+      <!-- 3. AI / LLM ENGINE -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <span>🤖</span> <span id="i18n-ai-title">Mesterséges Intelligencia (AI / LLM) Motor</span>
+          </div>
+        </div>
+        <p class="section-desc" id="i18n-ai-desc">
+          Az AI vezetői jelentéseket, szöveges elemzéseket és piaci kereskedési ötleteket generál a 71 adatforrás alapján.
+        </p>
+
+        <div class="form-grid" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label class="form-label" for="LLM_PROVIDER" id="i18n-ai-provider-label">AI Szolgáltató</label>
+            <select id="LLM_PROVIDER" name="LLM_PROVIDER" class="form-select" onchange="updateAiFields()">
+              <option value="cursor">Cursor IDE (Beépített modell — Zero-config, ingyenes)</option>
+              <option value="ollama">Ollama (Helyi, 100% privát, ingyenes)</option>
+              <option value="openai-compatible">OpenAI-kompatibilis (LM Studio, llama.cpp, vLLM)</option>
+              <option value="anthropic">Anthropic Claude (Claude 3.5 / 3.7 Sonnet)</option>
+              <option value="openai">OpenAI (GPT-4o, GPT-5)</option>
+              <option value="gemini">Google Gemini (Gemini 2.5 Flash / Pro)</option>
+              <option value="">Szabályalapú (AI nélkül, azonnali és ingyenes)</option>
+            </select>
+          </div>
+          <div class="form-group" id="aiModelGroup">
+            <label class="form-label" for="LLM_MODEL">Modell Felülbírálás</label>
+            <input type="text" id="LLM_MODEL" name="LLM_MODEL" class="form-input" placeholder="Alapértelmezett modell használata">
+          </div>
+        </div>
+
+        <!-- Dynamic AI Key & URL fields -->
+        <div id="aiDynamicFields" class="form-grid" style="margin-bottom: 14px;">
+          <div class="form-group" id="aiKeyGroup">
+            <label class="form-label" for="LLM_API_KEY">AI API Kulcs</label>
+            <input type="password" id="LLM_API_KEY" name="LLM_API_KEY" class="form-input" placeholder="sk-..." autocomplete="off">
+          </div>
+          <div class="form-group" id="aiUrlGroup">
+            <label class="form-label" for="LLM_BASE_URL">API Base URL</label>
+            <input type="url" id="LLM_BASE_URL" name="LLM_BASE_URL" class="form-input" placeholder="http://localhost:11434">
+          </div>
+        </div>
+
+        <div class="action-btn-row" id="aiKeyButtons">
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" class="click-btn gold" id="btnAnthropicKey">
+            <span>🔑</span> <strong>Anthropic Claude API Kulcs Kérése</strong>
+          </a>
+          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener" class="click-btn gold" id="btnOpenAiKey">
+            <span>🔑</span> <strong>OpenAI API Kulcs Kérése</strong>
+          </a>
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="click-btn gold" id="btnGeminiKey">
+            <span>🔑</span> <strong>Google Gemini API Kulcs Kérése</strong>
+          </a>
+        </div>
+      </div>
+
+      <!-- 4. INGYENES OSINT KULCSOK -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <span>🌐</span> <span id="i18n-osint-title">Ingyenes Geopolitikai & OSINT API Kulcsok</span>
+          </div>
+        </div>
+        <p class="section-desc" id="i18n-osint-desc">
+          A források zöme (USGS földrengések, 539 nemzetközi RSS hírforrás, kiberbiztonság, IODA) kulcs NÉLKÜL is azonnal működik. Az alábbi ingyenes regisztrációkkal növelheted az adatfrissítés sebességét:
+        </p>
+
+        <div class="source-list">
+          <!-- FIRMS -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">🔥 NASA FIRMS (Műholdas Tűz & Hőtérkép)</div>
+              <div class="source-sub">Ingyenes műholdas érzékelés Közel-Keleten, Ukrajnában</div>
+            </div>
+            <a href="https://firms.modaps.eosdis.nasa.gov/api" target="_blank" rel="noopener" class="click-btn">
+              <span>🔑</span> <strong>Kulcs kérése (Kattints ide)</strong>
+            </a>
+            <div class="source-input-wrap">
+              <input type="text" id="FIRMS_MAP_KEY" name="FIRMS_MAP_KEY" class="form-input" placeholder="FIRMS_MAP_KEY" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- FRED -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">📊 FRED (Amerikai Jegybanki Makroadatok)</div>
+              <div class="source-sub">Kamatok, infláció, VIX, kincstárjegy hozamok</div>
+            </div>
+            <a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" rel="noopener" class="click-btn">
+              <span>🔑</span> <strong>Kulcs kérése (Kattints ide)</strong>
+            </a>
+            <div class="source-input-wrap">
+              <input type="text" id="FRED_API_KEY" name="FRED_API_KEY" class="form-input" placeholder="FRED_API_KEY" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- EIA -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">⚡ EIA (Globális Energia, Olaj & Gáz)</div>
+              <div class="source-sub">WTI, Brent, földgáz készletinformációk</div>
+            </div>
+            <a href="https://api.eia.gov/register" target="_blank" rel="noopener" class="click-btn">
+              <span>🔑</span> <strong>Regisztráció (Kattints ide)</strong>
+            </a>
+            <div class="source-input-wrap">
+              <input type="text" id="EIA_API_KEY" name="EIA_API_KEY" class="form-input" placeholder="EIA_API_KEY" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- AISSTREAM -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">🚢 AISStream (Élő Tengeri Hajóforgalom)</div>
+              <div class="source-sub">11 tengeri szoros és fojtópont (Hormuz, Szuez, Malakka)</div>
+            </div>
+            <a href="https://aisstream.io/account" target="_blank" rel="noopener" class="click-btn">
+              <span>🔑</span> <strong>Belépés GitHub-bal</strong>
+            </a>
+            <div class="source-input-wrap">
+              <input type="text" id="AISSTREAM_API_KEY" name="AISSTREAM_API_KEY" class="form-input" placeholder="AISSTREAM_API_KEY" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- CLOUDFLARE -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">🌐 Cloudflare Radar (Internetkimaradások)</div>
+              <div class="source-sub">Globális internetforgalmi anomáliák</div>
+            </div>
+            <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener" class="click-btn">
+              <span>🔑</span> <strong>Token készítése</strong>
+            </a>
+            <div class="source-input-wrap">
+              <input type="text" id="CLOUDFLARE_API_TOKEN" name="CLOUDFLARE_API_TOKEN" class="form-input" placeholder="CLOUDFLARE_API_TOKEN" autocomplete="off">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. SERVER SETTINGS -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <span>🖥️</span> <span id="i18n-srv-title">Dashboard & Hálózat</span>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="PORT">Dashboard Port</label>
+            <input type="number" id="PORT" name="PORT" class="form-input" value="3117" min="1024" max="65535">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="HOST">Hálózati Cím (HOST)</label>
+            <select id="HOST" name="HOST" class="form-select">
+              <option value="127.0.0.1">127.0.0.1 (Csak a helyi gépről érhető el — Biztonságos)</option>
+              <option value="0.0.0.0">0.0.0.0 (Elérhető a helyi hálózatról / LAN-ról is)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="CRUCIX_LANG">Alapértelmezett Nyelv</label>
+            <select id="CRUCIX_LANG" name="CRUCIX_LANG" class="form-select" onchange="switchLang(this.value)">
+              <option value="hu">Magyar (hu)</option>
+              <option value="en">English (en)</option>
+              <option value="fr">Français (fr)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style="height: 40px;"></div>
+
+      <!-- FOOTER SAVE BAR -->
+      <div class="footer-bar">
+        <div class="footer-info">
+          <span>📁 Célkonfiguráció: </span><strong id="targetEnvDisplay">~/.crucix/.env</strong>
+        </div>
+        <div class="footer-actions">
+          <a href="/" class="dashboard-btn" id="i18n-open-dash">Irány a Vezérlőpult</a>
+          <button type="submit" class="save-btn" id="i18n-save-btn">💾 Beállítások Mentése</button>
+        </div>
+      </div>
+
+    </form>
+  </div>
+
+  <script>
+    const I18N = {
+      hu: {
+        headerTitle: "Beállító Központ",
+        headerSub: "Konfiguráld a kulcsokat, értesítéseket és az AI motort 1 kattintással",
+        tgTitle: "Telegram Értesítések & Távvezérlés",
+        tgDesc: "A Crucix valós idejű riasztásokat küld Telegramra (földrengések, piaci zuhanás, katonai eszkaláció), és válaszol parancsokra (/brief, /status, /sweep, /alerts).",
+        tgBtn1: "1. @BotFather Megnyitása (Új bot)",
+        tgBtn2: "2. @userinfobot Megnyitása (Chat ID)",
+        tgTest: "Telegram Kapcsolat Tesztelése",
+        dcTitle: "Discord Webhook Riasztások",
+        dcDesc: "Közvetlen értesítések küldése egy Discord szervercsatornára. Nincs szükség bot fejlesztésre, elég a csatorna beállításokból kimásolni a Webhook URL-t.",
+        dcTest: "Discord Webhook Tesztelése",
+        aiTitle: "Mesterséges Intelligencia (AI / LLM) Motor",
+        aiDesc: "Az AI vezetői jelentéseket, szöveges elemzéseket és piaci kereskedési ötleteket generál a 71 adatforrás alapján.",
+        osintTitle: "Ingyenes Geopolitikai & OSINT API Kulcsok",
+        osintDesc: "A források zöme (USGS földrengések, 539 nemzetközi RSS hírforrás, kiberbiztonság, IODA) kulcs NÉLKÜL is azonnal működik. Az alábbi ingyenes regisztrációkkal növelheted az adatfrissítés sebességét:",
+        srvTitle: "Dashboard & Hálózat",
+        openDash: "Irány a Vezérlőpult",
+        saveBtn: "💾 Beállítások Mentése",
+      },
+      en: {
+        headerTitle: "Setup & Configuration Center",
+        headerSub: "Configure API keys, notifications, and AI engine with 1 click",
+        tgTitle: "Telegram Alerts & Remote Bot",
+        tgDesc: "Crucix dispatches real-time alerts to Telegram (earthquakes, market shocks, military escalation) and replies to commands (/brief, /status, /sweep, /alerts).",
+        tgBtn1: "1. Open @BotFather (Create bot)",
+        tgBtn2: "2. Open @userinfobot (Get Chat ID)",
+        tgTest: "Test Telegram Connection",
+        dcTitle: "Discord Webhook Alerts",
+        dcDesc: "Push intelligence alerts directly to your Discord server channel using an incoming webhook.",
+        dcTest: "Test Discord Webhook",
+        aiTitle: "Artificial Intelligence (AI / LLM) Engine",
+        aiDesc: "Generates cited executive briefings, automated trade ideas, and multi-domain syntheses.",
+        osintTitle: "Free Geopolitical & OSINT API Keys",
+        osintDesc: "Most sources (USGS quakes, 539 world RSS feeds, cyber threats, IODA) work out of the box with zero keys. These free sign-ups enhance resolution and rate limits:",
+        srvTitle: "Dashboard & Network",
+        openDash: "Open Dashboard",
+        saveBtn: "💾 Save Configuration",
+      },
+      fr: {
+        headerTitle: "Centre de Configuration",
+        headerSub: "Configurez les clés, notifications et le moteur IA en 1 clic",
+        tgTitle: "Alertes Telegram & Télécommande",
+        tgDesc: "Crucix envoie des alertes en temps réel sur Telegram et répond aux commandes (/brief, /status, /sweep, /alerts).",
+        tgBtn1: "1. Ouvrir @BotFather (Créer un bot)",
+        tgBtn2: "2. Ouvrir @userinfobot (Obtenir Chat ID)",
+        tgTest: "Tester la Connexion Telegram",
+        dcTitle: "Alertes Webhook Discord",
+        dcDesc: "Envoyez des alertes directement sur un canal Discord à l'aide d'un webhook entrant.",
+        dcTest: "Tester le Webhook Discord",
+        aiTitle: "Moteur d'Intelligence Artificielle (IA / LLM)",
+        aiDesc: "Génère des synthèses exécutives et des idées de trading automatiques.",
+        osintTitle: "Clés API OSINT Gratuites",
+        osintDesc: "La plupart des sources fonctionnent sans aucune clé. Ces inscriptions gratuites améliorent la fréquence d'actualisation :",
+        srvTitle: "Tableau de Bord & Réseau",
+        openDash: "Ouvrir le Tableau de bord",
+        saveBtn: "💾 Enregistrer la Configuration",
+      }
+    };
+
+    let currentLang = 'hu';
+
+    function switchLang(lang) {
+      if (!I18N[lang]) lang = 'hu';
+      currentLang = lang;
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+      });
+      document.getElementById('CRUCIX_LANG').value = lang;
+
+      const t = I18N[lang];
+      document.getElementById('i18n-header-title').textContent = t.headerTitle;
+      document.getElementById('i18n-header-sub').textContent = t.headerSub;
+      document.getElementById('i18n-tg-title').textContent = t.tgTitle;
+      document.getElementById('i18n-tg-desc').textContent = t.tgDesc;
+      document.getElementById('i18n-tg-btn1').textContent = t.tgBtn1;
+      document.getElementById('i18n-tg-btn2').textContent = t.tgBtn2;
+      document.getElementById('i18n-tg-test').textContent = t.tgTest;
+      document.getElementById('i18n-dc-title').textContent = t.dcTitle;
+      document.getElementById('i18n-dc-desc').textContent = t.dcDesc;
+      document.getElementById('i18n-dc-test').textContent = t.dcTest;
+      document.getElementById('i18n-ai-title').textContent = t.aiTitle;
+      document.getElementById('i18n-ai-desc').textContent = t.aiDesc;
+      document.getElementById('i18n-osint-title').textContent = t.osintTitle;
+      document.getElementById('i18n-osint-desc').textContent = t.osintDesc;
+      document.getElementById('i18n-srv-title').textContent = t.srvTitle;
+      document.getElementById('i18n-open-dash').textContent = t.openDash;
+      document.getElementById('i18n-save-btn').textContent = t.saveBtn;
+    }
+
+    function showBanner(text, type = 'success') {
+      const banner = document.getElementById('statusBanner');
+      banner.className = `banner show ${type}`;
+      banner.innerHTML = text;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function updateAiFields() {
+      const provider = document.getElementById('LLM_PROVIDER').value;
+      const keyGroup = document.getElementById('aiKeyGroup');
+      const urlGroup = document.getElementById('aiUrlGroup');
+      const buttons = document.getElementById('aiKeyButtons');
+
+      if (provider === 'cursor' || !provider) {
+        keyGroup.style.display = 'none';
+        urlGroup.style.display = 'none';
+        buttons.style.display = 'none';
+      } else if (provider === 'ollama') {
+        keyGroup.style.display = 'none';
+        urlGroup.style.display = 'flex';
+        document.getElementById('LLM_BASE_URL').placeholder = 'http://localhost:11434';
+        buttons.style.display = 'none';
+      } else if (provider === 'openai-compatible') {
+        keyGroup.style.display = 'flex';
+        urlGroup.style.display = 'flex';
+        document.getElementById('LLM_BASE_URL').placeholder = 'http://localhost:1234/v1';
+        buttons.style.display = 'none';
+      } else {
+        keyGroup.style.display = 'flex';
+        urlGroup.style.display = 'none';
+        buttons.style.display = 'flex';
+        document.getElementById('btnAnthropicKey').style.display = provider === 'anthropic' ? 'inline-flex' : 'none';
+        document.getElementById('btnOpenAiKey').style.display = provider === 'openai' ? 'inline-flex' : 'none';
+        document.getElementById('btnGeminiKey').style.display = provider === 'gemini' ? 'inline-flex' : 'none';
+      }
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/setup/config');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.targetEnv) {
+          document.getElementById('targetEnvDisplay').textContent = data.targetEnv;
+        }
+        if (data.values) {
+          for (const [k, v] of Object.entries(data.values)) {
+            const el = document.getElementById(k);
+            if (el && v !== undefined && v !== null) {
+              el.value = v;
+            }
+          }
+          if (data.values.CRUCIX_LANG) {
+            switchLang(data.values.CRUCIX_LANG);
+          }
+        }
+        updateAiFields();
+      } catch (err) {
+        console.warn('Could not load config via API:', err);
+      }
+    }
+
+    async function testTelegram() {
+      const statusEl = document.getElementById('tgTestStatus');
+      const botToken = document.getElementById('TELEGRAM_BOT_TOKEN').value.trim();
+      const chatId = document.getElementById('TELEGRAM_CHAT_ID').value.trim();
+
+      if (!botToken || !chatId) {
+        statusEl.className = 'test-status err';
+        statusEl.textContent = '❌ Kérlek add meg a Bot Tokent és a Chat ID-t!';
+        return;
+      }
+
+      statusEl.className = 'test-status loading';
+      statusEl.textContent = '⏳ Üzenet küldése...';
+
+      try {
+        const res = await fetch('/api/setup/test-telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ botToken, chatId })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          statusEl.className = 'test-status ok';
+          statusEl.textContent = '✅ Sikeres próbaüzenet elküldve! Ellenőrizd a Telegramot!';
+        } else {
+          statusEl.className = 'test-status err';
+          statusEl.textContent = `❌ Hiba: ${data.error || 'Nem sikerült elküldeni'}`;
+        }
+      } catch (err) {
+        statusEl.className = 'test-status err';
+        statusEl.textContent = `❌ Hálózati hiba: ${err.message}`;
+      }
+    }
+
+    async function testDiscord() {
+      const statusEl = document.getElementById('dcTestStatus');
+      const webhookUrl = document.getElementById('DISCORD_WEBHOOK_URL').value.trim();
+
+      if (!webhookUrl) {
+        statusEl.className = 'test-status err';
+        statusEl.textContent = '❌ Kérlek add meg a Discord Webhook URL-t!';
+        return;
+      }
+
+      statusEl.className = 'test-status loading';
+      statusEl.textContent = '⏳ Üzenet küldése...';
+
+      try {
+        const res = await fetch('/api/setup/test-discord', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ webhookUrl })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          statusEl.className = 'test-status ok';
+          statusEl.textContent = '✅ Sikeres próbaüzenet a Discord csatornán!';
+        } else {
+          statusEl.className = 'test-status err';
+          statusEl.textContent = `❌ Hiba: ${data.error || 'Nem sikerült elküldeni'}`;
+        }
+      } catch (err) {
+        statusEl.className = 'test-status err';
+        statusEl.textContent = `❌ Hálózati hiba: ${err.message}`;
+      }
+    }
+
+    async function saveConfig() {
+      const form = document.getElementById('setupForm');
+      const formData = new FormData(form);
+      const updates = {};
+      for (const [k, v] of formData.entries()) {
+        updates[k] = v;
+      }
+
+      // Automatically configure ALERT_NOTIFY_CHANNELS
+      const channels = [];
+      if (updates.TELEGRAM_BOT_TOKEN && updates.TELEGRAM_CHAT_ID) channels.push('telegram');
+      if (updates.DISCORD_WEBHOOK_URL) channels.push('discord');
+      if (channels.length > 0) {
+        updates.ALERT_NOTIFY_CHANNELS = channels.join(',');
+      }
+
+      updates.TRADE_IDEAS_LANG = updates.CRUCIX_LANG || 'hu';
+
+      try {
+        const res = await fetch('/api/setup/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showBanner('🎉 <strong>A beállítások sikeresen elmentve!</strong> Most már megnyithatod a vezérlőpultot vagy újraindíthatod a Crucix szervert.', 'success');
+        } else {
+          showBanner(`❌ Nem sikerült elmenteni: ${data.error || 'Ismeretlen hiba'}`, 'error');
+        }
+      } catch (err) {
+        showBanner(`❌ Mentési hiba: ${err.message}`, 'error');
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadConfig();
+    });
+  </script>
+</body>
+</html>

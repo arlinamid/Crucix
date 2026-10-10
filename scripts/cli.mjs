@@ -278,7 +278,7 @@ ${usage}
 
 Nyelvválasztás & Beállítás:
   -L, --lang <kód>                 Kimenet nyelve: en, hu, fr (alapértelmezett: en vagy CRUCIX_LANG)
-  setup, init, --setup             Interaktív beállító varázsló (.env, Telegram, Discord, AI, API kulcsok)
+  setup, init, --setup             Interaktív beállító varázsló (.env, Telegram, Discord, AI, API kulcsok) (--web / --cli)
 
 Intelligencia & Összefoglalók:
   -b, --brief                      Vezetői intelligencia összefoglaló (piaci irány, VIX, olaj, arany, OSINT)
@@ -380,7 +380,7 @@ ${usage}
 
 Language & Setup:
   -L, --lang <code>                Output language: en, hu, fr (default: en or CRUCIX_LANG)
-  setup, init, --setup             Interactive setup wizard (.env, Telegram, Discord, AI, API keys)
+  setup, init, --setup             Interactive setup wizard (.env, Telegram, Discord, AI, API keys) (--web / --cli)
 
 Intelligence & Briefings:
   -b, --brief                      Executive intelligence briefing (market direction, VIX, oil, gold, OSINT)
@@ -1462,7 +1462,9 @@ async function main() {
 
   // Interactive Setup Wizard
   if (opts.setup) {
-    await runSetupWizard();
+    const isCli = process.argv.includes('--cli');
+    const isWeb = process.argv.includes('--web');
+    await runSetupWizard({ cli: isCli, web: isWeb });
     return;
   }
 

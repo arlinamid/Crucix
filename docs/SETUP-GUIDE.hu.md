@@ -4,21 +4,27 @@ Ez az útmutató lépésről lépésre bemutatja a **Crucix** beállítását, a
 
 ---
 
-## ⚡ Gyors Beállítás (Interaktív Varázsló)
+## ⚡ Gyors Beállítás (1-Kattintásos Webes Felület vagy Terminálos Varázsló)
 
-A Crucix v2.38.0-tól kezdve tartalmaz egy beépített interaktív beállító varázslót, amely felteszi a szükséges kérdéseket, segít a kapcsolatok tesztelésében, és automatikusan létrehozza vagy frissíti a `.env` fájlt.
-
-Futtasd a terminálban:
+A kényelmes beállítás érdekében **nem kell kézzel linkeket másolgatni a böngészőbe**. A Crucix közvetlenül a böngészőben nyitja meg a szükséges botokat és regisztrációs oldalakat, vagy egy kényelmes, 1-kattintásos grafikus felületet indít el:
 
 ```bash
-# Ha a natív binárist használod:
+# 🌐 1-Kattintásos webes beállító központ (Ajánlott):
 crucix setup
+# vagy közvetlenül a webes felület indítása:
+crucix setup --web
 
-# Vagy ha forrásból futtatod:
+# 💻 Szöveges terminálos varázsló (automatikus böngésző-megnyitással):
+crucix setup --cli
+
+# Node.js forrásból futtatva:
 npm run setup
 ```
 
-*(Ha a `crucix` parancsot először futtatod egy teljesen új gépen és még nincs `.env` fájlod, a rendszer automatikusan felajánlja a varázsló elindítását!)*
+Ha a Crucix éles szervere már fut a háttérben (`crucix --serve` vagy `npm start`), a beállító központ a böngészőből közvetlenül elérhető:
+👉 **`http://localhost:3117/setup.html`** (vagy a dashboard fejlécében a **🔑 Keys & Setup** gombra kattintva).
+
+*(Ha a `crucix` parancsot először futtatod egy új gépen és még nincs `.env` fájlod, a rendszer automatikusan felajánlja a varázsló elindítását!)*
 
 ---
 

@@ -1147,6 +1147,7 @@ function renderTopbar(){
       ${D.delta?.summary ? `<span class="meta-pill">${t('dashboard.delta','DELTA')} <span class="v">${D.delta.summary.direction==='risk-off'?'&#x25B2; '+t('dashboard.riskOff','RISK-OFF'):D.delta.summary.direction==='risk-on'?'&#x25BC; '+t('dashboard.riskOn','RISK-ON'):'&#x25C6; '+t('dashboard.mixed','MIXED')}</span></span>` : ''}
       ${window.CrucixPalette?.button?.()||''}
       <button class="guide-btn" id="settingsTrigger" onclick="openSettings()" aria-haspopup="dialog">${t('dashboard.settings','Settings')}</button>
+      ${location.protocol==='file:'?'':`<button class="guide-btn" id="setupTrigger" onclick="window.open('/setup.html','_blank')" title="Kulcsok, Telegram, Discord és OSINT beállítása 1 kattintással">🔑 ${t('dashboard.setup','Keys & Setup')}</button>`}
       <button class="guide-btn" id="eventsTrigger" onclick="CrucixIntelligence.openEvents()" aria-haspopup="dialog">${t('intelligence.events','Events')}</button>
       <button class="guide-btn" id="historyTrigger" onclick="CrucixIntelligence.openHistory()" aria-haspopup="dialog">${t('intelligence.history','Event history')}</button>
       ${window.CrucixReplay?.button?.()||''}

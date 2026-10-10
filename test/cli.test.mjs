@@ -138,29 +138,35 @@ test('cli formatters: formatAge, formatNumber, formatPct', () => {
 });
 
 test('cli i18n: getCliLanguage resolves language code correctly', () => {
-  assert.equal(getCliLanguage({ lang: 'hu' }), 'hu');
-  assert.equal(getCliLanguage({ lang: 'HU' }), 'hu');
-  assert.equal(getCliLanguage({ lang: 'fr' }), 'fr');
-  assert.equal(getCliLanguage({ lang: 'en' }), 'en');
-  assert.equal(getCliLanguage({ lang: 'de' }), 'en'); // unsupported defaults to en
-  assert.equal(getCliLanguage({}), 'en');
-
-  const parsed1 = parseArgs(['--lang', 'hu']);
-  assert.equal(getCliLanguage(parsed1), 'hu');
-
-  const parsed2 = parseArgs(['-L', 'fr']);
-  assert.equal(getCliLanguage(parsed2), 'fr');
-
-  const origEnv = process.env.CRUCIX_LANG;
+  const origCrucixLang = process.env.CRUCIX_LANG;
+  const origLang = process.env.LANG;
+  const origLanguage = process.env.LANGUAGE;
+  delete process.env.CRUCIX_LANG;
+  delete process.env.LANG;
+  delete process.env.LANGUAGE;
   try {
+    assert.equal(getCliLanguage({ lang: 'hu' }), 'hu');
+    assert.equal(getCliLanguage({ lang: 'HU' }), 'hu');
+    assert.equal(getCliLanguage({ lang: 'fr' }), 'fr');
+    assert.equal(getCliLanguage({ lang: 'en' }), 'en');
+    assert.equal(getCliLanguage({ lang: 'de' }), 'en'); // unsupported defaults to en
+    assert.equal(getCliLanguage({}), 'en');
+
+    const parsed1 = parseArgs(['--lang', 'hu']);
+    assert.equal(getCliLanguage(parsed1), 'hu');
+
+    const parsed2 = parseArgs(['-L', 'fr']);
+    assert.equal(getCliLanguage(parsed2), 'fr');
+
     process.env.CRUCIX_LANG = 'hu';
     assert.equal(getCliLanguage({}), 'hu');
   } finally {
-    if (origEnv !== undefined) {
-      process.env.CRUCIX_LANG = origEnv;
-    } else {
-      delete process.env.CRUCIX_LANG;
-    }
+    if (origCrucixLang !== undefined) process.env.CRUCIX_LANG = origCrucixLang;
+    else delete process.env.CRUCIX_LANG;
+    if (origLang !== undefined) process.env.LANG = origLang;
+    else delete process.env.LANG;
+    if (origLanguage !== undefined) process.env.LANGUAGE = origLanguage;
+    else delete process.env.LANGUAGE;
   }
 });
 
