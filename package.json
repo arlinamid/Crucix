@@ -14,6 +14,7 @@
     "cli": "node scripts/cli.mjs",
     "build:exe": "node scripts/build-exe.mjs",
     "verify:exe": "node scripts/verify-exe.mjs",
+    "install:local": "node scripts/install-local.mjs",
     "benchmark:rss": "node scripts/benchmark-world-rss.mjs",
     "sweep": "node apis/briefing.mjs",
     "inject": "node dashboard/inject.mjs",

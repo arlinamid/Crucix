@@ -38,13 +38,14 @@ const { pathToFileURL } = require('node:url');
 function findCliPath() {
   const candidates = [
     process.env.CRUCIX_HOME,
+    path.join(os.homedir(), '.crucix'),
     process.cwd(),
     path.dirname(process.execPath),
     path.resolve(path.dirname(process.execPath), '..'),
     path.resolve(path.dirname(process.execPath), '..', '..'),
-    path.join(os.homedir(), '.crucix'),
     path.join(os.homedir(), 'Crucix'),
     path.join(os.homedir(), 'tools', 'Crucix'),
+    'D:\\\\tools\\\\Crucix',
   ].filter(Boolean);
 
   for (const dir of candidates) {
@@ -72,6 +73,19 @@ if (!cliPath) {
   console.error('vagy állítsd be a CRUCIX_HOME környezeti változót (%USERPROFILE%\\\\.crucix vagy ~/.crucix).\\n');
   process.exit(1);
 }
+
+const crucixHome = path.resolve(path.dirname(cliPath), '..');
+if (!process.env.CRUCIX_HOME) {
+  process.env.CRUCIX_HOME = crucixHome;
+}
+if (!process.env.RUNS_DIR) {
+  process.env.RUNS_DIR = path.join(crucixHome, 'runs');
+}
+
+// Ensure working folder is set to Crucix home directory
+try {
+  process.chdir(crucixHome);
+} catch (e) {}
 
 process.argv[1] = cliPath;
 import(pathToFileURL(cliPath).href).catch(err => {
