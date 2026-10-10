@@ -28,7 +28,9 @@ const helpOut = execFileSync(exePath, ['--help'], { encoding: 'utf8' });
 assert.ok(helpOut.includes('Crucix Intelligence CLI'), 'A --help kimenet nem tartalmazza a várt címsort');
 assert.ok(helpOut.includes('--sweep'), 'A --help kimenet nem tartalmazza a --sweep opciót');
 assert.ok(helpOut.includes('--collector'), 'A --help kimenet nem tartalmazza a --collector opciót');
-console.log('✅ --help sikeres');
+assert.ok(!helpOut.includes('npm run cli'), 'A bináris --help kimenete nem tartalmazhat npm parancsokat');
+assert.ok(helpOut.includes('crucix [options]') || helpOut.includes('crucix [opciók]'), 'A bináris --help kimenetének crucix szintaxist kell mutatnia');
+console.log('✅ --help sikeres (csak natív crucix parancsok, npm hivatkozás nélkül)');
 
 console.log('▶️ Futtatás: --categories --no-server tesztelése...');
 const catOut = execFileSync(exePath, ['--categories', '--no-server'], { encoding: 'utf8' });

@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path';
 import {
   parseArgs,
   getCliLanguage,
+  isExecutable,
+  getCliCmd,
   printHelp,
   formatAge,
   formatNumber,
@@ -173,6 +175,38 @@ test('cli i18n: printHelp executes cleanly in English and Hungarian', () => {
     assert.ok(logged.some(msg => msg.includes('Használat:')));
   } finally {
     console.log = origLog;
+  }
+});
+
+test('cli exe help: executable mode displays crucix command without npm references', () => {
+  const origEnv = process.env.CRUCIX_EXECUTABLE;
+  const origLog = console.log;
+  let logged = [];
+  console.log = (...args) => logged.push(args.join(' '));
+  try {
+    process.env.CRUCIX_EXECUTABLE = '1';
+    assert.equal(isExecutable(), true);
+    assert.equal(getCliCmd(), 'crucix');
+
+    printHelp('hu');
+    const huOutput = logged.join('\n');
+    assert.ok(huOutput.includes('crucix [opciók]'));
+    assert.ok(huOutput.includes('crucix -b'));
+    assert.ok(!huOutput.includes('npm run cli'), 'Hungarian exe help must not contain npm commands');
+
+    logged = [];
+    printHelp('en');
+    const enOutput = logged.join('\n');
+    assert.ok(enOutput.includes('crucix [options]'));
+    assert.ok(enOutput.includes('crucix -b'));
+    assert.ok(!enOutput.includes('npm run cli'), 'English exe help must not contain npm commands');
+  } finally {
+    console.log = origLog;
+    if (origEnv !== undefined) {
+      process.env.CRUCIX_EXECUTABLE = origEnv;
+    } else {
+      delete process.env.CRUCIX_EXECUTABLE;
+    }
   }
 });
 

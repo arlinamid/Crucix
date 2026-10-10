@@ -74,6 +74,8 @@ if (!cliPath) {
   process.exit(1);
 }
 
+process.env.CRUCIX_EXECUTABLE = '1';
+
 const crucixHome = path.resolve(path.dirname(cliPath), '..');
 if (!process.env.CRUCIX_HOME) {
   process.env.CRUCIX_HOME = crucixHome;

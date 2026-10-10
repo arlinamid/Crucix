@@ -3,7 +3,7 @@
 // Works with or without the web server running (direct disk fallback).
 // Supports 191+ countries world news feeds catalog (539 verified outlets)
 // and all 71 OSINT adapters, markets, energy, metals, thermal, earthquakes, chokepoints, cyber.
-// Usage: node scripts/cli.mjs [options] (or: npm run cli -- [options])
+// Usage: crucix [options] (or: node scripts/cli.mjs [options] / npm run cli -- [options])
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
@@ -243,13 +243,32 @@ function getCliLanguage(opts = {}) {
   return ['hu', 'fr'].includes(code) ? code : 'en';
 }
 
+function isExecutable() {
+  if (process.env.CRUCIX_EXECUTABLE === '1' || process.env.CRUCIX_IS_EXE === '1') return true;
+  if (process.execPath && /crucix(?:\.exe)?$/i.test(process.execPath)) return true;
+  const argv1 = process.argv[1] || '';
+  if (/crucix(?:\.exe)?$/i.test(argv1)) return true;
+  return false;
+}
+
+function getCliCmd() {
+  if (isExecutable()) return 'crucix';
+  if (process.env.npm_lifecycle_event === 'cli') return 'npm run cli --';
+  if (process.argv[1] && process.argv[1].endsWith('cli.mjs')) return 'node scripts/cli.mjs';
+  return 'crucix';
+}
+
 function printHelpHungarian() {
+  const isExe = isExecutable();
+  const c = getCliCmd();
+  const usage = isExe
+    ? `  crucix [opciók]`
+    : `  crucix [opciók]\n  node scripts/cli.mjs [opciók]\n  npm run cli -- [opciók]`;
   console.log(`
 Crucix Intelligence CLI — Parancssori Hír-, Esemény- és Hírszerzési Lekérdező
 ==========================================================================
 Használat:
-  node scripts/cli.mjs [opciók]
-  npm run cli -- [opciók]
+${usage}
 
 Nyelvválasztás:
   -L, --lang <kód>                 Kimenet nyelve: en, hu, fr (alapértelmezett: en vagy CRUCIX_LANG)
@@ -318,33 +337,39 @@ Világ Hírforrás Katalógus (191+ ország, 539 médium):
   --search-feeds <név>             Médium keresése a világkatalógusban (pl. --search-feeds "Spiegel")
 
 Példák:
-  npm run cli -- -b                          # Vezetői intelligencia összefoglaló (Briefing)
-  npm run cli -- -m                          # Piacok, VIX, arany, olaj, kripto áttekintése
-  npm run cli -- --earthquakes               # Legfrissebb földrengések (USGS)
-  npm run cli -- --thermal                   # NASA FIRMS műholdas hőtérkép
-  npm run cli -- --risk                      # Geopolitikai országkockázatok rangsora
-  npm run cli -- --risk UA                   # Ukrajna részletes kockázati profilja
-  npm run cli -- --cyber                     # Kiberbiztonsági sebezhetőségek (CISA KEV)
-  npm run cli -- --alerts                    # Riasztások és fenyegetettségi szint
-  npm run cli -- -c earthquake --since 14d   # Az elmúlt 2 hét földrengései
-  npm run cli -- -c market --since 7d        # Az elmúlt hét piaci mozgásai
-  npm run cli -- --alerts --since 14d        # Az elmúlt 2 hét riasztásai
-  npm run cli -- -q "Trump" --since 14d      # Szöveges keresés az elmúlt 2 hét híreiben
-  npm run cli -- --country JP --no-server    # Japán hírek a helyi RSS gyorsítótárból
-  npm run cli -- --collector                 # Folyamatos terminálos adatgyűjtő ciklus (15 percenként sweep)
-  npm run cli -- --serve                     # Crucix backend szerver indítása böngésző felnyitás NÉLKÜL
-  npm run cli -- --source-data USGS          # USGS forrás nyers adatainak megjelenítése
-  npm run cli -- -a                          # Átfogó terminál jelentés minden kulcsterületről
+  ${c} -b                          # Vezetői intelligencia összefoglaló (Briefing)
+  ${c} -m                          # Piacok, VIX, arany, olaj, kripto áttekintése
+  ${c} --earthquakes               # Legfrissebb földrengések (USGS)
+  ${c} --thermal                   # NASA FIRMS műholdas hőtérkép
+  ${c} --risk                      # Geopolitikai országkockázatok rangsora
+  ${c} --risk UA                   # Ukrajna részletes kockázati profilja
+  ${c} --cyber                     # Kiberbiztonsági sebezhetőségek (CISA KEV)
+  ${c} --alerts                    # Riasztások és fenyegetettségi szint
+  ${c} -c earthquake --since 14d   # Az elmúlt 2 hét földrengései
+  ${c} -c market --since 7d        # Az elmúlt hét piaci mozgásai
+  ${c} --alerts --since 14d        # Az elmúlt 2 hét riasztásai
+  ${c} -q "Trump" --since 14d      # Szöveges keresés az elmúlt 2 hét híreiben
+  ${c} --country JP --no-server    # Japán hírek a helyi RSS gyorsítótárból
+  ${c} --collector                 # Folyamatos terminálos adatgyűjtő ciklus (15 percenként sweep)
+  ${c} --serve                     # Crucix backend szerver indítása böngésző felnyitás NÉLKÜL
+  ${c} --source-data USGS          # USGS forrás nyers adatainak megjelenítése
+  ${c} -a                          # Átfogó terminál jelentés minden kulcsterületről
+  ${c} -b -L hu                    # Összefoglaló magyar nyelven
 `);
 }
 
 function printHelpEnglish() {
+  const isExe = isExecutable();
+  const c = getCliCmd();
+  const usage = isExe
+    ? `  crucix [options]`
+    : `  crucix [options]\n  node scripts/cli.mjs [options]\n  npm run cli -- [options]`;
+
   console.log(`
 Crucix Intelligence CLI — Command-Line Intelligence, Markets & News Query Terminal
 ==================================================================================
 Usage:
-  node scripts/cli.mjs [options]
-  npm run cli -- [options]
+${usage}
 
 Language:
   -L, --lang <code>                Output language: en, hu, fr (default: en or CRUCIX_LANG)
@@ -413,24 +438,24 @@ World News Catalog (191+ Countries, 539 Outlets):
   --search-feeds <name>            Search outlets in the world catalog (e.g. --search-feeds "Spiegel")
 
 Examples:
-  npm run cli -- -b                          # Executive intelligence briefing
-  npm run cli -- -m                          # Financial markets, VIX, gold, oil, crypto
-  npm run cli -- --earthquakes               # Latest earthquakes (USGS/EMSC)
-  npm run cli -- --thermal                   # NASA FIRMS satellite fire hotspots
-  npm run cli -- --risk                      # Geopolitical country risk rankings
-  npm run cli -- --risk UA                   # Ukraine detailed risk profile
-  npm run cli -- --cyber                     # Cyber vulnerabilities (CISA KEV)
-  npm run cli -- --alerts                    # Active alerts and threat level
-  npm run cli -- -c earthquake --since 14d   # Earthquakes from the last 2 weeks
-  npm run cli -- -c market --since 7d        # Market moves from the last 7 days
-  npm run cli -- --alerts --since 14d        # Alerts from the last 2 weeks
-  npm run cli -- -q "Trump" --since 14d      # Search news from the last 2 weeks
-  npm run cli -- --country JP --no-server    # Japan news from local cache
-  npm run cli -- --collector                 # Continuous terminal collector loop (15m sweep)
-  npm run cli -- --serve                     # Start backend server without browser popup
-  npm run cli -- --source-data USGS          # Raw data from USGS source
-  npm run cli -- -a                          # Comprehensive report across all areas
-  npm run cli -- -b --lang hu                # Briefing in Hungarian
+  ${c} -b                          # Executive intelligence briefing
+  ${c} -m                          # Financial markets, VIX, gold, oil, crypto
+  ${c} --earthquakes               # Latest earthquakes (USGS/EMSC)
+  ${c} --thermal                   # NASA FIRMS satellite fire hotspots
+  ${c} --risk                      # Geopolitical country risk rankings
+  ${c} --risk UA                   # Ukraine detailed risk profile
+  ${c} --cyber                     # Cyber vulnerabilities (CISA KEV)
+  ${c} --alerts                    # Active alerts and threat level
+  ${c} -c earthquake --since 14d   # Earthquakes from the last 2 weeks
+  ${c} -c market --since 7d        # Market moves from the last 7 days
+  ${c} --alerts --since 14d        # Alerts from the last 2 weeks
+  ${c} -q "Trump" --since 14d      # Search news from the last 2 weeks
+  ${c} --country JP --no-server    # Japan news from local cache
+  ${c} --collector                 # Continuous terminal collector loop (15m sweep)
+  ${c} --serve                     # Start backend server without browser popup
+  ${c} --source-data USGS          # Raw data from USGS source
+  ${c} -a                          # Comprehensive report across all areas
+  ${c} -b -L hu                    # Briefing in Hungarian
 `);
 }
 
@@ -652,17 +677,19 @@ async function fetchCountryLive(countryCode, limit = 10) {
 
 function checkDataAvailable(synData, opts = {}) {
   const lang = opts.lang || 'en';
+  const c = getCliCmd();
+  const serverCmd = isExecutable() ? 'crucix --serve' : 'npm run dev';
   if (!synData.data && !synData.raw) {
     if (lang === 'hu') {
       console.log(`\n❌ Nincs elérhető intelligencia adat a lemezen (${latestFile}) és a szerver sem fut.`);
       console.log(`\n👉 Megoldás:`);
-      console.log(`   1. Egyszeri adatgyűjtés futtatása a terminálban: npm run cli -- --sweep`);
-      console.log(`   2. Vagy indítsd el a folyamatos háttérszervert:   npm run dev\n`);
+      console.log(`   1. Egyszeri adatgyűjtés futtatása a terminálban: ${c} --sweep`);
+      console.log(`   2. Vagy indítsd el a folyamatos háttérszervert:   ${serverCmd}\n`);
     } else {
       console.log(`\n❌ No intelligence data available on disk (${latestFile}) and server is not running.`);
       console.log(`\n👉 Solution:`);
-      console.log(`   1. Run a one-time sweep in the terminal: npm run cli -- --sweep`);
-      console.log(`   2. Or start the background server:       npm run dev\n`);
+      console.log(`   1. Run a one-time sweep in the terminal: ${c} --sweep`);
+      console.log(`   2. Or start the background server:       ${serverCmd}\n`);
     }
     return false;
   }
@@ -1332,12 +1359,13 @@ function showSourceData(sourceName, synData, opts = {}) {
 
   const matchKey = Object.keys(sources).find(k => k.toLowerCase() === sourceName.toLowerCase());
   if (!matchKey || !sources[matchKey]) {
+    const c = getCliCmd();
     if (lang === 'hu') {
       console.error(`❌ Nem található ilyen forrás: "${sourceName}".`);
-      console.log(`Tipp: Futtasd az 'npm run cli -- --sources' parancsot az elérhető források listájához.`);
+      console.log(`Tipp: Futtasd a '${c} --sources' parancsot az elérhető források listájához.`);
     } else {
       console.error(`❌ Source not found: "${sourceName}".`);
-      console.log(`Tip: Run 'npm run cli -- --sources' to list available sources.`);
+      console.log(`Tip: Run '${c} --sources' to list available sources.`);
     }
     return;
   }
@@ -1495,6 +1523,7 @@ async function main() {
       console.log(JSON.stringify(rawData, null, 2));
       return;
     }
+    const c = getCliCmd();
     if (lang === 'hu') {
       console.log(`\n=== Crucix Sweep Sikeresen Befejeződött ===`);
       console.log(`⏱️  Futási idő:          ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} mp`);
@@ -1502,7 +1531,7 @@ async function main() {
       if (rawData.crucix.sourcesFailed > 0) console.log(`❌ Sikertelen források:  ${rawData.crucix.sourcesFailed}`);
       if (rawData.crucix.sourcesStale > 0)  console.log(`⏳ Elavult források:    ${rawData.crucix.sourcesStale}`);
       console.log(`💾 Mentve:               ${latestFile}`);
-      console.log(`💡 Most már lekérdezheted: npm run cli -- -b  (vagy -m, --risk, -a)\n`);
+      console.log(`💡 Most már lekérdezheted: ${c} -b  (vagy -m, --risk, -a)\n`);
     } else {
       console.log(`\n=== Crucix Sweep Completed Successfully ===`);
       console.log(`⏱️  Runtime:             ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} s`);
@@ -1510,7 +1539,7 @@ async function main() {
       if (rawData.crucix.sourcesFailed > 0) console.log(`❌ Failed sources:       ${rawData.crucix.sourcesFailed}`);
       if (rawData.crucix.sourcesStale > 0)  console.log(`⏳ Stale sources:        ${rawData.crucix.sourcesStale}`);
       console.log(`💾 Saved to:             ${latestFile}`);
-      console.log(`💡 You can now query:    npm run cli -- -b  (or -m, --risk, -a)\n`);
+      console.log(`💡 You can now query:    ${c} -b  (or -m, --risk, -a)\n`);
     }
     return;
   }
@@ -1678,12 +1707,13 @@ async function main() {
       const chunk = sorted.slice(i, i + 6).map(([c, cnt]) => `${c}: ${cnt} ${lang === 'hu' ? 'forrás' : 'outlets'}`.padEnd(16));
       console.log('  ' + chunk.join(' '));
     }
+    const c = getCliCmd();
     if (lang === 'hu') {
       console.log(`\nÖsszesen: ${sorted.length} ország, ${WORLD_FEEDS.length} ellenőrzött médium.`);
-      console.log(`Használat: npm run cli -- --feeds <ISO kód> (pl. npm run cli -- --feeds DE)\n`);
+      console.log(`Használat: ${c} --feeds <ISO kód> (pl. ${c} --feeds DE)\n`);
     } else {
       console.log(`\nTotal: ${sorted.length} countries, ${WORLD_FEEDS.length} verified media outlets.`);
-      console.log(`Usage: npm run cli -- --feeds <ISO code> (e.g. npm run cli -- --feeds DE)\n`);
+      console.log(`Usage: ${c} --feeds <ISO code> (e.g. ${c} --feeds DE)\n`);
     }
     return;
   }
@@ -1968,12 +1998,13 @@ async function main() {
   console.log(`\n=== ${evTitle} ===\n`);
 
   if (records.length === 0) {
+    const c = getCliCmd();
     if (lang === 'hu') {
       console.log(`Nincs találat a megadott feltételekre.`);
-      console.log(`Tipp: Próbáld a kategóriák listázását: npm run cli -- --categories\n`);
+      console.log(`Tipp: Próbáld a kategóriák listázását: ${c} --categories\n`);
     } else {
       console.log(`No events found matching the specified criteria.`);
-      console.log(`Tip: Try listing categories: npm run cli -- --categories\n`);
+      console.log(`Tip: Try listing categories: ${c} --categories\n`);
     }
     return;
   }
@@ -2003,6 +2034,8 @@ if (entryHref && import.meta.url === entryHref) {
 export {
   parseArgs,
   getCliLanguage,
+  isExecutable,
+  getCliCmd,
   printHelp,
   formatAge,
   formatNumber,
