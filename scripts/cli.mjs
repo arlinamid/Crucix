@@ -18,6 +18,8 @@ import { fullBriefing } from '../apis/briefing.mjs';
 import { synthesize } from '../dashboard/inject.mjs';
 import { countryByIso3 } from '../lib/intelligence/countries.mjs';
 import { saveSnapshot } from '../lib/snapshots.mjs';
+import { runSetupWizard } from '../lib/setup-wizard.mjs';
+import { getEnvSearchPaths } from '../apis/utils/env.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -110,12 +112,15 @@ function parseArgs(argv = process.argv.slice(2)) {
     sweeps: false,
     delta: false,
     all: false,
+    setup: false,
   };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '-h' || arg === '--help') {
       opts.help = true;
+    } else if (arg === 'setup' || arg === 'init' || arg === 'config' || arg === '--setup' || arg === '--config' || arg === 'wizard') {
+      opts.setup = true;
     } else if (arg === '-L' || arg === '--lang') {
       opts.lang = (args[++i] || 'en').toLowerCase().slice(0, 2);
     } else if (arg.startsWith('--lang=')) {
@@ -271,8 +276,9 @@ Crucix Intelligence CLI — Parancssori Hír-, Esemény- és Hírszerzési Leké
 Használat:
 ${usage}
 
-Nyelvválasztás:
+Nyelvválasztás & Beállítás:
   -L, --lang <kód>                 Kimenet nyelve: en, hu, fr (alapértelmezett: en vagy CRUCIX_LANG)
+  setup, init, --setup             Interaktív beállító varázsló (.env, Telegram, Discord, AI, API kulcsok)
 
 Intelligencia & Összefoglalók:
   -b, --brief                      Vezetői intelligencia összefoglaló (piaci irány, VIX, olaj, arany, OSINT)
@@ -372,8 +378,9 @@ Crucix Intelligence CLI — Command-Line Intelligence, Markets & News Query Term
 Usage:
 ${usage}
 
-Language:
+Language & Setup:
   -L, --lang <code>                Output language: en, hu, fr (default: en or CRUCIX_LANG)
+  setup, init, --setup             Interactive setup wizard (.env, Telegram, Discord, AI, API keys)
 
 Intelligence & Briefings:
   -b, --brief                      Executive intelligence briefing (market direction, VIX, oil, gold, OSINT)
@@ -1451,6 +1458,23 @@ async function main() {
   if (opts.help) {
     printHelp(lang);
     return;
+  }
+
+  // Interactive Setup Wizard
+  if (opts.setup) {
+    await runSetupWizard();
+    return;
+  }
+
+  // If user launched Crucix without any arguments and no .env exists, offer setup
+  const rawArgs = process.argv.slice(2);
+  if (rawArgs.length === 0 && process.stdin.isTTY) {
+    const envPaths = getEnvSearchPaths();
+    const envExists = envPaths.some(p => existsSync(p));
+    if (!envExists) {
+      await runSetupWizard();
+      return;
+    }
   }
 
   // 0a. Start server in headless / data collector mode (no browser popup)

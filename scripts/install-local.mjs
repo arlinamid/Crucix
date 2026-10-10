@@ -9,6 +9,7 @@ import { join, resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { execSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { runSetupWizard } from '../lib/setup-wizard.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -154,3 +155,12 @@ console.log('  crucix -m                               # Pénzügyi piacok és n
 console.log('  crucix --earthquakes                    # Legfrissebb földrengések');
 console.log('  crucix --risk UA                        # Ukrajna kockázati profilja');
 console.log('  crucix --collector                      # Folyamatos adatgyűjtő ciklus\n');
+
+// Check if user requested setup wizard or if running interactively with --setup
+const wantSetup = process.argv.includes('--setup') || process.argv.includes('setup');
+if (wantSetup) {
+  await runSetupWizard({ envPath: destEnv });
+} else {
+  console.log('💡 TIP: Konfiguráld a Telegram, Discord, AI és API kulcsokat az interaktív varázslóval:');
+  console.log('   crucix setup   (vagy: npm run setup)\n');
+}

@@ -1,5 +1,7 @@
 # Changelog / Változásnapló
 
+- [2.38.0 — Önálló Natív Bináris, Interaktív Beállító Varázsló és Globális RSS / Standalone Native Executable, Interactive Setup Wizard & Global World RSS](docs/releases/v2.38.0.md) — 2026-10-11
+
 - [2.37.0 — Ellenőrzött PR-integráció, AIS és API-javítások / Reviewed PR integration, AIS and API fixes](docs/releases/v2.37.0.md) — 2026-10-10
 
 - [2.36.1 — Javítás: a rögzített kockázati összegzés-teszt ismeri az új „timeline” mezőt / Fix: the pinned risk-summary test knows the new "timeline" field](docs/releases/v2.36.1.md) — 2026-10-08

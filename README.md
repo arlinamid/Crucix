@@ -44,6 +44,7 @@ The README is the short version. Core documentation is provided in English:
 
 | English Documentation | Description |
 |---|---|
+| [**Setup & Configuration Guide**](docs/SETUP-GUIDE.md) | Interactive setup wizard, Telegram/Discord notifications, LLM setup, and free API keys |
 | [**Features by release**](docs/FEATURES.md) | What each version added: alert engine, country risk, record inspector, sweep archive, map layers, new sources |
 | [**Configuration**](docs/CONFIGURATION.md) | API keys, Telegram and Discord bots, the LLM layer, environment variables, npm scripts |
 | [**Data sources**](docs/DATA-SOURCES.md) | All 71 sources by tier, with keys, licences and limits |
@@ -59,6 +60,7 @@ Specialized operational guides, architecture audits, and regional research catal
 
 | Dokumentum / Document | Leírás / Description | Nyelv / Language |
 |---|---|---|
+| [**Beállítási és Telepítési Útmutató**](docs/SETUP-GUIDE.hu.md) | Interaktív beállító varázsló, Telegram és Discord értesítések, LLM és ingyenes API kulcsok | Magyar (HU) |
 | [**Üzemeltetési útmutató (Operations)**](docs/OPERATIONS.md) | Helyi hálózat (LAN), Docker, helyi nyelvi modellek, megbízhatóság és napi üzemeltetés | Magyar (HU) |
 | [**Világméretű RSS-katalógus**](data/world-rss/README.hu.md) | 195 ország, 539 médium RSS és keresési lefedettségének technikai jegyzéke | Magyar (HU) |
 | [**Interaktív bemutató oldal (Showcase)**](docs/site/index.html) | Kétnyelvű animált prezentáció és vizuális bemutató böngészőben | Magyar (HU) / Angol (EN) |

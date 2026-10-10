@@ -1,6 +1,6 @@
 {
   "name": "crucix",
-  "version": "2.37.0",
+  "version": "2.38.0",
   "description": "Local intelligence engine - 52 OSINT adapters, live dashboard, bounded requests, optional local or cloud AI.",
   "type": "module",
   "scripts": {
@@ -11,6 +11,7 @@
     "daemon": "node server.mjs --headless",
     "collector": "node scripts/cli.mjs --collector",
     "status": "node scripts/status.mjs",
+    "setup": "node scripts/setup.mjs",
     "cli": "node scripts/cli.mjs",
     "build:exe": "node scripts/build-exe.mjs",
     "verify:exe": "node scripts/verify-exe.mjs",
