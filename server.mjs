@@ -6,6 +6,7 @@ import express from 'express';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { homedir } from 'os';
 import { openBrowser } from './lib/open-browser.mjs';
 import { inlineJson } from './lib/html.mjs';
 import { installApiErrorHandler } from './lib/api-errors.mjs';
@@ -47,7 +48,16 @@ import { getWorldNewsByCountry, getWorldNews, getBalancedWorldNews, getWorldRssS
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
-const RUNS_DIR = config.runsDir ? resolve(config.runsDir) : join(ROOT, 'runs');
+export function resolveRunsDir(configuredDir = config.runsDir) {
+  if (configuredDir) return resolve(configuredDir);
+  if (process.env.RUNS_DIR) return resolve(process.env.RUNS_DIR);
+  const projectRuns = join(ROOT, 'runs');
+  if (existsSync(projectRuns)) return projectRuns;
+  const userRuns = join(homedir(), '.crucix', 'runs');
+  if (existsSync(userRuns)) return userRuns;
+  return existsSync(join(ROOT, 'package.json')) ? projectRuns : userRuns;
+}
+const RUNS_DIR = resolveRunsDir();
 const MEMORY_DIR = join(RUNS_DIR, 'memory');
 
 // Ensure directories exist

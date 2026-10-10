@@ -7,6 +7,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import http from 'node:http';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import config from '../crucix.config.mjs';
@@ -22,7 +23,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const port = config.port || 3117;
 const host = config.host === '0.0.0.0' ? '127.0.0.1' : (config.host || '127.0.0.1');
-const runsDir = config.runsDir ? resolve(config.runsDir) : join(ROOT, 'runs');
+export function resolveRunsDir(configuredDir = config.runsDir) {
+  if (configuredDir) return resolve(configuredDir);
+  if (process.env.RUNS_DIR) return resolve(process.env.RUNS_DIR);
+  const projectRuns = join(ROOT, 'runs');
+  if (existsSync(projectRuns)) return projectRuns;
+  const userRuns = join(homedir(), '.crucix', 'runs');
+  if (existsSync(userRuns)) return userRuns;
+  return existsSync(join(ROOT, 'package.json')) ? projectRuns : userRuns;
+}
+const runsDir = resolveRunsDir();
 const historyFile = join(runsDir, 'intelligence', 'history.json');
 const latestFile = join(runsDir, 'latest.json');
 const alertsFile = join(runsDir, 'alerts', 'alerts.json');

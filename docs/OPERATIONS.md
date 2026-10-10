@@ -232,11 +232,15 @@ npm run cli -- --serve
 npm run cli -- --no-server -b
 npm run cli -- -S -c cyber -l 5
 
-# Önálló Windows Executable (.exe) fordítása és futtatása
+# Önálló Natív Futtatható Bináris (Windows .exe / Linux / macOS)
 npm run build:exe
-.\bin\crucix.exe -b
-.\bin\crucix.exe -m
+npm run verify:exe
+
+# Futtatás:
+.\bin\crucix.exe -b                       # Windows
+./bin/crucix -b                          # Linux / macOS
 .\bin\crucix.exe --earthquakes --since 14d
+.\bin\crucix.exe --collector -i 30
 
 # Gyors szerverállapot ellenőrzés
 npm run status

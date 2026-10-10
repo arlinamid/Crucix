@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Crucix Executable Builder (Windows SEA / Node Single Executable Application)
-// Generates a standalone native bin/crucix.exe using Node.js SEA and postject.
+// Crucix Executable Builder (Cross-Platform Node SEA: Windows, Linux, macOS)
+// Generates a standalone native binary (bin/crucix.exe or bin/crucix) using Node.js SEA and postject.
 
-import { existsSync, mkdirSync, writeFileSync, copyFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, copyFileSync, rmSync, statSync, chmodSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,7 @@ const ROOT = resolve(__dirname, '..');
 const binDir = join(ROOT, 'bin');
 const distBuildDir = join(ROOT, 'dist', 'sea-build');
 const isWin = process.platform === 'win32';
+const isMac = process.platform === 'darwin';
 const exeName = isWin ? 'crucix.exe' : 'crucix';
 const targetExe = join(binDir, exeName);
 
@@ -31,15 +32,20 @@ mkdirSync(distBuildDir, { recursive: true });
 const launcherScript = `// Crucix Standalone SEA Launcher
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
 const { pathToFileURL } = require('node:url');
 
 function findCliPath() {
   const candidates = [
+    process.env.CRUCIX_HOME,
     process.cwd(),
     path.dirname(process.execPath),
     path.resolve(path.dirname(process.execPath), '..'),
-    path.resolve(path.dirname(process.execPath), '..', '..')
-  ];
+    path.resolve(path.dirname(process.execPath), '..', '..'),
+    path.join(os.homedir(), '.crucix'),
+    path.join(os.homedir(), 'Crucix'),
+    path.join(os.homedir(), 'tools', 'Crucix'),
+  ].filter(Boolean);
 
   for (const dir of candidates) {
     const candidate = path.join(dir, 'scripts', 'cli.mjs');
@@ -62,7 +68,8 @@ const cliPath = findCliPath();
 
 if (!cliPath) {
   console.error('\\n❌ Hiba: A Crucix projektgyökér (scripts/cli.mjs) nem található.');
-  console.error('Futtasd a programot a Crucix könyvtárából vagy tedd a crucix.exe fájlt a projekt gyökér / bin könyvtárába.\\n');
+  console.error('Futtasd a programot a Crucix könyvtárából, tedd a binárist a projektbe,');
+  console.error('vagy állítsd be a CRUCIX_HOME környezeti változót (%USERPROFILE%\\\\.crucix vagy ~/.crucix).\\n');
   process.exit(1);
 }
 
@@ -95,8 +102,26 @@ copyFileSync(process.execPath, targetExe);
 
 // 6. Inject blob into executable with postject
 console.log('💉 Kód és futtatókörnyezet beoltása (postject)...');
-const postjectCmd = `npx --yes postject "${targetExe}" NODE_SEA_BLOB "${prepBlobPath}" --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 --overwrite`;
+const machoFlag = isMac ? ' --macho-segment-name NODE_SEA' : '';
+const postjectCmd = `npx --yes postject "${targetExe}" NODE_SEA_BLOB "${prepBlobPath}" --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2${machoFlag} --overwrite`;
 execSync(postjectCmd, { stdio: 'inherit' });
+
+if (!isWin) {
+  try {
+    chmodSync(targetExe, 0o755);
+  } catch (err) {
+    console.warn('⚠️  chmod hiba:', err?.message || err);
+  }
+}
+
+if (isMac) {
+  try {
+    execSync(`codesign --sign - "${targetExe}"`, { stdio: 'inherit' });
+    console.log('🔏 Mach-O kódaláírás sikeres (ad-hoc codesign)');
+  } catch (err) {
+    console.warn('⚠️  codesign nem sikerült vagy nem elérhető:', err?.message || err);
+  }
+}
 
 // 7. Cleanup temp build folder
 try {
@@ -108,15 +133,17 @@ try {
 const stat = statSync(targetExe);
 const mb = (stat.size / (1024 * 1024)).toFixed(1);
 
+const runCmd = isWin ? `.\\bin\\crucix.exe` : `./bin/crucix`;
+
 console.log(`\n=============================================================`);
 console.log(`✅ Crucix Executable Sikeresen Létrejött!`);
 console.log(`📁 Elérési út:       ${targetExe}`);
 console.log(`📏 Méret:           ${mb} MB`);
 console.log(`=============================================================\n`);
 console.log(`💡 Használati példák a terminálból:`);
-console.log(`   .\\bin\\crucix.exe -b                       # Vezetői összefoglaló`);
-console.log(`   .\\bin\\crucix.exe -m                       # Pénzügyi piacok & nyersanyagok`);
-console.log(`   .\\bin\\crucix.exe --earthquakes --since 14d # Földrengések az elmúlt 2 hétből`);
-console.log(`   .\\bin\\crucix.exe --risk UA                # Ukrajna kockázati profilja`);
-console.log(`   .\\bin\\crucix.exe --daemon                 # Fejetlen háttérszerver indítása`);
-console.log(`   .\\bin\\crucix.exe --collector              # Folyamatos adatgyűjtő ciklus\n`);
+console.log(`   ${runCmd} -b                       # Vezetői összefoglaló`);
+console.log(`   ${runCmd} -m                       # Pénzügyi piacok & nyersanyagok`);
+console.log(`   ${runCmd} --earthquakes --since 14d # Földrengések az elmúlt 2 hétből`);
+console.log(`   ${runCmd} --risk UA                # Ukrajna kockázati profilja`);
+console.log(`   ${runCmd} --daemon                 # Fejetlen háttérszerver indítása`);
+console.log(`   ${runCmd} --collector              # Folyamatos adatgyűjtő ciklus\n`);

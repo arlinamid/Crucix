@@ -54,6 +54,20 @@ Copy `.env.example` to `.env` at the project root:
 cp .env.example .env
 ```
 
+### Configuration File Search Order (Cross-Platform)
+
+Crucix and the standalone executable (`crucix.exe` / `crucix`) automatically discover configuration files in the following priority order:
+
+1. **`CRUCIX_ENV_FILE`**: If set, loads exclusively from this file path.
+2. **Current working directory**: `./.env`
+3. **Repository root**: `<Crucix>/.env`
+4. **User Profile Directory (Cross-Platform)**:
+   - Windows: `%USERPROFILE%\.crucix\.env` (or `%USERPROFILE%\.crucix.env`)
+   - Linux / macOS: `~/.crucix/.env` (or `~/.crucix.env`)
+5. **Legacy fallback**: `apis/.env`
+
+Variables defined earlier take precedence. Any variable not defined in your local `.env` will fall back to your user profile (`~/.crucix/.env` or `%USERPROFILE%\.crucix\.env`). Run data (`RUNS_DIR`) similarly defaults to `<Crucix>/runs` or `~/.crucix/runs`.
+
 ### Required for Best Results (all free)
 
 | Key | Source | How to Get |

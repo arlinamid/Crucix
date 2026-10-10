@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   parseArgs,
   formatAge,
@@ -13,6 +13,7 @@ import {
   getSynthesizedData,
   getAlertsData,
   getCountryRiskData,
+  resolveRunsDir,
 } from '../scripts/cli.mjs';
 import { loadWorldRssCache, getWorldNewsByCountry } from '../lib/world-rss-runner.mjs';
 
@@ -173,4 +174,13 @@ test('cli getCountryRiskData: loads risk list and country details from disk', as
 
 test('cli build-exe script exists and is executable', () => {
   assert.ok(existsSync(join(process.cwd(), 'scripts', 'build-exe.mjs')));
+});
+
+test('cli resolveRunsDir: respects custom dir or defaults to project/user runs', () => {
+  const custom = resolveRunsDir('/tmp/my-runs');
+  assert.equal(custom, resolve('/tmp/my-runs'));
+
+  const normal = resolveRunsDir();
+  assert.ok(typeof normal === 'string' && normal.length > 0, 'Runs directory is resolved to a valid path');
+  assert.ok(normal.endsWith('runs'), 'Runs directory ends with runs');
 });
