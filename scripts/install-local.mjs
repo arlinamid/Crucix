@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Install Crucix into User Profile (%USERPROFILE%/.crucix) and .local/bin
+// Production-grade standalone installation: binary contains all application code,
+// user profile only contains configuration (.env) and runtime data (runs/).
 // Usage: node scripts/install-local.mjs
 
-import { existsSync, mkdirSync, cpSync, copyFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, cpSync, copyFileSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { execSync, execFileSync } from 'node:child_process';
@@ -12,6 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const HOME = homedir();
 const userCrucixDir = join(HOME, '.crucix');
+const userRunsDir = join(userCrucixDir, 'runs');
 const userLocalBinDir = join(HOME, '.local', 'bin');
 const isWin = process.platform === 'win32';
 const exeName = isWin ? 'crucix.exe' : 'crucix';
@@ -19,71 +22,78 @@ const srcExe = join(ROOT, 'bin', exeName);
 const targetExe = join(userLocalBinDir, exeName);
 
 console.log('\n=============================================================');
-console.log('       CRUCIX LOCAL USER PROFILE INSTALLER');
+console.log('       CRUCIX PRODUCTION STANDALONE INSTALLER');
 console.log('=============================================================\n');
 console.log(`🏠 Felhasználói könyvtár (HOME): ${HOME}`);
-console.log(`📂 Munkakönyvtár (.crucix):     ${userCrucixDir}`);
+console.log(`📂 Adatkönyvtár (.crucix/runs):  ${userRunsDir}`);
 console.log(`🚀 Bináris mappa (.local/bin):    ${userLocalBinDir}\n`);
 
-// 1. Build latest executable first
-console.log('🔨 [1/5] Legfrissebb SEA bináris fordítása...');
+// 1. Build latest self-contained SEA executable first
+console.log('🔨 [1/4] Önálló, zárt SEA bináris fordítása...');
 execSync(`"${process.execPath}" scripts/build-exe.mjs`, { cwd: ROOT, stdio: 'inherit' });
 
 // 2. Ensure directories exist
-console.log('\n📁 [2/5] Célkönyvtárak előkészítése...');
+console.log('\n📁 [2/4] Célkönyvtárak előkészítése és tisztítása...');
 mkdirSync(userCrucixDir, { recursive: true });
+mkdirSync(userRunsDir, { recursive: true });
 mkdirSync(userLocalBinDir, { recursive: true });
 
-// 3. Copy working files into %USERPROFILE%/.crucix
-console.log('📦 [3/5] Munkakönyvtár fájlok szinkronizálása -> ' + userCrucixDir + '...');
-
-const copyDirs = [
+// Clean up any legacy raw source code folders in ~/.crucix from previous installs
+// so user cannot tamper with source code and only runtime data remains.
+const legacyDirs = [
   'apis',
   'dashboard',
-  'data',
   'lib',
   'locales',
   'scripts',
-  'runs',
   'node_modules',
+  'data',
 ];
-
-for (const dir of copyDirs) {
-  const src = join(ROOT, dir);
-  const dest = join(userCrucixDir, dir);
-  if (existsSync(src)) {
-    process.stdout.write(`   • Másolás: ${dir}/... `);
-    cpSync(src, dest, { recursive: true, force: true });
-    console.log('kész');
+for (const dir of legacyDirs) {
+  const p = join(userCrucixDir, dir);
+  if (existsSync(p)) {
+    try {
+      rmSync(p, { recursive: true, force: true });
+      console.log(`   🧹 Korábbi nyílt forráskönyvtár törölve a profilból: ${dir}/`);
+    } catch {}
   }
 }
 
-const copyFiles = [
+const legacyFiles = [
   'package.json',
   'package-lock.json',
   'crucix.config.mjs',
   'server.mjs',
   'diag.mjs',
 ];
-
-for (const file of copyFiles) {
-  const src = join(ROOT, file);
-  const dest = join(userCrucixDir, file);
-  if (existsSync(src)) {
-    copyFileSync(src, dest);
+for (const file of legacyFiles) {
+  const p = join(userCrucixDir, file);
+  if (existsSync(p)) {
+    try {
+      rmSync(p, { force: true });
+    } catch {}
   }
 }
 
-// Copy .env or .env.example
+// Ensure .env exists in ~/.crucix
 const srcEnv = existsSync(join(ROOT, '.env')) ? join(ROOT, '.env') : join(ROOT, '.env.example');
 const destEnv = join(userCrucixDir, '.env');
-if (!existsSync(destEnv) || existsSync(join(ROOT, '.env'))) {
+if (!existsSync(destEnv) && existsSync(srcEnv)) {
   copyFileSync(srcEnv, destEnv);
-  console.log('   • .env konfiguráció másolva a profilba');
+  console.log('   • .env konfiguráció létrehozva a profilban');
 }
 
-// 4. Copy standalone executable and shims to .local/bin
-console.log('\n🚀 [4/5] Végrehajtható bináris telepítése -> ' + userLocalBinDir + '...');
+// Copy initial seed data to runs/ if user profile runs/ is empty
+const srcRuns = join(ROOT, 'runs');
+if (existsSync(srcRuns)) {
+  try {
+    cpSync(srcRuns, userRunsDir, { recursive: true });
+    console.log('   • Alapértelmezett adatbázisok és sweep gyorsítótár szinkronizálva a runs/ mappába');
+  } catch {}
+}
+
+// 3. Copy standalone executable and shims to .local/bin
+console.log('\n🚀 [3/4] Önálló natív bináris telepítése -> ' + userLocalBinDir + '...');
 copyFileSync(srcExe, targetExe);
 try {
   chmodSync(targetExe, 0o755);
@@ -109,20 +119,20 @@ fi
 writeFileSync(join(userLocalBinDir, 'crucix'), shShim, { encoding: 'utf8', mode: 0o755 });
 console.log('   • crucix shell shim létrehozva');
 
-// 5. Verification
-console.log('\n🔍 [5/5] Telepítés ellenőrzése független könyvtárból...');
+// 4. Verification from user home (where no source files exist)
+console.log('\n🔍 [4/4] Telepítés ellenőrzése forrásfájlok nélküli könyvtárból...');
 try {
   const verifyOut = execFileSync(targetExe, ['--categories', '--no-server'], {
     cwd: HOME,
     encoding: 'utf8',
-    env: { ...process.env, CRUCIX_HOME: userCrucixDir },
+    env: { ...process.env, CRUCIX_HOME: userCrucixDir, RUNS_DIR: userRunsDir },
   });
-  console.log('✅ A bináris sikeresen fut a felhasználói munkakönyvtárból (%USERPROFILE%/.crucix)!');
+  console.log('✅ A bináris sikeresen fut a forrásfájloktól teljesen mentes profilból (%USERPROFILE%/.crucix)!');
   
   const briefOut = execFileSync(targetExe, ['-b', '--no-server', '-L', 'hu'], {
     cwd: HOME,
     encoding: 'utf8',
-    env: { ...process.env, CRUCIX_HOME: userCrucixDir },
+    env: { ...process.env, CRUCIX_HOME: userCrucixDir, RUNS_DIR: userRunsDir },
   });
   if (briefOut.includes('CRUCIX VEZETŐI INTELLIGENCIA ÖSSZEFOGLALÓ')) {
     console.log('✅ A vezetői összefoglaló (briefing) sikeresen válaszol magyar nyelven.');
@@ -133,16 +143,14 @@ try {
 }
 
 console.log('\n=============================================================');
-console.log('🎉 CRUCIX SIKERESEN TELEPÍTVE ÉS ELÉRHETŐ A RENDSZEREN!');
+console.log('🎉 CRUCIX PRODUCTION TELEPÍTÉS SIKERES!');
 console.log('=============================================================');
-console.log('Munkakönyvtár:    ' + userCrucixDir);
-console.log('Bináris elérési út: ' + targetExe);
+console.log('Adatkönyvtár:       ' + userCrucixDir + ' (Kizárólag .env és runs/ adatok, forrásfájlok nélkül)');
+console.log('Bináris elérési út: ' + targetExe + ' (100%-ban önálló, zárt bináris)');
 console.log('\nTerminál parancsok bárhonnan futtatva:');
 console.log('  crucix -b                               # Vezetői összefoglaló (EN)');
 console.log('  crucix -b -L hu                         # Vezetői összefoglaló (HU)');
 console.log('  crucix -m                               # Pénzügyi piacok és nyersanyagok');
 console.log('  crucix --earthquakes                    # Legfrissebb földrengések');
-console.log('  crucix --thermal                        # NASA FIRMS műholdas hőtérkép');
-console.log('  crucix --risk UA                        # Ukrajna kockázati profil');
-console.log('  crucix --help                           # Összes parancssori opció');
-console.log('=============================================================\n');
+console.log('  crucix --risk UA                        # Ukrajna kockázati profilja');
+console.log('  crucix --collector                      # Folyamatos adatgyűjtő ciklus\n');

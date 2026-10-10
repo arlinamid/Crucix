@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // Crucix Executable Builder (Cross-Platform Node SEA: Windows, Linux, macOS)
-// Generates a standalone native binary (bin/crucix.exe or bin/crucix) using Node.js SEA and postject.
+// Generates a fully self-contained standalone native binary (bin/crucix.exe or bin/crucix)
+// using esbuild bundling, Node.js SEA (Single Executable Application), and postject.
 
 import { existsSync, mkdirSync, writeFileSync, copyFileSync, rmSync, statSync, chmodSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import esbuild from 'esbuild';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -24,100 +26,108 @@ console.log(`📦 Node verzió:      ${process.version}`);
 console.log(`💻 Platform:         ${process.platform} (${process.arch})`);
 console.log(`📂 Célfájl:          ${targetExe}\n`);
 
-// 1. Ensure directories exist
+// 1. Ensure build directories exist
 mkdirSync(binDir, { recursive: true });
 mkdirSync(distBuildDir, { recursive: true });
 
-// 2. Generate launcher script (main.cjs)
-const launcherScript = `// Crucix Standalone SEA Launcher
-const path = require('node:path');
-const fs = require('node:fs');
-const os = require('node:os');
-const { pathToFileURL } = require('node:url');
+// 2. Bundle the entire application into a single self-contained CommonJS file
+console.log('📦 [1/4] Alkalmazás és forrásmodulok egybecsomagolása (esbuild bundle)...');
 
-function findCliPath() {
-  const candidates = [
-    process.env.CRUCIX_HOME,
-    path.join(os.homedir(), '.crucix'),
-    process.cwd(),
-    path.dirname(process.execPath),
-    path.resolve(path.dirname(process.execPath), '..'),
-    path.resolve(path.dirname(process.execPath), '..', '..'),
-    path.join(os.homedir(), 'Crucix'),
-    path.join(os.homedir(), 'tools', 'Crucix'),
-    'D:\\\\tools\\\\Crucix',
-  ].filter(Boolean);
+const bundlePath = join(distBuildDir, 'bundle.cjs');
 
-  for (const dir of candidates) {
-    const candidate = path.join(dir, 'scripts', 'cli.mjs');
-    if (fs.existsSync(candidate)) return candidate;
+const transformPlugin = {
+  name: 'crucix-sea-transform',
+  setup(build) {
+    build.onLoad({ filter: /\.(mjs|js)$/ }, async (args) => {
+      let text = await (await import('node:fs/promises')).readFile(args.path, 'utf8');
+
+      // Strip standalone developer CLI execution blocks from source adapters
+      if (args.path.includes('apis') || args.path.includes('dashboard')) {
+        text = text.replace(/\/\/\s*Run standalone[\s\S]*$/m, '/* standalone stripped */');
+        text = text.replace(/if\s*\(process\.argv\[1\]\?\.endsWith[\s\S]*$/m, '/* standalone stripped */');
+        text = text.replace(/\/\/\s*Run and output when executed directly[\s\S]*$/m, '/* direct entry stripped */');
+        text = text.replace(/\/\/\s*Run CLI if invoked directly[\s\S]*$/m, '/* direct entry stripped */');
+      }
+
+      // In cli.mjs, ensure main() is called directly and server.mjs is statically bundled
+      if (args.path.endsWith('cli.mjs')) {
+        text = text.replace(
+          /if\s*\(entryHref\s*&&\s*import\.meta\.url\s*===\s*entryHref\)\s*\{[\s\S]*?main\(\);[\s\S]*?\}/,
+          'main();'
+        );
+        text = text.replace(
+          /await import\(pathToFileURL\(join\(ROOT, 'server\.mjs'\)\)\.href\);/,
+          "await import('../server.mjs');"
+        );
+      }
+
+      return { contents: text, loader: args.path.endsWith('.mjs') ? 'js' : 'default' };
+    });
   }
+};
 
-  // Walk up from cwd
-  let cur = process.cwd();
-  for (let i = 0; i < 5; i++) {
-    const candidate = path.join(cur, 'scripts', 'cli.mjs');
-    if (fs.existsSync(candidate)) return candidate;
-    const parent = path.dirname(cur);
-    if (parent === cur) break;
-    cur = parent;
-  }
-  return null;
-}
-
-const cliPath = findCliPath();
-
-if (!cliPath) {
-  console.error('\\n❌ Hiba: A Crucix projektgyökér (scripts/cli.mjs) nem található.');
-  console.error('Futtasd a programot a Crucix könyvtárából, tedd a binárist a projektbe,');
-  console.error('vagy állítsd be a CRUCIX_HOME környezeti változót (%USERPROFILE%\\\\.crucix vagy ~/.crucix).\\n');
-  process.exit(1);
-}
+const bannerJs = `// Crucix Standalone Self-Contained Binary
+const __node_path = require('node:path');
+const __node_os = require('node:os');
+const __node_fs = require('node:fs');
+const __node_url = require('node:url');
 
 process.env.CRUCIX_EXECUTABLE = '1';
+process.env.CRUCIX_IS_EXE = '1';
 
-const crucixHome = path.resolve(path.dirname(cliPath), '..');
+const defaultCrucixHome = __node_path.join(__node_os.homedir(), '.crucix');
 if (!process.env.CRUCIX_HOME) {
-  process.env.CRUCIX_HOME = crucixHome;
+  process.env.CRUCIX_HOME = defaultCrucixHome;
 }
 if (!process.env.RUNS_DIR) {
-  process.env.RUNS_DIR = path.join(crucixHome, 'runs');
+  process.env.RUNS_DIR = __node_path.join(process.env.CRUCIX_HOME, 'runs');
 }
 
-// Ensure working folder is set to Crucix home directory
 try {
-  process.chdir(crucixHome);
+  __node_fs.mkdirSync(process.env.RUNS_DIR, { recursive: true });
 } catch (e) {}
 
-process.argv[1] = cliPath;
-import(pathToFileURL(cliPath).href).catch(err => {
-  console.error('\\n❌ Hiba történt a Crucix futtatásakor:', err?.stack || err?.message || err);
-  process.exit(1);
-});
+const import_meta_url = __node_url.pathToFileURL(process.execPath || __filename).href;
 `;
 
-const mainCjsPath = join(distBuildDir, 'main.cjs');
-writeFileSync(mainCjsPath, launcherScript, 'utf8');
+await esbuild.build({
+  entryPoints: [join(ROOT, 'scripts', 'cli.mjs')],
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'cjs',
+  outfile: bundlePath,
+  plugins: [transformPlugin],
+  banner: {
+    js: bannerJs,
+  },
+  define: {
+    'import.meta.url': 'import_meta_url',
+  },
+});
+
+const bundleStat = statSync(bundlePath);
+console.log(`   • Összesített JS csomag elkészült: ${(bundleStat.size / (1024 * 1024)).toFixed(2)} MB`);
 
 // 3. Write sea-config.json
 const seaConfigPath = join(distBuildDir, 'sea-config.json');
 const prepBlobPath = join(distBuildDir, 'sea-prep.blob');
 writeFileSync(seaConfigPath, JSON.stringify({
-  main: mainCjsPath,
+  main: bundlePath,
   output: prepBlobPath,
   disableExperimentalSEAWarning: true
 }, null, 2), 'utf8');
 
 // 4. Generate SEA preparation blob
-console.log('⚙️  SEA bináris blob generálása (node --experimental-sea-config)...');
+console.log('⚙️  [2/4] SEA bináris blob generálása (node --experimental-sea-config)...');
 execSync(`"${process.execPath}" --experimental-sea-config "${seaConfigPath}"`, { stdio: 'inherit' });
 
 // 5. Copy Node binary to target
-console.log(`📋 Futtatható bináris előkészítése -> ${targetExe}...`);
+console.log(`📋 [3/4] Futtatható bináris előkészítése -> ${targetExe}...`);
 copyFileSync(process.execPath, targetExe);
 
 // 6. Inject blob into executable with postject
-console.log('💉 Kód és futtatókörnyezet beoltása (postject)...');
+console.log('💉 [4/4] Beágyazott kód beoltása a binárisba (postject)...');
 const machoFlag = isMac ? ' --macho-segment-name NODE_SEA' : '';
 const postjectCmd = `npx --yes postject "${targetExe}" NODE_SEA_BLOB "${prepBlobPath}" --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2${machoFlag} --overwrite`;
 execSync(postjectCmd, { stdio: 'inherit' });
@@ -148,18 +158,17 @@ try {
 
 const stat = statSync(targetExe);
 const mb = (stat.size / (1024 * 1024)).toFixed(1);
-
 const runCmd = isWin ? `.\\bin\\crucix.exe` : `./bin/crucix`;
 
 console.log(`\n=============================================================`);
-console.log(`✅ Crucix Executable Sikeresen Létrejött!`);
+console.log(`✅ Önálló (Standalone) Crucix Executable Sikeresen Létrejött!`);
 console.log(`📁 Elérési út:       ${targetExe}`);
-console.log(`📏 Méret:           ${mb} MB`);
+console.log(`📏 Méret:           ${mb} MB (a teljes runtime és forrás beépítve)`);
 console.log(`=============================================================\n`);
-console.log(`💡 Használati példák a terminálból:`);
+console.log(`💡 Használati példák a terminálból (külső fájlok nélkül):`);
+console.log(`   ${runCmd} --help -L hu             # Magyar nyelvű súgó`);
 console.log(`   ${runCmd} -b                       # Vezetői összefoglaló`);
-console.log(`   ${runCmd} -m                       # Pénzügyi piacok & nyersanyagok`);
+console.log(`   ${runCmd} -m --no-server           # Pénzügyi piacok & nyersanyagok`);
 console.log(`   ${runCmd} --earthquakes --since 14d # Földrengések az elmúlt 2 hétből`);
 console.log(`   ${runCmd} --risk UA                # Ukrajna kockázati profilja`);
-console.log(`   ${runCmd} --daemon                 # Fejetlen háttérszerver indítása`);
 console.log(`   ${runCmd} --collector              # Folyamatos adatgyűjtő ciklus\n`);

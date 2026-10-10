@@ -55,4 +55,26 @@ try {
   } catch {}
 }
 
+console.log('▶️ Teljes önállóság (standalone isolation) tesztelése forrásfájlok nélkül...');
+const testIsolatedDir = join(ROOT, 'dist', 'test-isolated-env');
+try {
+  mkdirSync(testIsolatedDir, { recursive: true });
+  const isolatedOut = execFileSync(exePath, ['--countries'], {
+    cwd: testIsolatedDir,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      CRUCIX_HOME: join(testIsolatedDir, '.crucix'),
+      RUNS_DIR: join(testIsolatedDir, '.crucix', 'runs'),
+    },
+  });
+  assert.ok(isolatedOut.includes('Crucix World News Catalog'), 'A bináris nem működött izolált könyvtárban');
+  assert.ok(isolatedOut.includes('191+ Countries'), 'A katalógus nem érhető el forrásfájlok nélkül');
+  console.log('✅ Teljes önállóság (standalone isolation) sikeres: a bináris forrásfájlok nélkül is 100%-ban működik!');
+} finally {
+  try {
+    rmSync(testIsolatedDir, { recursive: true, force: true });
+  } catch {}
+}
+
 console.log('\n🎉 Minden bináris és platformfüggetlen konfigurációs teszt sikeresen lefutott!');

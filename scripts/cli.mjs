@@ -26,6 +26,7 @@ const host = config.host === '0.0.0.0' ? '127.0.0.1' : (config.host || '127.0.0.
 export function resolveRunsDir(configuredDir = config.runsDir) {
   if (configuredDir) return resolve(configuredDir);
   if (process.env.RUNS_DIR) return resolve(process.env.RUNS_DIR);
+  if (process.env.CRUCIX_HOME) return join(process.env.CRUCIX_HOME, 'runs');
   const projectRuns = join(ROOT, 'runs');
   if (existsSync(projectRuns)) return projectRuns;
   const userRuns = join(homedir(), '.crucix', 'runs');
