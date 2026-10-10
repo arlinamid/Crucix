@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { parseEnvContent, updateEnvFile, startSetupWebServer } from '../lib/setup-wizard.mjs';
+import { parseEnvContent, updateEnvFile, startSetupWebServer, getSetupHtml } from '../lib/setup-wizard.mjs';
 
 test('parseEnvContent correctly parses environment variables', () => {
   const content = `
@@ -115,5 +115,19 @@ test('startSetupWebServer serves setup page and handles save API', async () => {
   } finally {
     if (webServer?.close) webServer.close();
     rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('getSetupHtml returns embedded HTML fallback when disk file does not exist', () => {
+  const origEnv = process.env.CRUCIX_SETUP_HTML;
+  try {
+    process.env.CRUCIX_SETUP_HTML = 'C:\\nonexistent\\path\\to\\setup.html';
+    const html = getSetupHtml();
+    assert.ok(html.includes('CRUCIX'));
+    assert.ok(html.includes('BotFather'));
+    assert.ok(html.includes('Beállító Központ'));
+  } finally {
+    if (origEnv !== undefined) process.env.CRUCIX_SETUP_HTML = origEnv;
+    else delete process.env.CRUCIX_SETUP_HTML;
   }
 });

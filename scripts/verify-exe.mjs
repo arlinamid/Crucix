@@ -5,7 +5,7 @@
 
 import { existsSync, statSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 
@@ -71,6 +71,43 @@ try {
   assert.ok(isolatedOut.includes('Crucix World News Catalog') || isolatedOut.includes('Crucix Világ Hírforrás Katalógus'), 'A bináris nem működött izolált könyvtárban');
   assert.ok(isolatedOut.includes('191+ Countries') || isolatedOut.includes('191+ Ország'), 'A katalógus nem érhető el forrásfájlok nélkül');
   console.log('✅ Teljes önállóság (standalone isolation) sikeres: a bináris forrásfájlok nélkül is 100%-ban működik!');
+
+  console.log('▶️ Standalone 1-kattintásos setup web szerver tesztelése...');
+  const setupPort = 39483;
+  const child = spawn(exePath, ['setup', '--web'], {
+    cwd: testIsolatedDir,
+    env: {
+      ...process.env,
+      SETUP_PORT: String(setupPort),
+      CRUCIX_HOME: join(testIsolatedDir, '.crucix'),
+      RUNS_DIR: join(testIsolatedDir, '.crucix', 'runs'),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  try {
+    let setupOk = false;
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 250));
+      try {
+        const res = await fetch(`http://localhost:${setupPort}/setup.html`);
+        if (res.status === 200) {
+          const body = await res.text();
+          assert.ok(body.includes('CRUCIX'), 'A setup oldal nem tartalmazza a CRUCIX nevet');
+          assert.ok(body.includes('BotFather'), 'A setup oldal nem tartalmazza a BotFather-t');
+          assert.ok(!body.includes('Setup page not found on disk'), 'A setup oldal nem található hibát adott');
+          setupOk = true;
+          break;
+        }
+      } catch {}
+    }
+    assert.ok(setupOk, 'A webes setup szerver nem válaszolt a megadott időn belül');
+    console.log('✅ Standalone setup web szerver sikeres: a beágyazott setup.html hibátlanul megnyílik forrásfájlok nélkül!');
+  } finally {
+    try {
+      child.kill();
+    } catch {}
+  }
 } finally {
   try {
     rmSync(testIsolatedDir, { recursive: true, force: true });

@@ -26,9 +26,10 @@ console.log(`📦 Node verzió:      ${process.version}`);
 console.log(`💻 Platform:         ${process.platform} (${process.arch})`);
 console.log(`📂 Célfájl:          ${targetExe}\n`);
 
-// 1. Ensure build directories exist
+// 1. Ensure build directories exist and embedded assets are up to date
 mkdirSync(binDir, { recursive: true });
 mkdirSync(distBuildDir, { recursive: true });
+execSync(`"${process.execPath}" scripts/sync-setup-html.mjs`, { stdio: 'inherit', cwd: ROOT });
 
 // 2. Bundle the entire application into a single self-contained CommonJS file
 console.log('📦 [1/4] Alkalmazás és forrásmodulok egybecsomagolása (esbuild bundle)...');
