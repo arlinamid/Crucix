@@ -13,9 +13,9 @@ Every source, grouped by tier, with its key requirement, licence note and what i
 | Source | What It Tracks | Auth |
 |--------|---------------|------|
 | **GDELT** | Conflict, economy, health and crisis stories from the 15-minute GKG news feed (100+ languages), ranked by theme focus (distinct themes count more than one repeated theme), with city-level map points | None |
-| **OpenSky** | ADS-B observations across 10 hotspots; fallback expires after one hour | None |
+| **OpenSky** | ADS-B observations across 10 hotspots; fallback expires after one hour. A round costs 28 credits: anonymous (400/day) refreshes every 2 hours, with OAuth2 client credentials (4,000/day) every 15 minutes; between rounds and after HTTP 429 the last result is shown as stale | None (optional OAuth2) |
 | **NASA FIRMS** | Satellite fire/thermal anomaly detection (3hr latency) | Free key |
-| **Maritime** | Reference chokepoints; the briefing adapter does not connect to live AIS | None for reference data |
+| **Maritime** | Reference chokepoints. With a key, the dashboard server keeps one aisstream.io WebSocket open and the source becomes a live one: per chokepoint the AIS-visible vessels seen within ±2° of its centre in the last hour (moving at 1 kn or more, tankers) with the metrics `<chokepoint>_vessels`, and up to 89 of the most recently seen vessels as markers of the maritime map layer (markers only: not live records, events or history). Current within 5 minutes of the last message, failed after 10. aisstream.io has no SLA and no written licence (aisstream issue #290); a key allows 3 connections, and uncompressed connections may be bandwidth-limited (shown as a warning) | Free key for live data (`AISSTREAM_API_KEY`); none for reference data |
 | **Safecast** | Citizen-science radiation readings near 6 nuclear sites; two sites are refreshed per sweep and the rest come from a cache of at most 3 hours with its age shown | None |
 | **ACLED** | Armed conflict events: battles, explosions, protests | Free (OAuth2) |
 | **ReliefWeb** | UN humanitarian crisis tracking | None |
@@ -82,7 +82,7 @@ All 29 feeds are free and require no API key. The **Current public data** panel 
 | NOAA SWPC | Current R/S/G scales; zero means no active alert | 1h |
 | ECB | Daily EUR/HUF, USD, GBP, CHF reference rates | 5 days for weekends/holidays; date precision |
 | NASA EONET | Open natural events, latest Point geometry worldwide | 72h |
-| RIPEstat | AS5483 routing visibility; 00/08/16 UTC snapshots | 8h |
+| RIPEstat | AS5483 routing visibility; 00/08/16 UTC snapshots | 12h (8h cadence + publication lag); 30 min cache |
 | FIRST EPSS | Daily estimates for 20 CVEs first scored in the last 7 days | 48h; predictions, not confirmed exploitation |
 | MET Norway | Budapest model forecast, separate target/validity times | Model 8h; target within 1h of now and valid interval |
 | OONI | Five recent public HU web-connectivity measurements | 24h; samples, not country-wide conclusions |

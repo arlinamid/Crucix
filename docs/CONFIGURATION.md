@@ -83,7 +83,8 @@ These three unlock the most valuable economic and satellite data. Each takes abo
 | Key | Source | How to Get |
 |-----|--------|------------|
 | `ACLED_EMAIL` + `ACLED_PASSWORD` | Armed conflict event data | [acleddata.com/register](https://acleddata.com/register/) — free, OAuth2 |
-| `AISSTREAM_API_KEY` | Maritime AIS vessel tracking | [aisstream.io](https://aisstream.io/) — free |
+| `AISSTREAM_API_KEY` | Maritime: live AIS vessel counts at 11 chokepoints. The dashboard server keeps one WebSocket open (one-shot briefings do not); a key allows 3 connections, the service has no SLA and no written licence (aisstream issue #290) | [aisstream.io/account](https://aisstream.io/account) — free, sign in with GitHub |
+| `OPENSKY_CLIENT_ID` + `OPENSKY_CLIENT_SECRET` | OpenSky flight hotspots: 4,000 instead of 400 credits/day, refresh every 15 min instead of 2 h | [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → "Create a new API client" → `clientId` / `clientSecret` from `credentials.json` — free, OAuth2 |
 | `ADSB_API_KEY` | Unfiltered flight tracking | [RapidAPI](https://rapidapi.com/adsbexchange/api/adsbexchange-com1) — ~$10/mo |
 
 ### LLM Provider (optional, for AI-enhanced ideas)
@@ -92,7 +93,7 @@ Set `LLM_PROVIDER` to one of: `anthropic`, `openai`, `gemini`, `cursor`, `codex`
 
 | Provider | Key Required | Default Model |
 |----------|-------------|---------------|
-| `anthropic` | `LLM_API_KEY` | claude-sonnet-4-6 |
+| `anthropic` | `LLM_API_KEY` or `ANTHROPIC_AUTH_TOKEN` | claude-sonnet-4-6 |
 | `openai` | `LLM_API_KEY` | gpt-5.4 |
 | `gemini` | `LLM_API_KEY` | gemini-3.1-pro |
 | `cursor` | `CURSOR_API_KEY` or `CURSOR_API_TOKEN` | cursor-fast |
@@ -217,6 +218,8 @@ All settings are in `.env` with sensible defaults:
 | `DISCORD_GUILD_ID` | — | Server ID (instant slash command registration) |
 | `DISCORD_WEBHOOK_URL` | — | Webhook URL (alert-only fallback, no bot needed) |
 | `LLM_BASE_URL` | — | Separate OpenAI-compatible endpoint |
+| `ANTHROPIC_BASE_URL` | — | Anthropic Messages endpoint for `LLM_PROVIDER=anthropic` (a self-hosted gateway or router); default `https://api.anthropic.com` |
+| `ANTHROPIC_AUTH_TOKEN` | — | Bearer token for `LLM_PROVIDER=anthropic`, sent as `Authorization: Bearer` instead of `x-api-key`; use it or `LLM_API_KEY`, not both |
 | `LLM_IDEAS_EVERY_N_SWEEPS` | `1` | First sweep, then every Nth sweep; delta alerts run every sweep |
 | `TELEGRAM_OSINT_ENABLED` | `false` | Opt-in public preview source |
 | `ALERT_NOTIFY_CHANNELS` | — | `telegram` and/or `discord` (comma-separated): also send alert engine messages there (opt-in; their `/mute` applies) |

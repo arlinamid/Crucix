@@ -111,7 +111,8 @@ test('the read-only routes over real HTTP: list, profile and predictions shapes;
 
   const list = await (await fetch(`${url}/api/countries`)).json();
   assert.equal(list.countries[0].iso3, 'JPN');
-  assert.deepEqual(Object.keys(list.countries[0]), ['iso3', 'name', 'score', 'change24h', 'coverage', 'convergence']);
+  assert.deepEqual(Object.keys(list.countries[0]), ['iso3', 'name', 'displayName', 'score', 'change24h', 'coverage', 'convergence']);
+  assert.equal(list.countries[0].displayName, 'Japan', 'an English server shows the gazetteer name');
   assert.ok(list.countries.every((row, index) => row.score > 0 && (index === 0 || list.countries[index - 1].score >= row.score)));
 
   const profile = await (await fetch(`${url}/api/countries/JPN`)).json();
@@ -154,6 +155,7 @@ test('POST /api/briefing is guarded and validated, keeps only cited bullets from
   const provider = { isConfigured: true, config: {}, async complete(system, user) {
     calls++;
     assert.match(system, /untrusted observations/);
+    assert.match(system, /compactly on a single line/);
     assert.match(user, /^\[1\] /m);
     await new Promise(resolve => setImmediate(resolve));
     return { text: `Here you go:\n\`\`\`json\n${JSON.stringify({ bullets: [
@@ -271,7 +273,9 @@ test('the briefing falls back to rules when the model throws or answers junk, an
       }
     }
     const japan = await generateBriefing({ scope: 'JPN', snapshot, store, scores, language: 'hu', now: NOW });
-    assert.match(japan.bullets[0].text, /^Japan: kockázati pontszám \d+\/100, még nincs 24 órás összehasonlítás\.$/);
+    assert.match(japan.bullets[0].text, /^Japán: kockázati pontszám \d+\/100, még nincs 24 órás összehasonlítás\.$/, 'a Hungarian sentence names the country in Hungarian');
+    const english = await generateBriefing({ scope: 'JPN', snapshot, store, scores, language: 'en', now: NOW });
+    assert.match(english.bullets[0].text, /^Japan: /);
     await assert.rejects(generateBriefing({ scope: 'QQQ', snapshot, store, now: NOW }), RangeError);
   } finally {
     rmSync(dir, { recursive: true, force: true });

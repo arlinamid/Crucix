@@ -2,6 +2,8 @@
 // Crucix Intelligence Engine — Dev Server
 // Serves the Jarvis dashboard, runs sweep cycle, pushes live updates via SSE
 
+// First import: lib/i18n.mjs fixes the language at module evaluation, which an earlier import reaches before crucix.config.mjs.
+import './apis/utils/env.mjs';
 import express from 'express';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join, resolve } from 'path';
@@ -29,6 +31,7 @@ import { broadcastEvent, writeToClient } from './lib/sse.mjs';
 import config from './crucix.config.mjs';
 import { getLocale, currentLanguage, getSupportedLocales } from './lib/i18n.mjs';
 import { fullBriefing } from './apis/briefing.mjs';
+import { startMaritimeCollector } from './apis/sources/ships.mjs';
 import { synthesize, generateIdeas } from './dashboard/inject.mjs';
 import { MemoryManager, computeDelta } from './lib/delta/index.mjs';
 import { createLLMProvider } from './lib/llm/index.mjs';
@@ -100,7 +103,7 @@ let riskLatest = null; // the last successful step: {at, scores, inputs}
 // Never throws: on a failure the snapshot goes on without `risk` and /api/health says 'unavailable'.
 function recordRisk(snapshot, raw) {
   if (!riskStore) return;
-  const result = runRiskStep({ store: riskStore, journal: riskJournal, keywords: riskKeywords, thermal: riskThermal, snapshot, raw, now: Date.now() });
+  const result = runRiskStep({ store: riskStore, journal: riskJournal, keywords: riskKeywords, thermal: riskThermal, snapshot, raw, now: Date.now(), language: currentLanguage });
   riskStatus = result.ok ? 'ok' : 'unavailable';
   if (result.ok) riskLatest = result;
 }
@@ -369,14 +372,14 @@ installIntelligenceRoutes(app, { getSnapshot: () => freshLiveSnapshot(currentDat
 if (riskStore) {
   const briefing = createBriefingService({ provider: llmProvider, language: currentLanguage, store: riskStore, history,
     getSnapshot: () => currentData, getScores: () => riskLatest?.scores ?? null });
-  installRiskRoutes(app, { store: riskStore, journal: riskJournal, getSnapshot: () => currentData, getState: () => riskLatest, history, briefing,
+  installRiskRoutes(app, { store: riskStore, journal: riskJournal, getSnapshot: () => currentData, getState: () => riskLatest, history, briefing, language: currentLanguage,
     security: { publicUrl: config.alerts.publicUrl, allowedHosts: config.alerts.allowedHosts } });
 }
 // After an operator action the dashboards get the new summary; the next /api/data and page load carry it too.
 installAlertRoutes(app, { engine: alertEngine, getSnapshot: () => freshLiveSnapshot(currentData), onChange: (summary, newIds) => {
   if (currentData) currentData.alerts = summary;
   broadcast({ type: 'alerts', data: summary, newIds });
-}, security: { publicUrl: config.alerts.publicUrl, allowedHosts: config.alerts.allowedHosts } });
+}, security: { publicUrl: config.alerts.publicUrl, allowedHosts: config.alerts.allowedHosts }, language: currentLanguage });
 installSweepRoutes(app, { archive: sweepArchive, getCurrent: () => currentData });
 
 function archivedSweepCount() {
@@ -716,6 +719,9 @@ async function start() {
     } catch {
       console.log('[Crucix] No existing data found — first sweep required');
     }
+
+    // Live AIS vessel counts at the maritime chokepoints: one aisstream.io WebSocket for the life of the server, only with a key.
+    if (process.env.AISSTREAM_API_KEY) startMaritimeCollector(process.env.AISSTREAM_API_KEY);
 
     // Run first sweep (refreshes data in background)
     console.log('[Crucix] Running initial sweep...');
