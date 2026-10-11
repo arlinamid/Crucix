@@ -125,10 +125,13 @@ function parseArgs(argv = process.argv.slice(2)) {
       opts.setup = true;
     } else if (arg === 'server' || arg === 'start' || arg === 'web' || arg === 'dashboard') {
       opts.server = true;
+      opts.serve = true;
     } else if (arg === '--server' || arg === '--web' || arg === '--dashboard') {
       opts.server = true;
+      opts.serve = true;
     } else if (arg === '--serve' || arg === '--start-server' || arg === '--daemon-server') {
       opts.server = true;
+      opts.serve = true;
       opts.headless = true;
     } else if (arg === '--headless' || arg === '--no-open' || arg === '--no-browser') {
       opts.headless = true;
@@ -1493,7 +1496,11 @@ async function main() {
   if (opts.setup) {
     const isCli = process.argv.includes('--cli');
     const isWeb = process.argv.includes('--web');
-    await runSetupWizard({ cli: isCli, web: isWeb });
+    const noOpen = Boolean(opts.headless) ||
+      process.argv.includes('--no-open') ||
+      process.env.NO_AUTO_OPEN === '1' ||
+      process.env.HEADLESS === '1';
+    await runSetupWizard({ cli: isCli, web: isWeb, autoOpen: !noOpen, headless: noOpen });
     return;
   }
 

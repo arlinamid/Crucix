@@ -3,6 +3,7 @@ name: CI - Comprehensive Quality & Security Gate
 on:
   push:
     branches: [master, main, 'feat/**']
+    tags: ['v*']
   pull_request:
     branches: [master, main]
   workflow_dispatch:
@@ -115,12 +116,74 @@ jobs:
         with:
           name: crucix-bin-${{ matrix.os }}
           path: |
-            bin/crucix.exe
-            bin/crucix
+            bin/crucix*
           if-no-files-found: warn
           retention-days: 14
 
-  # 5. Container & Docker Non-Root Permission Verification
+  # 5. Multi-Platform Executable Packaging & Master SHA-256 Checksums
+  package-executables:
+    name: Package Cross-Platform Binaries & SHA256
+    needs: build-executable
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: crucix-bin-windows-latest
+          path: dist-raw/windows
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: crucix-bin-ubuntu-latest
+          path: dist-raw/ubuntu
+
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: crucix-bin-macos-latest
+          path: dist-raw/macos
+
+      - name: Consolidate Binaries & Generate SHA256SUMS.txt
+        shell: bash
+        run: |
+          mkdir -p dist-release
+          
+          # Copy all distinct executable binaries and platform-specific names (excluding individual sha files)
+          find dist-raw -type f \( -name "crucix-*" -o -name "crucix.exe" -o -name "crucix" \) ! -name "*.sha256" -exec cp {} dist-release/ \;
+          
+          cd dist-release
+          chmod +x crucix* 2>/dev/null || true
+          
+          # Generate clean master SHA256SUMS.txt for all platform binaries
+          sha256sum * > SHA256SUMS.txt
+          
+          echo "=========================================================="
+          echo "    CROSS-PLATFORM CRUCIX EXECUTABLES & SHA-256 SUMS     "
+          echo "=========================================================="
+          cat SHA256SUMS.txt
+          echo "=========================================================="
+
+      - name: Upload Unified Cross-Platform Artifact with SHA
+        uses: actions/upload-artifact@v4
+        with:
+          name: crucix-all-platforms-with-sha256
+          path: dist-release/*
+          retention-days: 30
+
+      - name: Attach Executables & Checksums to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "Publishing multi-platform binaries and SHA256SUMS.txt to Release ${TAG}..."
+          gh release upload "${TAG}" dist-release/* --clobber || echo "Warning: Release upload warning or release not draft."
+
+  # 6. Container & Docker Non-Root Permission Verification
   docker-verify:
     name: Docker Container & Non-Root Verification
     runs-on: ubuntu-latest
@@ -136,27 +199,29 @@ jobs:
           docker run --rm --entrypoint node crucix-ci-test -e "require('node:fs').writeFileSync('/app/runs/permission-test', 'ok'); if (process.getuid() === 0) process.exit(1); console.log('UID', process.getuid(), 'runs writable');"
           docker run --rm --entrypoint node crucix-ci-test scripts/verify-assets.mjs
 
-  # 6. Central CI Gate (Summary check required for branch protection)
+  # 7. Central CI Gate (Summary check required for branch protection)
   ci-gate:
     name: CI Quality Gate (All Checks Passed)
     if: always()
-    needs: [syntax-and-lint, test, security-audit, build-executable, docker-verify]
+    needs: [syntax-and-lint, test, security-audit, build-executable, package-executables, docker-verify]
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate Upstream Job Results
         run: |
-          echo "syntax-and-lint: ${{ needs.syntax-and-lint.result }}"
-          echo "test:            ${{ needs.test.result }}"
-          echo "security-audit:  ${{ needs.security-audit.result }}"
-          echo "build-executable:${{ needs.build-executable.result }}"
-          echo "docker-verify:   ${{ needs.docker-verify.result }}"
+          echo "syntax-and-lint:     ${{ needs.syntax-and-lint.result }}"
+          echo "test:                ${{ needs.test.result }}"
+          echo "security-audit:      ${{ needs.security-audit.result }}"
+          echo "build-executable:    ${{ needs.build-executable.result }}"
+          echo "package-executables: ${{ needs.package-executables.result }}"
+          echo "docker-verify:       ${{ needs.docker-verify.result }}"
           
           if [ "${{ needs.syntax-and-lint.result }}" != "success" ] || \
              [ "${{ needs.test.result }}" != "success" ] || \
              [ "${{ needs.security-audit.result }}" != "success" ] || \
              [ "${{ needs.build-executable.result }}" != "success" ] || \
+             [ "${{ needs.package-executables.result }}" != "success" ] || \
              [ "${{ needs.docker-verify.result }}" != "success" ]; then
             echo "::error::One or more CI jobs failed!"
             exit 1
           fi
-          echo "All quality and security checks passed successfully!"
+          echo "All quality, security, and multi-platform binary checks passed successfully!"

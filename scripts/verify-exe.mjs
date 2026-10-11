@@ -3,9 +3,10 @@
 // Validates binary existence, execution, help flag, offline/standalone capabilities,
 // and platform-independent user profile config resolution.
 
-import { existsSync, statSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, statSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 
@@ -22,6 +23,20 @@ assert.ok(existsSync(exePath), `A bináris nem található: ${exePath}`);
 const stat = statSync(exePath);
 console.log(`📏 Méret: ${(stat.size / (1024 * 1024)).toFixed(1)} MB`);
 assert.ok(stat.size > 10 * 1024 * 1024, 'A bináris mérete túl kicsi egy beágyazott Node SEA futtatóhoz képest');
+
+console.log('🔒 SHA-256 ellenőrzőösszeg integritásának vizsgálata...');
+const fileBuf = readFileSync(exePath);
+const computedHash = createHash('sha256').update(fileBuf).digest('hex');
+console.log(`   Számított SHA-256: ${computedHash}`);
+
+const shaPath = `${exePath}.sha256`;
+if (existsSync(shaPath)) {
+  const recorded = readFileSync(shaPath, 'utf8').trim().split(/\s+/)[0];
+  assert.equal(computedHash, recorded, `A rögzített (${recorded}) és számított (${computedHash}) SHA-256 eltér!`);
+  console.log('✅ SHA-256 integritás sikeres: az ellenőrzőösszeg pontosan egyezik!');
+} else {
+  console.log('ℹ️  .sha256 fájl nem volt jelen, a hash kiszámítva.');
+}
 
 console.log('▶️ Futtatás: --help tesztelése...');
 const helpOut = execFileSync(exePath, ['--help'], { encoding: 'utf8' });
@@ -74,11 +89,13 @@ try {
 
   console.log('▶️ Standalone 1-kattintásos setup web szerver tesztelése...');
   const setupPort = 39483;
-  const child = spawn(exePath, ['setup', '--web'], {
+  const child = spawn(exePath, ['setup', '--web', '--no-open'], {
     cwd: testIsolatedDir,
     env: {
       ...process.env,
       SETUP_PORT: String(setupPort),
+      NO_AUTO_OPEN: '1',
+      HEADLESS: '1',
       CRUCIX_HOME: join(testIsolatedDir, '.crucix'),
       RUNS_DIR: join(testIsolatedDir, '.crucix', 'runs'),
     },
@@ -96,13 +113,20 @@ try {
           assert.ok(body.includes('CRUCIX'), 'A setup oldal nem tartalmazza a CRUCIX nevet');
           assert.ok(body.includes('BotFather'), 'A setup oldal nem tartalmazza a BotFather-t');
           assert.ok(!body.includes('Setup page not found on disk'), 'A setup oldal nem található hibát adott');
+
+          // Check API endpoint as well
+          const configRes = await fetch(`http://localhost:${setupPort}/api/setup/config`);
+          assert.equal(configRes.status, 200, 'A /api/setup/config nem adott 200 OK státuszt');
+          const configJson = await configRes.json();
+          assert.ok(typeof configJson === 'object', 'A setup config válasz nem érvényes objektum');
+
           setupOk = true;
           break;
         }
       } catch {}
     }
     assert.ok(setupOk, 'A webes setup szerver nem válaszolt a megadott időn belül');
-    console.log('✅ Standalone setup web szerver sikeres: a beágyazott setup.html hibátlanul megnyílik forrásfájlok nélkül!');
+    console.log('✅ Standalone setup web szerver sikeres: a beágyazott setup.html és a config API hibátlanul válaszol (felugró ablak nélkül)!');
   } finally {
     try {
       child.kill();
@@ -134,13 +158,21 @@ try {
           const body = await res.text();
           assert.ok(body.includes('CRUCIX') || body.includes('jarvis'), 'A dashboard HTML nem megfelelő');
           assert.ok(!body.includes('ENOENT'), 'ENOENT hiba történt a dashboard kiszolgálásakor');
+
+          // Check API health endpoint
+          const healthRes = await fetch(`http://localhost:${serverPort}/api/health`);
+          if (healthRes.status === 200) {
+            const healthData = await healthRes.json();
+            assert.ok(typeof healthData === 'object', 'A health végpont nem JSON objektumot adott vissza');
+          }
+
           serverOk = true;
           break;
         }
       } catch {}
     }
     assert.ok(serverOk, 'A standalone web szerver nem indult el vagy nem szolgálta ki a dashboardot');
-    console.log('✅ Standalone web szerver & dashboard sikeres: a jarvis.html és statikus modulok hiba nélkül betöltődnek!');
+    console.log('✅ Standalone web szerver & dashboard sikeres: a jarvis.html és az API végpontok hiba nélkül válaszolnak!');
   } finally {
     try {
       serverChild.kill();

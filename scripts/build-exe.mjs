@@ -3,9 +3,10 @@
 // Generates a fully self-contained standalone native binary (bin/crucix.exe or bin/crucix)
 // using esbuild bundling, Node.js SEA (Single Executable Application), and postject.
 
-import { existsSync, mkdirSync, writeFileSync, copyFileSync, rmSync, statSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, copyFileSync, rmSync, statSync, chmodSync, readFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import esbuild from 'esbuild';
 
@@ -158,14 +159,61 @@ try {
   // ignore
 }
 
+// 8. Compute SHA-256 checksum and generate platform-tagged binary
+console.log('🔒 [5/6] SHA-256 ellenőrzőösszeg számítása és platform binárisok előkészítése...');
+const fileBuf = readFileSync(targetExe);
+const sha256 = createHash('sha256').update(fileBuf).digest('hex');
+const shaFile = `${targetExe}.sha256`;
+writeFileSync(shaFile, `${sha256}  ${exeName}\n`, 'utf8');
+
+const platformMap = {
+  win32: 'windows',
+  linux: 'linux',
+  darwin: 'macos',
+};
+const archMap = {
+  x64: 'x64',
+  arm64: 'arm64',
+};
+const osName = platformMap[process.platform] || process.platform;
+const archName = archMap[process.arch] || process.arch;
+const canonicalExeName = `crucix-${osName}-${archName}${isWin ? '.exe' : ''}`;
+const canonicalExePath = join(binDir, canonicalExeName);
+copyFileSync(targetExe, canonicalExePath);
+if (!isWin) {
+  try { chmodSync(canonicalExePath, 0o755); } catch {}
+}
+writeFileSync(`${canonicalExePath}.sha256`, `${sha256}  ${canonicalExeName}\n`, 'utf8');
+
+// 9. Check the result: instant smoke verification of the built executable
+console.log('🧪 [6/6] Bináris azonnali működés-ellenőrzése (eredmény vizsgálata)...');
+try {
+  const smokeOutput = execFileSync(targetExe, ['--help'], {
+    encoding: 'utf8',
+    env: { ...process.env, NO_AUTO_OPEN: '1', HEADLESS: '1' },
+    timeout: 15000,
+  });
+
+  if (!smokeOutput.includes('Crucix Intelligence CLI')) {
+    throw new Error('A lefordított bináris kimenete hiányos vagy érvénytelen (--help nem adott várt címsort).');
+  }
+  console.log('   ✅ A bináris azonnal és hibátlanul válaszolt a teszt futtatásra!');
+} catch (smokeErr) {
+  console.error('❌ A generált bináris ellenőrzése SIKERTELEN volt!');
+  console.error(smokeErr.message || smokeErr);
+  process.exit(1);
+}
+
 const stat = statSync(targetExe);
 const mb = (stat.size / (1024 * 1024)).toFixed(1);
 const runCmd = isWin ? `.\\bin\\crucix.exe` : `./bin/crucix`;
 
 console.log(`\n=============================================================`);
-console.log(`✅ Önálló (Standalone) Crucix Executable Sikeresen Létrejött!`);
+console.log(`✅ Önálló (Standalone) Crucix Executable Sikeresen Létrejött és Ellenőrizve!`);
 console.log(`📁 Elérési út:       ${targetExe}`);
+console.log(`🏷️ Platform fájl:    ${canonicalExePath}`);
 console.log(`📏 Méret:           ${mb} MB (a teljes runtime és forrás beépítve)`);
+console.log(`🔒 SHA-256:         ${sha256}`);
 console.log(`=============================================================\n`);
 console.log(`💡 Használati példák a terminálból (külső fájlok nélkül):`);
 console.log(`   ${runCmd} --help -L hu             # Magyar nyelvű súgó`);

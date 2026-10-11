@@ -50,6 +50,6 @@ dashboard/public/vercel.json
 
 # Binary build outputs
 dist/
-bin/*.exe
-bin/crucix
+bin/
 *.blob
+*.sha256
