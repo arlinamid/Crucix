@@ -173,15 +173,27 @@ jobs:
           path: dist-release/*
           retention-days: 30
 
-      - name: Attach Executables & Checksums to GitHub Release
+      - name: Publish Executables & Checksums to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           TAG="${GITHUB_REF_NAME}"
-          echo "Publishing multi-platform binaries and SHA256SUMS.txt to Release ${TAG}..."
-          gh release upload "${TAG}" dist-release/* --clobber || echo "Warning: Release upload warning or release not draft."
+          echo "Publishing multi-platform binaries and SHA256SUMS.txt to Release ${TAG} in repository ${GH_REPO}..."
+          
+          # If release exists, upload/clobber assets. If not, create the release with assets!
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} exists. Updating release assets..."
+            gh release upload "${TAG}" dist-release/* --clobber
+          else
+            echo "Release ${TAG} does not exist yet. Creating release and uploading all assets..."
+            gh release create "${TAG}" dist-release/* \
+              --title "Crucix ${TAG}: Multi-Platform Standalone Binaries & SHA-256" \
+              --generate-notes
+          fi
+          echo "Release ${TAG} assets successfully published!"
 
   # 6. Container & Docker Non-Root Permission Verification
   docker-verify:

@@ -1,5 +1,7 @@
 # Changelog / Változásnapló
 
+- [2.38.1 — Platformfüggetlen Binárisok Kiadása, SHA-256 és CI Automatizálás / Cross-Platform Standalone Binaries, SHA-256 & Automated CI Releases](docs/releases/v2.38.1.md) — 2026-10-11
+
 - [2.38.0 — Önálló Natív Bináris, Interaktív Beállító Varázsló és Globális RSS / Standalone Native Executable, Interactive Setup Wizard & Global World RSS](docs/releases/v2.38.0.md) — 2026-10-11
 
 - [2.37.0 — Ellenőrzött PR-integráció, AIS és API-javítások / Reviewed PR integration, AIS and API fixes](docs/releases/v2.37.0.md) — 2026-10-10
