@@ -199,7 +199,10 @@ npm run install:local -- --setup
 
 Then run anywhere:
 ```bash
+crucix --version    # confirm this exe, not an older npm/npx shim
 crucix -b           # Executive briefing
 crucix -m           # Markets and commodities
 crucix setup        # Re-run setup wizard at any time
 ```
+
+`npm install -g crucix` is a different install (Node + source). The `.local/bin` exe is this standalone build.

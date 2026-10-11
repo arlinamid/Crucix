@@ -21,6 +21,7 @@ import { runSetupWizard } from '../lib/setup-wizard.mjs';
 import { getEnvSearchPaths } from '../apis/utils/env.mjs';
 import { installUserProfile } from '../lib/profile-install.mjs';
 import { resolveRunsDir as resolveUserRunsDir } from '../lib/user-paths.mjs';
+import { packageVersion, versionLine } from '../lib/version.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -74,6 +75,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     live: false,
     json: false,
     help: false,
+    version: false,
     noServer: false,
     sweep: false,
     serve: false,
@@ -117,6 +119,8 @@ function parseArgs(argv = process.argv.slice(2)) {
     const arg = args[i];
     if (arg === '-h' || arg === '--help') {
       opts.help = true;
+    } else if (arg === '-v' || arg === '-V' || arg === '--version' || arg === 'version') {
+      opts.version = true;
     } else if (arg === 'setup' || arg === 'init' || arg === 'config' || arg === '--setup' || arg === '--config' || arg === 'wizard') {
       opts.setup = true;
     } else if (arg === 'install' || arg === '--install-profile') {
@@ -296,6 +300,7 @@ ${usage}
 
 Nyelvválasztás & Beállítás:
   -L, --lang <kód>                 Kimenet nyelve: en, hu, fr (alapértelmezett: en vagy CRUCIX_LANG)
+  -v, -V, --version, version       A Crucix verziója (${packageVersion()})
   setup, init, --setup             Interaktív beállító varázsló (.env, Telegram, Discord, AI, API kulcsok) (--web / --cli)
   install                          Felhasználói profil (~/.crucix: .env és runs/) létrehozása, majd a varázsló (--no-setup nélküle)
 
@@ -406,6 +411,7 @@ ${usage}
 
 Language & Setup:
   -L, --lang <code>                Output language: en, hu, fr (default: en or CRUCIX_LANG)
+  -v, -V, --version, version       Print the Crucix version (${packageVersion()})
   setup, init, --setup             Interactive setup wizard (.env, Telegram, Discord, AI, API keys) (--web / --cli)
   install                          Create the user profile (~/.crucix: .env and runs/), then run the wizard (--no-setup skips it)
 
@@ -1489,6 +1495,11 @@ async function main() {
   const lang = getCliLanguage(opts);
   opts.lang = lang;
 
+  if (opts.version) {
+    console.log(versionLine());
+    return;
+  }
+
   if (opts.help) {
     printHelp(lang);
     return;
@@ -2148,6 +2159,8 @@ export {
   isExecutable,
   getCliCmd,
   printHelp,
+  packageVersion,
+  versionLine,
   formatAge,
   formatNumber,
   formatPct,

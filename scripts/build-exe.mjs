@@ -18,6 +18,7 @@ const isWin = process.platform === 'win32';
 const isMac = process.platform === 'darwin';
 const exeName = isWin ? 'crucix.exe' : 'crucix';
 const targetExe = join(binDir, exeName);
+const pkgVersion = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
 
 console.log(`\n=============================================================`);
 console.log(`        CRUCIX STANDALONE EXECUTABLE BUILDER (SEA)`);
@@ -77,6 +78,7 @@ const __node_url = require('node:url');
 
 process.env.CRUCIX_EXECUTABLE = '1';
 process.env.CRUCIX_IS_EXE = '1';
+process.env.CRUCIX_VERSION = ${JSON.stringify(pkgVersion)};
 
 const defaultCrucixHome = __node_path.join(__node_os.homedir(), '.crucix');
 if (!process.env.CRUCIX_HOME) {

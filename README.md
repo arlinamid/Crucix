@@ -95,14 +95,15 @@ It was built for anyone who wants to understand what's actually happening in the
 ## Quick Start
 
 ```bash
-# From npm (recommended): first run opens the setup wizard
+# From npm (recommended): Node + runtime source, first run opens the setup wizard
 npx crucix
-
-# Or install the command
 npm install -g crucix
+crucix --version
 crucix install          # ~/.crucix (.env and runs/)
 crucix                  # dashboard; wizard if no .env yet
 ```
+
+That is not the standalone exe. `npm run install:local` (from a git checkout) builds `crucix.exe` and copies it to `%USERPROFILE%\.local\bin` / `~/.local/bin`. Check which one PATH hits with `crucix --version`.
 
 Settings the wizard and **Settings → News feeds** save go to `%USERPROFILE%\.crucix` on Windows or `~/.crucix` on Linux/macOS. Set `CRUCIX_HOME` to choose another folder, or `CRUCIX_ENV_FILE` to name the `.env` itself.
 

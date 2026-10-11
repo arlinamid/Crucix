@@ -8,6 +8,8 @@ import {
   isExecutable,
   getCliCmd,
   printHelp,
+  packageVersion,
+  versionLine,
   formatAge,
   formatNumber,
   formatPct,
@@ -34,6 +36,15 @@ test('cli parseArgs: default noServer is false', () => {
   assert.equal(opts.noServer, false);
   assert.equal(opts.category, 'news');
   assert.equal(opts.limit, 5);
+});
+
+test('cli parseArgs: recognizes version flags', () => {
+  for (const flag of ['-v', '-V', '--version', 'version']) {
+    assert.equal(parseArgs([flag]).version, true, flag);
+  }
+  assert.equal(parseArgs(['-c', 'news']).version, false);
+  assert.match(versionLine(), new RegExp(`^crucix ${packageVersion().replace(/\./g, '\\.')}$`));
+  assert.match(packageVersion(), /^\d+\.\d+\.\d+/);
 });
 
 test('cli parseArgs: recognizes sweep flags', () => {

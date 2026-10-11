@@ -209,7 +209,10 @@ Ez a parancs:
 
 Ezután a terminálban egyszerűen:
 ```bash
+crucix --version    # ez az exe-e, ne egy régi npm/npx shim
 crucix -b           # Vezetői összefoglaló
 crucix -m           # Piacok és nyersanyagok
 crucix setup        # Beállító varázsló újrafuttatása
 ```
+
+Az `npm install -g crucix` másik telepítés (Node + forrás). A `.local/bin` exe ez a standalone build.

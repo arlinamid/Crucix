@@ -175,6 +175,9 @@ Crucix still works with zero API keys. Most of the 71 sources need no authentica
 The CLI (`scripts/cli.mjs`) works seamlessly **both with a running dev server and completely standalone / offline (`--no-server`, direct disk fallback)**.
 
 ```bash
+# Version (also: crucix -v / -V / version)
+npm run cli -- --version
+
 # Executive briefing & market overview
 npm run cli -- -b                    # Executive briefing (markets, VIX, oil, gold, quakes, OSINT)
 npm run cli -- -m                    # Stock indexes, bond rates, crypto, commodities
