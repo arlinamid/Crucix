@@ -20,12 +20,15 @@ test('instance lock is exclusive, stale pid is stolen, owner can release', () =>
     assert.equal(other.pid, process.pid);
     assert.equal(releaseInstanceLock(dir, { pid: process.pid + 1 }), false);
     assert.equal(releaseInstanceLock(dir), true);
-    const stale = acquireInstanceLock(dir, { pid: 1 });
+    // PID 1 is init on Linux CI, so pick a high unused pid as the dead owner.
+    let stalePid = 10_000_000 + (process.pid % 1000);
+    while (processIsAlive(stalePid)) stalePid += 1000;
+    const stale = acquireInstanceLock(dir, { pid: stalePid });
     assert.equal(stale.created, true);
     const stolen = acquireInstanceLock(dir, { pid: process.pid });
     assert.equal(stolen.created, true);
     assert.equal(processIsAlive(process.pid), true);
-    assert.equal(processIsAlive(1), false);
+    assert.equal(processIsAlive(stalePid), false);
     assert.match(alreadyRunningMessage({ pid: 9 }, { port: 3117 }), /already running \(pid 9\)/);
     assert.match(alreadyRunningMessage({ pid: 9 }, { port: 3117, lang: 'hu' }), /már fut/);
   } finally {

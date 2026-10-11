@@ -141,6 +141,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -158,9 +161,6 @@ jobs:
         with:
           name: crucix-bin-macos-latest
           path: dist-raw/macos
-
-      - name: Checkout Repository
-        uses: actions/checkout@v4
 
       - name: Consolidate Binaries & Generate SHA256SUMS.txt
         shell: bash
