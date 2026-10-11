@@ -62,7 +62,7 @@ test('the publish-npm job runs after the gates, in the npm environment, with onl
   assert.match(job, /if: startsWith\(github\.ref, 'refs\/tags\/v'\) \|\| \(github\.event_name == 'workflow_dispatch' && inputs\.publish_npm\)/);
   assert.match(job, /environment:\n\s+name: npm/);
   assert.match(job, /permissions:\n\s+contents: read\n\s+id-token: write\n/);
-  assert.match(job, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_ACCESS_TOKEN \}\}/);
+  assert.doesNotMatch(job, /NODE_AUTH_TOKEN:/, 'OIDC trusted publishing: a 2FA token would fail with EOTP');
   assert.match(job, /node scripts\/publish-npm\.mjs "\$\{args\[@\]\}"/);
   assert.match(job, /persist-credentials: false/);
   const script = job.slice(job.lastIndexOf('run: |'));

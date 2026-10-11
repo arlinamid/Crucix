@@ -6,7 +6,9 @@
 //   node scripts/publish-npm.mjs --ci [--dry-run]    GitHub Actions (environment "npm"): tag check, audit, publish with provenance
 //
 // Options: --tag <dist-tag> (default: latest, or next for a prerelease), --ref <v1.2.3> (CI: the tag being released,
-// default GITHUB_REF_NAME). A version already on the registry is skipped, not an error; so is a CI run without NPM_TOKEN.
+// default GITHUB_REF_NAME). A version already on the registry is skipped, not an error. CI publishes through GitHub
+// OIDC (npm Trusted Publisher: repo arlinamid/Crucix, workflow ci.yml, environment npm). A classic token with 2FA
+// cannot publish from Actions (EOTP); do not set NODE_AUTH_TOKEN on the publish step.
 
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -217,17 +219,30 @@ function ci(opts, pkg) {
     return;
   }
   const tag = distTagFor(pkg.version, opts.tag);
-  // actions/setup-node puts a placeholder in NODE_AUTH_TOKEN when no token is given.
+  // actions/setup-node puts a placeholder in NODE_AUTH_TOKEN when no token is given. A real classic token with
+  // 2FA still required makes `npm publish` fail with EOTP; GitHub OIDC (trusted publishing) does not.
+  const oidc = Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
   const token = [process.env.NODE_AUTH_TOKEN, process.env.NPM_TOKEN].find(value => value && !/^X{5}(-X{5})+$/.test(value));
-  if (!token) {
-    console.log('  ::warning::NPM_ACCESS_TOKEN is not set in the npm environment; skipping the publish.');
+  if (!oidc && !token) {
+    console.log('  ::warning::No GitHub OIDC audience and no NPM_ACCESS_TOKEN; skipping the publish.');
     return;
   }
+  if (oidc) console.log('  Using GitHub OIDC trusted publishing (no access token, so no 2FA OTP).');
   const args = ['publish', '--provenance', '--access', 'public', '--tag', tag, ...(opts.dryRun ? ['--dry-run'] : [])];
   step(`npm ${args.join(' ')}`);
-  const env = { ...process.env, NODE_AUTH_TOKEN: token };
+  const env = { ...process.env };
+  if (oidc) {
+    delete env.NODE_AUTH_TOKEN;
+    delete env.NPM_TOKEN;
+  } else {
+    env.NODE_AUTH_TOKEN = token;
+  }
   const result = npm(args, { capture: false, env });
-  if (result.status !== 0) fail('npm publish failed');
+  if (result.status !== 0) {
+    fail(oidc
+      ? 'npm publish failed. On npmjs.com → crucix → Trusted Publisher, add GitHub Actions: repository arlinamid/Crucix, workflow filename ci.yml, environment name npm.'
+      : 'npm publish failed. A token that still requires 2FA needs --otp; use a granular Automation token that bypasses 2FA, or trusted publishing.');
+  }
   console.log(`\n✔ ${opts.dryRun ? 'Dry run of' : 'Published'} ${pkg.name}@${pkg.version} (${tag})`);
 }
 
