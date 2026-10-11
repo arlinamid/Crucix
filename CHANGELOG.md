@@ -1,5 +1,7 @@
 # Changelog / Változásnapló
 
+- [2.39.4 — egy példány, `irm` telepítő és HTTP parser-abort / single instance, irm installer and HTTP parser abort](docs/releases/v2.39.4.md) — 2026-10-11
+
 - [2.39.3 — kvóták, RSS-pool és 180 s Cursor-ideas / quotas, RSS pool and 180 s Cursor ideas](docs/releases/v2.39.3.md) — 2026-10-11
 
 - [2.39.2 — `crucix --version`, két telepítési út / `crucix --version` and two install paths](docs/releases/v2.39.2.md) — 2026-10-11

@@ -94,16 +94,31 @@ It was built for anyone who wants to understand what's actually happening in the
 
 ## Quick Start
 
+```powershell
+# Windows: standalone exe from GitHub Releases (no Node)
+irm https://github.com/arlinamid/Crucix/releases/latest/download/install.ps1 | iex
+```
+
 ```bash
-# From npm (recommended): Node + runtime source, first run opens the setup wizard
+# Linux / macOS
+curl -fsSL https://github.com/arlinamid/Crucix/releases/latest/download/install.sh | sh
+```
+
+```bash
+# From npm: Node + runtime source, first run opens the setup wizard
 npx crucix
 npm install -g crucix
+```
+
+Then:
+
+```bash
 crucix --version
 crucix install          # ~/.crucix (.env and runs/)
 crucix                  # dashboard; wizard if no .env yet
 ```
 
-That is not the standalone exe. `npm run install:local` (from a git checkout) builds `crucix.exe` and copies it to `%USERPROFILE%\.local\bin` / `~/.local/bin`. Check which one PATH hits with `crucix --version`.
+`npm run install:local` (from a git checkout) builds the exe yourself. Check which one PATH hits with `crucix --version`.
 
 Settings the wizard and **Settings → News feeds** save go to `%USERPROFILE%\.crucix` on Windows or `~/.crucix` on Linux/macOS. Set `CRUCIX_HOME` to choose another folder, or `CRUCIX_ENV_FILE` to name the `.env` itself.
 

@@ -54,6 +54,8 @@ import { openFeedStore, setActiveFeedStore } from './lib/news/feed-store.mjs';
 import { installFeedRoutes } from './lib/news/routes.mjs';
 import { resolveRunsDir as resolveUserRunsDir, feedsSettingsPath, settingsEnvPath } from './lib/user-paths.mjs';
 import { resolveDashboardPublicDir, readJarvisHtml } from './lib/dashboard-path.mjs';
+import { alreadyRunningMessage, holdInstanceLock } from './lib/instance-lock.mjs';
+import { isBenignHttpParserClose } from './lib/http-parser-error.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
@@ -579,6 +581,12 @@ async function runSweepCycle() {
 
 // === Startup ===
 async function start() {
+  const lock = holdInstanceLock(RUNS_DIR);
+  if (lock.error) {
+    console.error(alreadyRunningMessage(lock, { port: config.port, lang: currentLanguage }));
+    process.exit(1);
+  }
+
   const port = config.port;
 
   const isHeadless =
@@ -672,7 +680,15 @@ async function start() {
 process.on('unhandledRejection', (err) => {
   console.error('[Crucix] Unhandled rejection:', err?.stack || err?.message || err);
 });
+let httpParserCloseWarned = false;
 process.on('uncaughtException', (err) => {
+  if (isBenignHttpParserClose(err)) {
+    if (!httpParserCloseWarned) {
+      httpParserCloseWarned = true;
+      console.warn('[Crucix] Node HTTP parser hit a paused TLS socket (RSS abort). Continuing; this is not a sweep failure.');
+    }
+    return;
+  }
   console.error('[Crucix] Uncaught exception:', err?.stack || err?.message || err);
 });
 

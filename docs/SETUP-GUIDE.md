@@ -187,7 +187,19 @@ REFRESH_INTERVAL_MINUTES=15
 
 ## 🚀 Standalone Local Installation
 
-To build and install the binary globally into your user profile:
+Download the platform binary from GitHub Releases (no Node):
+
+```powershell
+# Windows
+irm https://github.com/arlinamid/Crucix/releases/latest/download/install.ps1 | iex
+```
+
+```bash
+# Linux / macOS
+curl -fsSL https://github.com/arlinamid/Crucix/releases/latest/download/install.sh | sh
+```
+
+Or build it from a git checkout:
 
 ```bash
 # Build and install to ~/.local/bin:

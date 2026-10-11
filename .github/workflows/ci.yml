@@ -159,10 +159,14 @@ jobs:
           name: crucix-bin-macos-latest
           path: dist-raw/macos
 
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Consolidate Binaries & Generate SHA256SUMS.txt
         shell: bash
         run: |
           mkdir -p dist-release
+          cp scripts/install.ps1 scripts/install.sh dist-release/
           
           # Copy all distinct executable binaries and platform-specific names (excluding individual sha files)
           find dist-raw -type f \( -name "crucix-*" -o -name "crucix.exe" -o -name "crucix" \) ! -name "*.sha256" -exec cp {} dist-release/ \;

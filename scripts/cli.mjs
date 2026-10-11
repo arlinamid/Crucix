@@ -22,6 +22,7 @@ import { getEnvSearchPaths } from '../apis/utils/env.mjs';
 import { installUserProfile } from '../lib/profile-install.mjs';
 import { resolveRunsDir as resolveUserRunsDir } from '../lib/user-paths.mjs';
 import { packageVersion, versionLine } from '../lib/version.mjs';
+import { alreadyRunningMessage, holdInstanceLock } from '../lib/instance-lock.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -1578,6 +1579,11 @@ async function main() {
 
   // 0b. Continuous data collector loop without any web server
   if (opts.collector) {
+    const lock = holdInstanceLock(runsDir);
+    if (lock.error) {
+      console.error(alreadyRunningMessage(lock, { port, lang }));
+      process.exit(1);
+    }
     const intervalMinutes = opts.interval || 15;
     if (lang === 'hu') {
       console.log('\n🔄 Crucix Folyamatos Adatgyűjtő Ciklus (Headless Collector)');

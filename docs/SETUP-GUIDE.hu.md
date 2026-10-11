@@ -193,6 +193,20 @@ REFRESH_INTERVAL_MINUTES=15
 
 Ha szeretnéd a gépeden a rendszerbe telepíteni, hogy bárhonnan fusson:
 
+A platformhoz tartozó exe a GitHub Release-ről (Node nélkül):
+
+```powershell
+# Windows
+irm https://github.com/arlinamid/Crucix/releases/latest/download/install.ps1 | iex
+```
+
+```bash
+# Linux / macOS
+curl -fsSL https://github.com/arlinamid/Crucix/releases/latest/download/install.sh | sh
+```
+
+Vagy forrásból, a checkoutban:
+
 ```bash
 # Fordítás és telepítés a felhasználói profilba:
 npm run install:local

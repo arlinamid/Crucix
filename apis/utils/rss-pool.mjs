@@ -10,6 +10,12 @@ export const RSS_TIMEOUT_MS = 12000;
 export const rssAgent = new Agent({
   connections: RSS_CONCURRENCY,
   pipelining: 0,
+  // Close the socket after each feed. Reusing a TLS connection that AbortSignal
+  // paused makes Node's HTTP parser throw assert(!this.paused) on socket end.
+  keepAliveTimeout: 1,
+  keepAliveMaxTimeout: 1,
+  bodyTimeout: RSS_TIMEOUT_MS,
+  headersTimeout: RSS_TIMEOUT_MS,
   connect: {
     timeout: 8000,
     family: 4,

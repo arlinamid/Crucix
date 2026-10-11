@@ -37,7 +37,9 @@ Get-Process -Id <OwningProcess_from_above>
 lsof -i :3117
 ```
 
-Identify the process before taking action. Reuse an existing Crucix instance or choose `PORT=3118`; avoid stopping unrelated applications. See [the operations guide](OPERATIONS.md).
+Identify the process before taking action. Reuse an existing Crucix instance or choose `PORT=3118`; avoid stopping unrelated applications. See [the operations guide](OPERATIONS.md). A second dashboard or `--collector` on the same profile now exits with `already running` instead of starting another sweep.
+
+The standalone exe (no Node) is installed with `irm https://github.com/arlinamid/Crucix/releases/latest/download/install.ps1 | iex` on Windows, or `curl -fsSL https://github.com/arlinamid/Crucix/releases/latest/download/install.sh | sh` on Linux/macOS. `npx crucix` is a different install (Node + source). Check `crucix --version` and which path PATH hits.
 
 **4. Check Node.js version:**
 ```bash
