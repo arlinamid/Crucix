@@ -6,9 +6,8 @@
 import './apis/utils/env.mjs';
 import express from 'express';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
-import { dirname, join, resolve } from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { homedir } from 'os';
 import { openBrowser } from './lib/open-browser.mjs';
 import { inlineJson } from './lib/html.mjs';
 import { installApiErrorHandler } from './lib/api-errors.mjs';
@@ -38,6 +37,8 @@ import { createLLMProvider } from './lib/llm/index.mjs';
 import { IdeaCadence } from './lib/llm/cadence.mjs';
 import { TelegramAlerter } from './lib/alerts/telegram.mjs';
 import { DiscordAlerter } from './lib/alerts/discord.mjs';
+import { answerQuestion, countryRiskText, createAskLimiter } from './lib/alerts/ask.mjs';
+import { briefTopic, buildBotBrief } from './lib/alerts/brief.mjs';
 import { AlertEngine } from './lib/alerts/engine.mjs';
 import { AlertNotifier } from './lib/alerts/notify.mjs';
 import { installAlertRoutes } from './lib/alerts/routes.mjs';
@@ -49,18 +50,15 @@ import { archiveSweep } from './lib/sweeps/step.mjs';
 import { WORLD_FEEDS, getFeedsByCountry } from './apis/utils/news-feeds.mjs';
 import { parseFeed } from './apis/utils/rss.mjs';
 import { getWorldNewsByCountry, getWorldNews, getBalancedWorldNews, getWorldRssStats, startWorldRssScheduler } from './lib/world-rss-runner.mjs';
+import { openFeedStore, setActiveFeedStore } from './lib/news/feed-store.mjs';
+import { installFeedRoutes } from './lib/news/routes.mjs';
+import { resolveRunsDir as resolveUserRunsDir, feedsSettingsPath, settingsEnvPath } from './lib/user-paths.mjs';
 import { resolveDashboardPublicDir, readJarvisHtml } from './lib/dashboard-path.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
 export function resolveRunsDir(configuredDir = config.runsDir) {
-  if (configuredDir) return resolve(configuredDir);
-  if (process.env.RUNS_DIR) return resolve(process.env.RUNS_DIR);
-  const projectRuns = join(ROOT, 'runs');
-  if (existsSync(projectRuns)) return projectRuns;
-  const userRuns = join(homedir(), '.crucix', 'runs');
-  if (existsSync(userRuns)) return userRuns;
-  return existsSync(join(ROOT, 'package.json')) ? projectRuns : userRuns;
+  return resolveUserRunsDir({ root: ROOT, configured: configuredDir });
 }
 const RUNS_DIR = resolveRunsDir();
 const MEMORY_DIR = join(RUNS_DIR, 'memory');
@@ -115,14 +113,25 @@ alertEngine.load();
 // Sweep archive in runs/sweeps/: every completed sweep is stored for replay, the changes windows and the source-health matrix.
 // previousArchived is the baseline of the next sweep's changes; after a restart it is the newest archived sweep.
 const sweepArchive = new SweepArchive(RUNS_DIR, { count: config.sweeps.count, maxMb: config.sweeps.maxMb });
+// News feed overrides in the profile's feeds.json (Settings > News feeds): the sweep and the world RSS runner read the
+// feeds that are on.
+const feedStore = openFeedStore({ runsDir: RUNS_DIR, file: feedsSettingsPath() });
+if (feedStore.loadError) console.error('[Feeds] feeds.json could not be read; using the defaults:', feedStore.loadError);
+setActiveFeedStore(feedStore);
 let previousArchived = null;
 try { previousArchived = sweepArchive.latest(); }
 catch (error) { console.error('[Sweeps] Could not read the archive:', error.message); }
 
 // === LLM + Telegram + Discord ===
 const llmProvider = createLLMProvider(config.llm);
-const telegramAlerter = new TelegramAlerter(config.telegram);
-const discordAlerter = new DiscordAlerter(config.discord || {});
+const telegramAlerter = new TelegramAlerter({ ...config.telegram, dashboardUrl: config.alerts.publicUrl });
+const discordAlerter = new DiscordAlerter({ ...(config.discord || {}), dashboardUrl: config.alerts.publicUrl });
+const askAllowed = createAskLimiter();
+const askBot = async (channel, question) => {
+  if (!askAllowed(channel)) return { text: 'Too many questions; try again in a minute.', plain: true };
+  return { text: await answerQuestion({ question, snapshot: currentData, provider: llmProvider }), plain: true };
+};
+const riskBot = input => ({ text: countryRiskText(input, { state: riskLatest, snapshot: currentData }), plain: true });
 const alertNotifier = new AlertNotifier({
   telegram: telegramAlerter, discord: discordAlerter, notifyChannels: config.alerts.notifyChannels, ntfy: config.alerts.ntfy, webhook: config.alerts.webhook,
   minSeverity: config.alerts.notifyMinSeverity, quietHours: config.alerts.quietHours,
@@ -168,58 +177,12 @@ if (telegramAlerter.isConfigured) {
     return '🚀 Manual sweep triggered. You\'ll receive alerts if anything significant is detected.';
   });
 
-  telegramAlerter.onCommand('/brief', async () => {
-    if (!currentData) return '⏳ No data yet — waiting for first sweep to complete.';
+  telegramAlerter.onCommand('/brief', async args => buildBotBrief({
+    data: currentData, delta: memory.getLastDelta(), held: telegramAlerter.takeHeldAlerts(), topic: briefTopic(args), style: 'telegram',
+  }));
 
-    const tg = currentData.tg || {};
-    const energy = currentData.energy || {};
-    const metals = currentData.metals || {};
-    const delta = memory.getLastDelta();
-    const ideas = (currentData.ideas || []).slice(0, 3);
-
-    const sections = [
-      `📋 *CRUCIX BRIEF*`,
-      `_${new Date().toISOString().replace('T', ' ').substring(0, 19)} UTC_`,
-      ``,
-    ];
-
-    // Delta direction
-    if (delta?.summary) {
-      const dirEmoji = { 'risk-off': '📉', 'risk-on': '📈', 'mixed': '↔️' }[delta.summary.direction] || '↔️';
-      sections.push(`${dirEmoji} Direction: *${delta.summary.direction.toUpperCase()}* | ${delta.summary.totalChanges} changes, ${delta.summary.criticalChanges} critical`);
-      sections.push('');
-    }
-
-    // Key metrics
-    const vix = currentData.fred?.find(f => f.id === 'VIXCLS');
-    const hy = currentData.fred?.find(f => f.id === 'BAMLH0A0HYM2');
-    if (vix || energy.wti || metals.gold || metals.silver) {
-      sections.push(`📊 VIX: ${vix?.value || '--'} | WTI: $${energy.wti || '--'} | Brent: $${energy.brent || '--'}`);
-      sections.push(`   Gold: $${metals.gold || '--'} | Silver: $${metals.silver || '--'}${hy ? ` | HY Spread: ${hy.value}` : ''}`);
-      sections.push(`   NatGas: $${energy.natgas || '--'}`);
-      sections.push('');
-    }
-
-    // OSINT
-    if (tg.urgent?.length > 0) {
-      sections.push(`📡 OSINT: ${tg.urgent.length} urgent signals, ${tg.posts || 0} total posts`);
-      // Top 2 urgent
-      for (const p of tg.urgent.slice(0, 2)) {
-        sections.push(`  • ${(p.text || '').substring(0, 80)}`);
-      }
-      sections.push('');
-    }
-
-    // Top ideas
-    if (ideas.length > 0) {
-      sections.push(`💡 *Top Ideas:*`);
-      for (const idea of ideas) {
-        sections.push(`  ${idea.type === 'long' ? '📈' : idea.type === 'hedge' ? '🛡️' : '👁️'} ${idea.title}`);
-      }
-    }
-
-    return sections.join('\n');
-  });
+  telegramAlerter.onCommand('/ask', async args => askBot('telegram', args));
+  telegramAlerter.onCommand('/risk', async args => riskBot(args));
 
   telegramAlerter.onCommand('/portfolio', async () => {
     return '📊 Portfolio integration requires Alpaca MCP connection.\nUse the Crucix dashboard or Claude agent for portfolio queries.';
@@ -265,48 +228,12 @@ if (discordAlerter.isConfigured) {
     return '🚀 Manual sweep triggered. You\'ll receive alerts if anything significant is detected.';
   });
 
-  discordAlerter.onCommand('brief', async () => {
-    if (!currentData) return '⏳ No data yet — waiting for first sweep to complete.';
+  discordAlerter.onCommand('brief', async args => buildBotBrief({
+    data: currentData, delta: memory.getLastDelta(), held: discordAlerter.takeHeldAlerts(), topic: briefTopic(args), style: 'discord',
+  }));
 
-    const tg = currentData.tg || {};
-    const energy = currentData.energy || {};
-    const metals = currentData.metals || {};
-    const delta = memory.getLastDelta();
-    const ideas = (currentData.ideas || []).slice(0, 3);
-
-    const sections = [`**📋 CRUCIX BRIEF**\n_${new Date().toISOString().replace('T', ' ').substring(0, 19)} UTC_\n`];
-
-    if (delta?.summary) {
-      const dirEmoji = { 'risk-off': '📉', 'risk-on': '📈', 'mixed': '↔️' }[delta.summary.direction] || '↔️';
-      sections.push(`${dirEmoji} Direction: **${delta.summary.direction.toUpperCase()}** | ${delta.summary.totalChanges} changes, ${delta.summary.criticalChanges} critical\n`);
-    }
-
-    const vix = currentData.fred?.find(f => f.id === 'VIXCLS');
-    const hy = currentData.fred?.find(f => f.id === 'BAMLH0A0HYM2');
-    if (vix || energy.wti || metals.gold || metals.silver) {
-      sections.push(`📊 VIX: ${vix?.value || '--'} | WTI: $${energy.wti || '--'} | Brent: $${energy.brent || '--'}`);
-      sections.push(`   Gold: $${metals.gold || '--'} | Silver: $${metals.silver || '--'}${hy ? ` | HY Spread: ${hy.value}` : ''}`);
-      sections.push(`   NatGas: $${energy.natgas || '--'}`);
-      sections.push('');
-    }
-
-    if (tg.urgent?.length > 0) {
-      sections.push(`📡 OSINT: ${tg.urgent.length} urgent signals, ${tg.posts || 0} total posts`);
-      for (const p of tg.urgent.slice(0, 2)) {
-        sections.push(`  • ${(p.text || '').substring(0, 80)}`);
-      }
-      sections.push('');
-    }
-
-    if (ideas.length > 0) {
-      sections.push(`**💡 Top Ideas:**`);
-      for (const idea of ideas) {
-        sections.push(`  ${idea.type === 'long' ? '📈' : idea.type === 'hedge' ? '🛡️' : '👁️'} ${idea.title}`);
-      }
-    }
-
-    return sections.join('\n');
-  });
+  discordAlerter.onCommand('ask', async args => askBot('discord', args));
+  discordAlerter.onCommand('risk', async args => riskBot(args));
 
   discordAlerter.onCommand('portfolio', async () => {
     return '📊 Portfolio integration requires Alpaca MCP connection.\nUse the Crucix dashboard or Claude agent for portfolio queries.';
@@ -384,6 +311,7 @@ installAlertRoutes(app, { engine: alertEngine, getSnapshot: () => freshLiveSnaps
 }, security: { publicUrl: config.alerts.publicUrl, allowedHosts: config.alerts.allowedHosts }, language: currentLanguage });
 installSweepRoutes(app, { archive: sweepArchive, getCurrent: () => currentData });
 installSetupRoutes(app, { security: { publicUrl: config.alerts?.publicUrl, allowedHosts: config.alerts?.allowedHosts } });
+installFeedRoutes(app, { store: feedStore, security: { publicUrl: config.alerts.publicUrl, allowedHosts: config.alerts.allowedHosts } });
 
 function archivedSweepCount() {
   try { return sweepArchive.list().length; } catch { return 0; }

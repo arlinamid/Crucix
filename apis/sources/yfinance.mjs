@@ -1,34 +1,74 @@
 // Yahoo Finance — Live market quotes (no API key required)
-// Provides real-time prices for stocks, ETFs, crypto, commodities
+// Provides real-time prices for stocks, ETFs, crypto, commodities, world indexes and FX
 // Replaces the need for Alpaca or any paid market data provider
 
 import { safeFetch } from '../utils/fetch.mjs';
+import { YAHOO_FX } from '../../lib/markets/fx.mjs';
 
 const BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
+const CONCURRENCY = 8;
 
-// Symbols to track — covers broad market, rates, commodities, crypto, volatility
-const SYMBOLS = {
-  // Indexes / ETFs
-  '^GSPC': 'S&P 500',
-  '^IXIC': 'Nasdaq Composite',
-  '^DJI': 'Dow Jones',
-  '^RUT': 'Russell 2000',
-  // Rates / Credit
-  TLT: '20Y+ Treasury',
-  HYG: 'High Yield Corp',
-  LQD: 'IG Corporate',
-  // Commodities
-  'GC=F': 'Gold',
-  'SI=F': 'Silver',
-  'CL=F': 'WTI Crude',
-  'BZ=F': 'Brent Crude',
-  'NG=F': 'Natural Gas',
-  // Crypto
-  'BTC-USD': 'Bitcoin',
-  'ETH-USD': 'Ethereum',
-  // Volatility
-  '^VIX': 'VIX',
+const GROUPS = {
+  indexes: { '^GSPC': 'S&P 500', '^IXIC': 'Nasdaq Composite', '^DJI': 'Dow Jones', '^RUT': 'Russell 2000' },
+  worldIndexes: { '^GDAXI': 'DAX', '^FTSE': 'FTSE 100', '^N225': 'Nikkei 225', '^HSI': 'Hang Seng', '^BUX.BD': 'BUX' },
+  rates: { TLT: '20Y+ Treasury', HYG: 'High Yield Corp', LQD: 'IG Corporate' },
+  commodities: { 'GC=F': 'Gold', 'SI=F': 'Silver', 'CL=F': 'WTI Crude', 'BZ=F': 'Brent Crude', 'NG=F': 'Natural Gas' },
+  crypto: { 'BTC-USD': 'Bitcoin', 'ETH-USD': 'Ethereum' },
+  volatility: { '^VIX': 'VIX' },
+  // Defense, energy and semiconductors: the sectors the OSINT signals move first.
+  equities: {
+    LMT: 'Lockheed Martin', 'RHM.DE': 'Rheinmetall', RTX: 'RTX', XOM: 'ExxonMobil', SHEL: 'Shell',
+    TTE: 'TotalEnergies', TSM: 'TSMC', NVDA: 'NVIDIA', ASML: 'ASML',
+  },
+  fx: Object.fromEntries(Object.entries(YAHOO_FX).map(([code, { symbol, inverse }]) => [symbol, inverse ? `USD/${code}` : `${code}/USD`])),
 };
+
+const SYMBOLS = Object.fromEntries(Object.values(GROUPS).flatMap(group => Object.entries(group)));
+export const YAHOO_SYMBOLS = Object.freeze({ ...SYMBOLS });
+const FX_SYMBOLS = new Set(Object.keys(GROUPS.fx));
+
+const round = (value, decimals) => (Number.isFinite(value) ? Number(value.toFixed(decimals)) : null);
+
+/**
+ * The quote from one Yahoo chart response. The previous close is the daily bar before the latest one: with
+ * range=5d, meta.chartPreviousClose is the close before the five-day window, which turned a five-day move into
+ * the "daily" change.
+ */
+export function parseChart(symbol, data) {
+  const result = data?.chart?.result?.[0];
+  if (!result) return { symbol, name: SYMBOLS[symbol] || symbol, error: data?.error || 'Yahoo returned no chart data' };
+  const meta = result.meta || {};
+  const closes = result.indicators?.quote?.[0]?.close || [];
+  const timestamps = result.timestamp || [];
+  const bars = timestamps.map((t, i) => ({ t, close: closes[i] })).filter(bar => Number.isFinite(bar.close));
+
+  const price = meta.regularMarketPrice ?? bars.at(-1)?.close;
+  if (!Number.isFinite(price)) return { symbol, name: SYMBOLS[symbol] || symbol, error: 'Yahoo returned no valid price' };
+  const prevClose = bars.length >= 2 ? bars.at(-2).close : (meta.previousClose ?? meta.chartPreviousClose ?? null);
+  const change = Number.isFinite(prevClose) ? price - prevClose : 0;
+  const changePct = Number.isFinite(prevClose) && prevClose ? (change / prevClose) * 100 : 0;
+  const decimals = FX_SYMBOLS.has(symbol) ? 6 : 2;
+
+  return {
+    symbol,
+    name: SYMBOLS[symbol] || meta.shortName || symbol,
+    price: round(price, decimals),
+    prevClose: round(prevClose ?? 0, decimals),
+    change: round(change, decimals),
+    changePct: round(changePct, 2),
+    dayLow: round(meta.regularMarketDayLow, decimals),
+    dayHigh: round(meta.regularMarketDayHigh, decimals),
+    yearLow: round(meta.fiftyTwoWeekLow, decimals),
+    yearHigh: round(meta.fiftyTwoWeekHigh, decimals),
+    volume: Number.isFinite(meta.regularMarketVolume) ? meta.regularMarketVolume : null,
+    currency: meta.currency || 'USD',
+    exchange: meta.exchangeName || '',
+    marketState: meta.marketState || 'UNKNOWN',
+    timestamp: Number.isFinite(meta.regularMarketTime) ? new Date(meta.regularMarketTime * 1000).toISOString() : null,
+    source: 'Yahoo',
+    history: bars.map(bar => ({ date: new Date(bar.t * 1000).toISOString().split('T')[0], close: round(bar.close, decimals) })),
+  };
+}
 
 export async function fetchQuote(symbol) {
   try {
@@ -39,45 +79,7 @@ export async function fetchQuote(symbol) {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
     });
-
-    const result = data?.chart?.result?.[0];
-    if (!result) return { symbol, name: SYMBOLS[symbol] || symbol, error: data.error || 'Yahoo returned no chart data' };
-
-    const meta = result.meta || {};
-    const quotes = result.indicators?.quote?.[0] || {};
-    const closes = quotes.close || [];
-    const timestamps = result.timestamp || [];
-
-    // Get current price and previous close
-    const price = meta.regularMarketPrice ?? closes[closes.length - 1];
-    if (!Number.isFinite(price)) return { symbol, name: SYMBOLS[symbol] || symbol, error: 'Yahoo returned no valid price' };
-    const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? closes[closes.length - 2];
-    const change = price && prevClose ? price - prevClose : 0;
-    const changePct = prevClose ? (change / prevClose) * 100 : 0;
-
-    // Build 5-day history
-    const history = [];
-    for (let i = 0; i < timestamps.length; i++) {
-      if (closes[i] != null) {
-        history.push({
-          date: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
-          close: Math.round(closes[i] * 100) / 100,
-        });
-      }
-    }
-
-    return {
-      symbol,
-      name: SYMBOLS[symbol] || meta.shortName || symbol,
-      price: Math.round(price * 100) / 100,
-      prevClose: Math.round((prevClose || 0) * 100) / 100,
-      change: Math.round(change * 100) / 100,
-      changePct: Math.round(changePct * 100) / 100,
-      currency: meta.currency || 'USD',
-      exchange: meta.exchangeName || '',
-      marketState: meta.marketState || 'UNKNOWN',
-      history,
-    };
+    return parseChart(symbol, data);
   } catch (e) {
     return { symbol, name: SYMBOLS[symbol] || symbol, error: e.message };
   }
@@ -87,11 +89,23 @@ export async function briefing() {
   return collect();
 }
 
-export async function collect() {
+async function mapLimited(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      try { out[index] = { status: 'fulfilled', value: await fn(items[index]) }; }
+      catch (reason) { out[index] = { status: 'rejected', reason }; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+export async function collect({ fetch: fetchOne = fetchQuote } = {}) {
   const symbols = Object.keys(SYMBOLS);
-  const results = await Promise.allSettled(
-    symbols.map(s => fetchQuote(s))
-  );
+  const results = await mapLimited(symbols, CONCURRENCY, fetchOne);
 
   const quotes = {};
   let ok = 0;
@@ -118,11 +132,7 @@ export async function collect() {
       failed,
       timestamp: new Date().toISOString(),
     },
-    indexes: pickGroup(quotes, ['^GSPC', '^IXIC', '^DJI', '^RUT']),
-    rates: pickGroup(quotes, ['TLT', 'HYG', 'LQD']),
-    commodities: pickGroup(quotes, ['GC=F', 'SI=F', 'CL=F', 'BZ=F', 'NG=F']),
-    crypto: pickGroup(quotes, ['BTC-USD', 'ETH-USD']),
-    volatility: pickGroup(quotes, ['^VIX']),
+    ...Object.fromEntries(Object.entries(GROUPS).map(([group, members]) => [group, pickGroup(quotes, Object.keys(members))])),
   };
 }
 

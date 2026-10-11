@@ -5,9 +5,8 @@
 // and all 71 OSINT adapters, markets, energy, metals, thermal, earthquakes, chokepoints, cyber.
 // Usage: crucix [options] (or: node scripts/cli.mjs [options] / npm run cli -- [options])
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
-import { homedir } from 'node:os';
 import http from 'node:http';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import config from '../crucix.config.mjs';
@@ -20,20 +19,15 @@ import { countryByIso3 } from '../lib/intelligence/countries.mjs';
 import { saveSnapshot } from '../lib/snapshots.mjs';
 import { runSetupWizard } from '../lib/setup-wizard.mjs';
 import { getEnvSearchPaths } from '../apis/utils/env.mjs';
+import { installUserProfile } from '../lib/profile-install.mjs';
+import { resolveRunsDir as resolveUserRunsDir } from '../lib/user-paths.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const port = config.port || 3117;
 const host = config.host === '0.0.0.0' ? '127.0.0.1' : (config.host || '127.0.0.1');
 export function resolveRunsDir(configuredDir = config.runsDir) {
-  if (configuredDir) return resolve(configuredDir);
-  if (process.env.RUNS_DIR) return resolve(process.env.RUNS_DIR);
-  if (process.env.CRUCIX_HOME) return join(process.env.CRUCIX_HOME, 'runs');
-  const projectRuns = join(ROOT, 'runs');
-  if (existsSync(projectRuns)) return projectRuns;
-  const userRuns = join(homedir(), '.crucix', 'runs');
-  if (existsSync(userRuns)) return userRuns;
-  return existsSync(join(ROOT, 'package.json')) ? projectRuns : userRuns;
+  return resolveUserRunsDir({ root: ROOT, configured: configuredDir });
 }
 const runsDir = resolveRunsDir();
 const historyFile = join(runsDir, 'intelligence', 'history.json');
@@ -113,6 +107,8 @@ function parseArgs(argv = process.argv.slice(2)) {
     delta: false,
     all: false,
     setup: false,
+    install: false,
+    noSetup: false,
     server: false,
     headless: false,
   };
@@ -123,6 +119,10 @@ function parseArgs(argv = process.argv.slice(2)) {
       opts.help = true;
     } else if (arg === 'setup' || arg === 'init' || arg === 'config' || arg === '--setup' || arg === '--config' || arg === 'wizard') {
       opts.setup = true;
+    } else if (arg === 'install' || arg === '--install-profile') {
+      opts.install = true;
+    } else if (arg === '--no-setup') {
+      opts.noSetup = true;
     } else if (arg === 'server' || arg === 'start' || arg === 'web' || arg === 'dashboard') {
       opts.server = true;
       opts.serve = true;
@@ -297,6 +297,7 @@ ${usage}
 Nyelvválasztás & Beállítás:
   -L, --lang <kód>                 Kimenet nyelve: en, hu, fr (alapértelmezett: en vagy CRUCIX_LANG)
   setup, init, --setup             Interaktív beállító varázsló (.env, Telegram, Discord, AI, API kulcsok) (--web / --cli)
+  install                          Felhasználói profil (~/.crucix: .env és runs/) létrehozása, majd a varázsló (--no-setup nélküle)
 
 Szerver & Web Vezérlőpult:
   server, start, dashboard, web    Crucix szerver és Jarvis webes vezérlőpult indítása (http://localhost:3117)
@@ -406,6 +407,7 @@ ${usage}
 Language & Setup:
   -L, --lang <code>                Output language: en, hu, fr (default: en or CRUCIX_LANG)
   setup, init, --setup             Interactive setup wizard (.env, Telegram, Discord, AI, API keys) (--web / --cli)
+  install                          Create the user profile (~/.crucix: .env and runs/), then run the wizard (--no-setup skips it)
 
 Server & Web Dashboard:
   server, start, dashboard, web    Start Crucix server and open Jarvis web dashboard (http://localhost:3117)
@@ -1492,6 +1494,19 @@ async function main() {
     return;
   }
 
+  if (opts.install) {
+    const profile = installUserProfile({ root: ROOT });
+    console.log(lang === 'hu'
+      ? `✅ Crucix profil: ${profile.dir}\n   Beállítások: ${profile.env}${profile.envCreated ? ' (létrehozva)' : ' (megtartva)'}\n   Adatok:      ${profile.runs}`
+      : `✅ Crucix profile: ${profile.dir}\n   Settings: ${profile.env}${profile.envCreated ? ' (created)' : ' (kept)'}\n   Data:     ${profile.runs}`);
+    if (!opts.noSetup && process.stdin.isTTY) {
+      await runSetupWizard({ envPath: profile.env, cli: process.argv.includes('--cli'), web: process.argv.includes('--web') });
+    } else {
+      console.log(lang === 'hu' ? '   Beállító varázsló: crucix setup' : '   Setup wizard: crucix setup');
+    }
+    return;
+  }
+
   // Interactive Setup Wizard
   if (opts.setup) {
     const isCli = process.argv.includes('--cli');
@@ -2116,7 +2131,13 @@ async function main() {
   }
 }
 
-const entryHref = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
+// npm links the `crucix` bin (node_modules/.bin/crucix) to this file, and Node reports import.meta.url for the
+// resolved file: compare against the resolved argv[1], not the link.
+function entryUrl(path) {
+  if (!path) return null;
+  try { return pathToFileURL(realpathSync(path)).href; } catch { return pathToFileURL(path).href; }
+}
+const entryHref = entryUrl(process.argv[1]);
 if (entryHref && import.meta.url === entryHref) {
   main();
 }

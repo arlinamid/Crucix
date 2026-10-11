@@ -205,6 +205,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .settings-sub{font-size:11px;line-height:1.45;color:var(--dim);margin-top:6px}
 .settings-close{border:1px solid var(--border);background:rgba(255,255,255,0.03);color:var(--dim);width:30px;height:30px;font-size:18px;cursor:pointer;flex-shrink:0}
 .settings-body{overflow:auto;padding:14px 16px 16px;display:flex;flex-direction:column;gap:14px}
+.settings-body[hidden]{display:none}
+#settingsFeedsTab{flex:1;min-height:0}
+.feeds-path{font-family:var(--mono);font-size:10px;letter-spacing:0.04em;color:var(--accent2);overflow-wrap:anywhere}
+.feeds-row-country{min-height:24px;padding:2px 8px;font-family:var(--mono);font-size:10px;letter-spacing:0.04em;color:var(--accent2);border:1px solid rgba(68,204,255,0.28);background:rgba(68,204,255,0.06);cursor:pointer}
+.feeds-row-country:hover,.feeds-row-country:focus-visible{border-color:var(--accent2);color:var(--text)}
+.feeds-country-select{max-width:min(280px,70vw);min-height:28px;border:1px solid var(--border);background:#0a1821;color:var(--text);padding:4px 8px;font-size:11px}
 .settings-fixed{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .settings-fixed-card{padding:12px;border:1px solid rgba(255,255,255,0.05);background:rgba(255,255,255,0.02)}
 .settings-fixed-label{display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:10px;letter-spacing:0.08em;text-transform:uppercase}
@@ -239,6 +245,41 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .settings-module-actions{display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:8px}
 .settings-module-actions button,.settings-module-actions select{min-height:30px;border:1px solid var(--border);background:#0a1821;color:var(--text);padding:4px 7px;font-size:11px;max-width:100%}
 .settings-module-actions button:disabled{opacity:.35;cursor:default}
+.settings-tabs{display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
+.settings-tab{padding:7px 14px;font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;border:1px solid transparent;border-bottom:none;background:transparent;color:var(--dim);cursor:pointer}
+.settings-tab.active{color:var(--accent);border-color:rgba(100,240,200,0.22);background:rgba(100,240,200,0.05)}
+.feeds-toolbar,.feeds-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.feeds-toolbar input,.feeds-toolbar select,.feeds-add input,.feeds-add select{min-height:30px;border:1px solid var(--border);background:#0a1821;color:var(--text);padding:4px 8px;font-size:11px}
+.feeds-add input[name="url"]{flex:1;min-width:220px}
+.feeds-btn{min-height:30px;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;border:1px solid rgba(100,240,200,0.3);color:var(--accent);background:rgba(100,240,200,0.06);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.feeds-btn.warn{border-color:rgba(255,184,76,0.3);color:var(--warn);background:rgba(255,184,76,0.08)}
+.feeds-counts{font-family:var(--mono);font-size:10px;letter-spacing:0.06em;color:var(--dim)}
+.feeds-status{font-size:11px;color:var(--accent2);min-height:16px}
+.feeds-status.error{color:var(--danger)}
+.feeds-list{display:flex;flex-direction:column;gap:4px}
+.feeds-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;border:1px solid rgba(255,255,255,0.05);background:rgba(255,255,255,0.02)}
+.feeds-row.off{opacity:0.55}
+.feeds-row-main{min-width:0}
+.feeds-row-name{font-size:12px;font-weight:600}
+.feeds-row-meta{font-family:var(--mono);font-size:9px;letter-spacing:0.05em;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70vw}
+.feeds-group{border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.015)}
+.feeds-group-head{display:flex;align-items:center;gap:10px;padding:4px 10px}
+.feeds-group-open{flex:1;display:flex;align-items:center;gap:8px;min-height:32px;background:none;border:0;color:var(--text);font-family:var(--mono);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;text-align:left;padding:0}
+.feeds-group-open:hover,.feeds-group-open:focus-visible{color:var(--accent)}
+.feeds-caret{width:10px;color:var(--dim)}
+.feeds-group-count{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:0.04em;color:var(--dim)}
+.feeds-group-body{display:flex;flex-direction:column;gap:4px;padding:0 10px 10px}
+.feeds-country-head{display:flex;align-items:center;gap:10px;padding:10px 0 2px;font-size:11px;font-weight:600;color:var(--accent2)}
+.feeds-code{font-family:var(--mono);font-size:9px;color:var(--dim);font-weight:400}
+.feeds-row-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.feeds-btn.small{min-height:24px;padding:2px 8px;font-size:9px}
+.feeds-tag{font-family:var(--mono);font-size:9px;font-weight:400;color:var(--warn);border:1px solid rgba(255,184,76,0.3);padding:0 4px;margin-left:6px}
+.feeds-edit{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 10px;margin:-4px 0 4px;border:1px solid rgba(100,240,200,0.18);border-top:0;background:rgba(100,240,200,0.03)}
+.feeds-edit input,.feeds-edit select{min-height:28px;border:1px solid var(--border);background:#0a1821;color:var(--text);padding:4px 8px;font-size:11px}
+.feeds-edit input[name="source"]{flex:1;min-width:180px}
+.feeds-edit-hint{flex-basis:100%;font-size:10px;color:var(--dim)}
+.settings-switch input:indeterminate{background:rgba(255,184,76,0.12);border-color:rgba(255,184,76,0.4)}
+.settings-switch input:indeterminate::after{transform:translateX(8px);background:var(--warn)}
 :focus-visible{outline:2px solid var(--accent2);outline-offset:3px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .status-strip{display:flex;flex-wrap:wrap;gap:8px;width:100%;font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--dim)}
@@ -506,7 +547,12 @@ body.low-perf .ticker-wrap::-webkit-scrollbar-thumb{background:rgba(100,240,200,
       </div>
       <button class="settings-close" onclick="closeSettings()" aria-label="Close settings">&times;</button>
     </div>
-    <div class="settings-body">
+    <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+      <button type="button" class="settings-tab active" role="tab" id="settingsTabLayout" aria-controls="settingsLayoutTab" aria-selected="true" data-settings-tab="layout">Layout</button>
+      <button type="button" class="settings-tab" role="tab" id="settingsTabFeeds" aria-controls="settingsFeedsTab" aria-selected="false" data-settings-tab="feeds">News feeds</button>
+    </div>
+    <div class="settings-body" id="settingsFeedsTab" role="tabpanel" aria-labelledby="settingsTabFeeds" hidden></div>
+    <div class="settings-body" id="settingsLayoutTab" role="tabpanel" aria-labelledby="settingsTabLayout">
       <div class="settings-fixed" id="settingsFixed"></div>
       <section aria-labelledby="settingsLayersTitle"><h3 id="settingsLayersTitle">Map layers</h3><div class="settings-layer-grid" id="settingsLayers"></div></section>
       <div class="sr-only" id="settingsAnnouncement" role="status" aria-live="polite"></div>
@@ -1497,13 +1543,54 @@ function buildMacroMarketsPanel(){
   const indexCards = (mkt.indexes||[]).map(mktCard).join('');
   const cryptoCards = (mkt.crypto||[]).map(mktCard).join('');
   const hasMarkets = indexCards || cryptoCards;
+  const fmtNum = v => Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
+  const fmtBig = v => v>=1e12?`${(v/1e12).toFixed(2)}T`:v>=1e9?`${(v/1e9).toFixed(1)}B`:v>=1e6?`${(v/1e6).toFixed(1)}M`:fmtNum(v);
+  const has = v => typeof v==='number' && Number.isFinite(v);
+  const pctText = pct => has(pct)?`${pct>=0?'&#9650; +':'&#9660; '}${pct.toFixed(2)}%`:'';
+  const pctColor = pct => !has(pct)?'var(--dim)':pct>=0?'var(--accent)':'var(--warn)';
+  const quoteTitle = q => [
+    has(q.dayLow)&&has(q.dayHigh)?`${t('markets.dayRange','Day range')}: ${fmtNum(q.dayLow)} – ${fmtNum(q.dayHigh)}`:'',
+    has(q.yearLow)&&has(q.yearHigh)?`${t('markets.yearRange','52-week range')}: ${fmtNum(q.yearLow)} – ${fmtNum(q.yearHigh)}`:'',
+    has(q.volume)?`${t('markets.volume','Volume')}: ${fmtBig(q.volume)}${has(q.avgVolume)?` (${t('markets.avgVolume','Avg volume')}: ${fmtBig(q.avgVolume)})`:''}`:'',
+    has(q.marketCap)?`${t('markets.marketCap','Market cap')}: ${fmtBig(q.marketCap)}`:'',
+    has(q.priceAvg50)?`${t('markets.avg50','50-day average')}: ${fmtNum(q.priceAvg50)}`:'',
+    has(q.priceAvg200)?`${t('markets.avg200','200-day average')}: ${fmtNum(q.priceAvg200)}`:'',
+    q.source?`${t('markets.source','Source')}: ${q.source}`:'',
+  ].filter(Boolean).join('\n');
+  const quoteCard = q => {
+    if(!q||!has(q.price)) return '';
+    const unit = q.currency && !String(q.symbol).startsWith('^') ? ` ${esc(q.currency)}` : '';
+    return `<div class="mc" title="${esc(quoteTitle(q))}"><div class="ml">${esc(q.name||q.symbol)}</div><span class="mv" style="color:${pctColor(q.changePct)}">${fmtNum(q.price)}${unit}</span><span class="ms" style="color:${pctColor(q.changePct)}">${pctText(q.changePct)}</span></div>`;
+  };
+  const fx = mkt.fx || null;
+  const currencies = fx?.currencies?.length ? fx.currencies : [];
+  const storedBase = readPreference('crucix_base_currency');
+  const base = currencies.includes(storedBase) ? storedBase : (fx?.baseCurrency || 'USD');
+  const fxCard = row => `<div class="mc" title="${esc(row.source?`${t('markets.source','Source')}: ${row.source}`:'')}"><div class="ml">${esc(row.pair)}</div><span class="mv" style="color:${pctColor(row.changePct)}">${esc(Number(row.price).toFixed(row.decimals))}</span><span class="ms" style="color:${pctColor(row.changePct)}">${pctText(row.changePct)}</span></div>`;
+  const crossRows = fx?.crosses?.[base] || [];
+  const crossPairs = new Set(crossRows.map(row => row.pair));
+  const benchmarkRows = (fx?.benchmarks || []).filter(row => !crossPairs.has(row.pair));
+  const baseSelect = currencies.length ? `<label style="text-transform:none;letter-spacing:0">${t('markets.baseCurrency','Base currency')} <select data-base-currency aria-label="${esc(t('markets.baseCurrency','Base currency'))}" style="font-family:var(--mono);font-size:10px;background:var(--bg);color:var(--text);border:1px solid var(--border-bright);border-radius:3px">${currencies.map(code=>`<option value="${esc(code)}"${code===base?' selected':''}>${esc(code)}</option>`).join('')}</select></label>` : '';
+  const marketSection = (label, cards, extra='') => cards ? `<div style="margin-bottom:8px"><div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px;display:flex;justify-content:space-between;align-items:center;gap:6px"><span>${label}</span>${extra}</div><div class="metrics-row">${cards}</div></div>` : '';
+  const fxHtml = marketSection(tFill('markets.crosses','{base} CROSSES',{base}), crossRows.map(fxCard).join('') || (currencies.length ? `<div class="mc"><div class="ml">${t('markets.noFx','No exchange rates in this sweep')}</div></div>` : ''), baseSelect)
+    + marketSection(t('markets.benchmarks','FX BENCHMARKS'), benchmarkRows.map(fxCard).join(''));
+  const worldHtml = marketSection(t('markets.worldIndexes','WORLD INDEXES'), (mkt.worldIndexes||[]).map(quoteCard).join(''));
+  const equityHtml = marketSection(t('markets.equities','DEFENSE · ENERGY · CHIPS'), (mkt.equities||[]).map(quoteCard).join(''));
   return `<div class="g-panel lp-macro">
     <div class="sec-head"><h3>${t('panels.macroMarkets','Macro + Markets')}</h3><span class="badge">${mkt.timestamp?t('badges.live','LIVE'):t('badges.delayed','DELAYED')}</span></div>
     ${hasMarkets?`<div style="margin-bottom:8px"><div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px">${t('metrics.indexes','INDEXES')}</div><div class="metrics-row">${indexCards}</div></div><div style="margin-bottom:8px"><div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px">${t('metrics.crypto','CRYPTO')}</div><div class="metrics-row">${cryptoCards}</div></div>`:''}
+    ${worldHtml}${fxHtml}${equityHtml}
     <div style="margin-bottom:8px"><div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:4px;letter-spacing:1px">${t('metrics.energyMacro','ENERGY + METALS + MACRO')}</div><div class="metrics-row">${metrics.map(m=>{const sparkSvg = m.spark ? mkSparkSvg(m.spark, m.sparkUp) : ''; return `<div class="mc"><div class="ml">${esc(m.l)}</div><span class="mv">${esc(m.v)}${sparkSvg}</span><span class="ms">${esc(m.s)}</span><div class="mbar"><span style="width:${m.p}%"></span></div></div>`;}).join('')}</div></div>
     <div style="margin-top:6px"><div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:4px">${t('metrics.wti5day','WTI 5-DAY')}</div><div class="spark">${sparkHtml}</div></div>
   </div>`;
 }
+
+document.addEventListener('change',event=>{
+  const select=event.target?.closest?.('select[data-base-currency]');
+  if(!select) return;
+  writePreference('crucix_base_currency',select.value);
+  rerenderDashboard();
+});
 
 function buildTradeIdeasPanel(){
   const hasIdeas = D.ideas && D.ideas.length > 0;
@@ -2755,8 +2842,7 @@ function buildOsintPanel(panelClass='', maxHeight=260){
     const focusId=overlay.contains(document.activeElement)?document.activeElement.id:null;
     const fixedEl=document.getElementById('settingsFixed'),boardEl=document.getElementById('settingsBoard');
     overlay.querySelector('.settings-kicker').textContent=t('settings.kicker','Dashboard settings');
-    document.getElementById('settingsTitle').textContent=t('settings.title','Panels and map layers');
-    document.getElementById('settingsDescription').textContent=t('settings.description','Drag modules or use the move controls. Alt + arrow keys reorder a focused module. Hidden modules keep their place.');
+    settingsHeading(document.getElementById('settingsFeedsTab').hidden?'layout':'feeds');
     overlay.querySelector('.settings-close').setAttribute('aria-label',t('settings.close','Close settings'));
     overlay.querySelector('.settings-reset').textContent=t('settings.reset','Reset panel layout');
     document.getElementById('settingsLayersTitle').textContent=t('settings.layers','Map layers · globe and flat');
@@ -2769,6 +2855,10 @@ function buildOsintPanel(panelClass='', maxHeight=260){
     };
     const zoneCard=zone=>`<div class="settings-zone-card"><div class="settings-zone-head"><strong>${esc(getPanelPlacementLabel(zone))}</strong></div><div class="settings-zone-body" data-zone="${zone}">${zoneModules(zone)}</div></div>`;
     boardEl.innerHTML=zoneCard('left')+`<div class="settings-center-card"><div class="settings-center-head"><strong>${t('settings.center','Center column')}</strong></div><div class="settings-center-preview"><div class="settings-map-preview ${isFixedModuleVisible('map')?'':'off'}">${isFixedModuleVisible('map')?t('settings.map','Map module'):t('settings.mapHidden','Map hidden')}</div></div><div class="settings-center-grid">${['center1','center2','center3'].map(zoneCard).join('')}</div></div>`+zoneCard('right');
+    document.getElementById('settingsTabLayout').textContent=t('settings.tabLayout','Layout');
+    document.getElementById('settingsTabFeeds').textContent=t('settings.tabFeeds','News feeds');
+    overlay.querySelector('.settings-tabs').setAttribute('aria-label',t('settings.tabsLabel','Settings sections'));
+    renderFeedsTab();
     if(focusId)document.getElementById(focusId)?.focus({preventScroll:true});
   }
   function movePanelBy(id,step){
@@ -2877,7 +2967,7 @@ function buildOsintPanel(panelClass='', maxHeight=260){
 
   function openSettings(){
     const overlay=document.getElementById('settingsOverlay');if(overlay.classList.contains('show'))return;
-    closeGlossary();settingsReturnFocus=document.activeElement;renderSettingsBoard();bindSettingsEvents();
+    closeGlossary();settingsReturnFocus=document.activeElement;renderSettingsBoard();bindSettingsEvents();bindFeedsEvents();
     overlay.inert=false;overlay.setAttribute('aria-hidden','false');overlay.classList.add('show');
     for(const child of document.body.children){if(child!==overlay&&!['SCRIPT','STYLE'].includes(child.tagName)){settingsInertState.set(child,child.inert);child.inert=true;}}
     document.body.style.overflow='hidden';overlay.querySelector('.settings-close').focus();
@@ -2889,6 +2979,262 @@ function buildOsintPanel(panelClass='', maxHeight=260){
     document.body.style.overflow='';clearSettingsDragState();draggedPanelId=null;
     const target=settingsReturnFocus?.isConnected?settingsReturnFocus:document.getElementById(settingsReturnFocus?.id||'settingsTrigger');target?.focus({preventScroll:true});
     overlay.setAttribute('aria-hidden','true');overlay.inert=true;
+  }
+
+  // Settings > News feeds: the server keeps the choices in the profile's feeds.json (CRUCIX_HOME or ~/.crucix), not in
+  // the checkout. The next sweep and the 30-minute world RSS run read them. Feeds are grouped the way the news panel
+  // filters them, by region and then country; a region is the first of FEED_REGIONS whose set holds the country. A country
+  // name on a row opens a named picker. Only the rows of open groups are drawn; a search or a region filter opens them.
+  const FEED_REGIONS=['northAmerica','latinAmerica','middleEast','easternEurope','europe','africa','centralAsia','southAsia','eastAsia','seAsia','oceania'];
+  const FEED_FOCUS_KEYS=['id','data-feed-group','data-feed-url','data-feed-open','data-feed-edit','data-feed-move','data-feed-country'];
+  const feedsView={data:null,query:'',kind:'all',state:'all',region:'all',status:'',error:false,busy:false,open:new Set(),editing:null,moving:null,adding:false};
+  const ft=(key,fallback,values)=>values?tFill('feeds.'+key,fallback,values):t('feeds.'+key,fallback);
+  let feedCountryNames=null;
+  function feedCountryName(code){
+    if(!code)return ft('groupGlobal','Global · no country');
+    const lang=document.documentElement.lang||'en';
+    try{if(feedCountryNames?.lang!==lang)feedCountryNames={lang,names:new Intl.DisplayNames([lang],{type:'region'})};return feedCountryNames.names.of(code)||code;}
+    catch{return code;}
+  }
+  const feedRegion=country=>!country?'global':FEED_REGIONS.find(id=>REGION_COUNTRY_CODES[id]?.has(country))||'other';
+  const feedRegionLabel=region=>region==='global'?ft('groupGlobal','Global · no country'):region==='other'?ft('groupOther','Other countries'):t('regions.'+region,region);
+  function settingsHeading(tab){
+    document.getElementById('settingsTitle').textContent=tab==='feeds'?ft('title','News feeds'):t('settings.title','Panels and map layers');
+    document.getElementById('settingsDescription').textContent=tab==='feeds'
+      ?ft('subtitle','Feeds are grouped by region and country, as the news panel filters them. Switch a whole group, or pick a country name on a feed to move it.')
+      :t('settings.description','Drag modules or use the move controls. Alt + arrow keys reorder a focused module. Hidden modules keep their place.');
+  }
+  function selectSettingsTab(tab){
+    for(const button of document.querySelectorAll('[data-settings-tab]')){const on=button.dataset.settingsTab===tab;button.classList.toggle('active',on);button.setAttribute('aria-selected',String(on));}
+    document.getElementById('settingsLayoutTab').hidden=tab!=='layout';
+    document.getElementById('settingsFeedsTab').hidden=tab!=='feeds';
+    settingsHeading(tab);
+    if(tab==='feeds'){renderFeedsTab();if(!feedsView.data)loadFeeds();}
+  }
+  async function feedsRequest(path,body){
+    const res=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const json=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(json.error||('HTTP '+res.status));
+    return json;
+  }
+  function feedsSay(message,error=false){feedsView.status=message;feedsView.error=error;const el=document.getElementById('feedsStatus');if(el){el.textContent=message;el.classList.toggle('error',error);}}
+  async function loadFeeds(){
+    try{feedsView.data=await feedsRequest('/api/feeds');feedsView.status=feedsView.data.loadError?ft('loadError','Saved feed settings could not be read; defaults are in use.'):'';feedsView.error=!!feedsView.data.loadError;}
+    catch(error){feedsView.data=null;feedsSay(ft('errorLoad','Feed list unavailable: {error}',{error:error.message}),true);}
+    renderFeedsTab();
+  }
+  // True when the change was saved.
+  async function feedsChange(path,body,done){
+    if(feedsView.busy)return false;feedsView.busy=true;
+    try{const result=await feedsRequest(path,body);await loadFeeds();feedsSay(done?done(result):ft('saved','Saved. The next sweep uses the new feed list.'));return true;}
+    catch(error){feedsSay(ft('errorSave','Not saved: {error}',{error:error.message}),true);renderFeedsTab();return false;}
+    finally{feedsView.busy=false;}
+  }
+  function feedRows(){
+    const data=feedsView.data;if(!data)return [];
+    const rows=[...data.custom,...data.core,...data.world];
+    const q=feedsView.query.trim().toLowerCase();
+    return rows.filter(row=>(feedsView.kind==='all'||row.kind===feedsView.kind)&&(feedsView.state==='all'||(feedsView.state==='on')===row.enabled)
+      &&(feedsView.region==='all'||feedRegion(row.country)===feedsView.region)
+      &&(!q||row.source.toLowerCase().includes(q)||row.url.toLowerCase().includes(q)||(row.country||'').toLowerCase()===q||(row.lang||'').toLowerCase()===q
+        ||(row.country&&feedCountryName(row.country).toLowerCase().includes(q))||feedRegionLabel(feedRegion(row.country)).toLowerCase().includes(q)));
+  }
+  // Map region -> Map country -> rows, regions in FEED_REGIONS order (then other, global), countries by name.
+  function feedGroups(rows){
+    const groups=new Map();
+    for(const row of rows){
+      const region=feedRegion(row.country);
+      if(!groups.has(region))groups.set(region,new Map());
+      const countries=groups.get(region);const country=row.country||'';
+      if(!countries.has(country))countries.set(country,[]);
+      countries.get(country).push(row);
+    }
+    const order=[...FEED_REGIONS,'other','global'];
+    return new Map([...groups].sort((a,b)=>order.indexOf(a[0])-order.indexOf(b[0]))
+      .map(([region,countries])=>[region,new Map([...countries].sort((a,b)=>feedCountryName(a[0]).localeCompare(feedCountryName(b[0]))))]));
+  }
+  function groupUrls(key){
+    const [, region, country]=key.split(':');const countries=feedGroups(feedRows()).get(region);
+    if(!countries)return [];
+    return (country===undefined?[...countries.values()].flat():countries.get(country)||[]).map(row=>row.url);
+  }
+  function groupSwitch(key,rows,label){
+    const on=rows.filter(row=>row.enabled).length;
+    return `<label class="settings-switch"><input type="checkbox" data-feed-group="${esc(key)}" ${on===rows.length?'checked':''} ${on>0&&on<rows.length?'data-mixed="1"':''} aria-label="${esc(ft('groupToggle','Every feed in {group}',{group:label}))}"></label>`;
+  }
+  function countryCodes(){
+    return [...new Set(FEED_REGIONS.flatMap(id=>[...(REGION_COUNTRY_CODES[id]||[])]))];
+  }
+  function countrySelectHtml(selected,attrs){
+    const picked=selected||'';
+    const groups=new Map();
+    for(const code of countryCodes()){
+      const region=feedRegion(code);
+      if(!groups.has(region))groups.set(region,[]);
+      groups.get(region).push(code);
+    }
+    let options=`<option value="">${esc(ft('groupGlobal','Global · no country'))}</option>`;
+    for(const region of [...FEED_REGIONS,'other']){
+      const list=(groups.get(region)||[]).sort((a,b)=>feedCountryName(a).localeCompare(feedCountryName(b)));
+      if(!list.length)continue;
+      options+=`<optgroup label="${esc(feedRegionLabel(region))}">${list.map(code=>`<option value="${esc(code)}"${code===picked?' selected':''}>${esc(feedCountryName(code))}</option>`).join('')}</optgroup>`;
+    }
+    return `<select class="feeds-country-select" ${attrs}>${options}</select>`;
+  }
+  function feedCountryControl(row){
+    const back=row.kind!=='custom'&&row.moved?`<button type="button" class="feeds-btn small" data-feed-home="${esc(row.url)}">${esc(ft('moveBack','Back to {country}',{country:feedCountryName(row.defaultCountry)}))}</button>`:'';
+    if(feedsView.moving===row.url)return `${countrySelectHtml(row.country||'',`data-feed-country="${esc(row.url)}" aria-label="${esc(ft('moveCountry','Move to another country'))}"`)}${back}`;
+    return `<button type="button" class="feeds-row-country" data-feed-move="${esc(row.url)}" aria-expanded="false" title="${esc(ft('moveCountry','Move to another country'))}">${esc(feedCountryName(row.country))}</button>${back}`;
+  }
+  function feedEditorHtml(row){
+    return `<form class="feeds-edit" data-edit-url="${esc(row.url)}" autocomplete="off">
+      <input name="source" maxlength="80" required value="${esc(row.source)}" aria-label="${esc(ft('addSource','Source name'))}">
+      <input name="lang" maxlength="2" size="3" value="${esc(row.lang||'')}" placeholder="en" aria-label="${esc(ft('addLang','Language (2 letters)'))}">
+      ${countrySelectHtml(row.country||'','name="country"')}
+      <select name="tier" aria-label="${esc(ft('addTier','Reliability tier'))}">${[1,2,3,4].map(tier=>`<option value="${tier}" ${tier===row.tier?'selected':''}>T${tier}</option>`).join('')}</select>
+      <button type="submit" class="feeds-btn">${esc(ft('saveEdit','Save'))}</button>
+      <button type="button" class="feeds-btn warn" data-feed-remove="${esc(row.url)}">${esc(ft('remove','Remove'))}</button>
+      <button type="button" class="feeds-btn" data-feed-cancel="1">${esc(ft('cancel','Cancel'))}</button>
+      <div class="feeds-edit-hint">${esc(ft('editHintCustom','Your own feed: change its name, language, country group or tier. To change the URL, remove it and add it again.'))}</div>
+    </form>`;
+  }
+  function feedRowHtml(row,kindLabel){
+    const editing=feedsView.editing===row.url;
+    const moved=row.moved?`<span class="feeds-tag">${esc(ft('movedFrom','moved from {country}',{country:feedCountryName(row.defaultCountry)}))}</span>`:'';
+    return `<div class="feeds-row ${row.enabled?'':'off'}"><div class="feeds-row-main"><div class="feeds-row-name">${esc(row.source)}${moved}</div><div class="feeds-row-meta">${esc([kindLabel(row.kind),row.lang,'T'+row.tier,row.url].filter(Boolean).join(' · '))}</div></div>
+      <div class="feeds-row-actions">${feedCountryControl(row)}${row.kind==='custom'?`<button type="button" class="feeds-btn small" data-feed-edit="${esc(row.url)}" aria-expanded="${editing}">${esc(ft('edit','Edit'))}</button>`:''}
+      <label class="settings-switch"><input type="checkbox" data-feed-url="${esc(row.url)}" aria-label="${esc(ft('enable','Use this feed')+' · '+row.source)}" ${row.enabled?'checked':''}></label></div></div>${editing?feedEditorHtml(row):''}`;
+  }
+  function feedsFocusKey(root){
+    const el=document.activeElement;if(!el||!root.contains(el))return null;
+    const name=FEED_FOCUS_KEYS.find(key=>el.hasAttribute(key));return name?[name,el.getAttribute(name)]:null;
+  }
+  function renderFeedsTab(){
+    const root=document.getElementById('settingsFeedsTab');if(!root||root.hidden)return;
+    const focus=feedsFocusKey(root);
+    const data=feedsView.data,c=data?.counts;
+    const kindLabel=kind=>ft('kind_'+kind,{core:'Core',world:'World',custom:'Custom'}[kind]);
+    const rows=feedRows();const searching=!!feedsView.query.trim();
+    let groupsHtml='';
+    for(const [region,countries] of feedGroups(rows)){
+      const all=[...countries.values()].flat();const key='r:'+region;const open=searching||feedsView.region!=='all'||feedsView.open.has(key);const label=feedRegionLabel(region);
+      groupsHtml+=`<section class="feeds-group"><div class="feeds-group-head">${groupSwitch(key,all,label)}<button type="button" class="feeds-group-open" data-feed-open="${esc(key)}" aria-expanded="${open}"><span class="feeds-caret" aria-hidden="true">${open?'▾':'▸'}</span>${esc(label)}<span class="feeds-group-count">${all.filter(row=>row.enabled).length}/${all.length}</span></button></div>`;
+      if(open){
+        groupsHtml+='<div class="feeds-group-body">';
+        for(const [country,list] of countries){
+          const name=feedCountryName(country);
+          if(region!=='global')groupsHtml+=`<div class="feeds-country-head">${groupSwitch('c:'+region+':'+country,list,name)}<span>${esc(name)}</span><span class="feeds-code">${esc(country)}</span><span class="feeds-group-count">${list.filter(row=>row.enabled).length}/${list.length}</span></div>`;
+          groupsHtml+=list.map(row=>feedRowHtml(row,kindLabel)).join('');
+        }
+        groupsHtml+='</div>';
+      }
+      groupsHtml+='</section>';
+    }
+    const regionOptions=[['all',ft('allRegions','Every region')],['global',ft('groupGlobal','Global · no country')],...FEED_REGIONS.map(id=>[id,feedRegionLabel(id)]),['other',ft('groupOther','Other countries')]];
+    root.innerHTML=`<div class="settings-sub">${esc(ft('description','Choose the RSS feeds the sweep reads, add your own, or move a list between readers with OPML. Changes apply from the next sweep.'))}</div>
+      ${c?`<div class="feeds-counts">${esc(ft('counts','Core {coreOn}/{core} · World {worldOn}/{world} · Custom {customOn}/{custom} (max {max})',{coreOn:c.coreEnabled,core:c.core,worldOn:c.worldEnabled,world:c.world,customOn:c.customEnabled??c.custom,custom:c.custom,max:c.maxCustom}))}</div>`:''}
+      ${data?.file?`<div class="feeds-path" title="${esc(data.file)}">${esc(ft('savedIn','Saved in {file}',{file:data.file}))}</div>`:''}
+      ${data?.envFile?`<div class="feeds-path" title="${esc(data.envFile)}">${esc(ft('savedEnv','Keys and other settings: {file}',{file:data.envFile}))}</div>`:''}
+      <div class="feeds-toolbar">
+        <button type="button" class="feeds-btn" id="feedsAddToggle" aria-expanded="${feedsView.adding}">${esc(ft('addOpen','+ Add feed'))}</button>
+        <button type="button" class="feeds-btn" id="feedsImport">${esc(ft('importOpml','Import OPML'))}</button>
+        <input type="file" id="feedsImportFile" accept=".opml,.xml,text/xml,text/x-opml,application/xml" hidden>
+        <a class="feeds-btn" id="feedsExport" href="/api/feeds/opml" download>${esc(ft('exportOpml','Export OPML'))}</a>
+        <button type="button" class="feeds-btn" id="feedsWorldOn" data-feed-all="world" data-enabled="true">${esc(ft('worldAllOn','All world feeds on'))}</button>
+        <button type="button" class="feeds-btn warn" id="feedsWorldOff" data-feed-all="world" data-enabled="false">${esc(ft('worldAllOff','All world feeds off'))}</button>
+        <button type="button" class="feeds-btn warn" id="feedsReset">${esc(ft('reset','Restore defaults'))}</button>
+      </div>
+      ${feedsView.adding?`<form class="feeds-add" id="feedsAddForm" autocomplete="off">
+        <input name="source" id="feedsAddSource" maxlength="80" required placeholder="${esc(ft('addSource','Source name'))}" aria-label="${esc(ft('addSource','Source name'))}">
+        <input name="url" id="feedsAddUrl" type="url" maxlength="2048" required placeholder="https://example.com/feed.xml" aria-label="${esc(ft('addUrl','Feed URL'))}">
+        <input name="lang" id="feedsAddLang" maxlength="2" size="3" placeholder="en" aria-label="${esc(ft('addLang','Language (2 letters)'))}">
+        ${countrySelectHtml('','name="country" id="feedsAddCountry" aria-label="'+esc(ft('addCountry','Country group'))+'"')}
+        <select name="tier" id="feedsAddTier" aria-label="${esc(ft('addTier','Reliability tier'))}">${[1,2,3,4].map(tier=>`<option value="${tier}" ${tier===3?'selected':''}>T${tier}</option>`).join('')}</select>
+        <button type="submit" class="feeds-btn" id="feedsAddSubmit">${esc(ft('add','Add feed'))}</button>
+      </form>`:''}
+      <div class="feeds-toolbar">
+        <input type="search" id="feedsSearch" value="${esc(feedsView.query)}" placeholder="${esc(ft('search','Search name, URL, country or language'))}" aria-label="${esc(ft('search','Search name, URL, country or language'))}">
+        <select id="feedsKind" aria-label="${esc(ft('filterKind','List'))}">${['all','core','world','custom'].map(kind=>`<option value="${kind}" ${feedsView.kind===kind?'selected':''}>${esc(kind==='all'?ft('all','All lists'):kindLabel(kind))}</option>`).join('')}</select>
+        <select id="feedsState" aria-label="${esc(ft('filterState','State'))}">${[['all',ft('stateAll','On and off')],['on',ft('stateOn','On')],['off',ft('stateOff','Off')]].map(([value,label])=>`<option value="${value}" ${feedsView.state===value?'selected':''}>${esc(label)}</option>`).join('')}</select>
+        <select id="feedsRegion" aria-label="${esc(ft('filterRegion','Region'))}">${regionOptions.map(([value,label])=>`<option value="${esc(value)}" ${feedsView.region===value?'selected':''}>${esc(label)}</option>`).join('')}</select>
+        <button type="button" class="feeds-btn" id="feedsExpand">${esc(ft('expandAll','Open all'))}</button>
+        <button type="button" class="feeds-btn" id="feedsCollapse">${esc(ft('collapseAll','Close all'))}</button>
+      </div>
+      <div class="feeds-status ${feedsView.error?'error':''}" id="feedsStatus" role="status" aria-live="polite">${esc(feedsView.status||(!data?ft('loading','Loading feeds…'):''))}</div>
+      <div class="feeds-list">${groupsHtml||(data?`<div class="settings-zone-empty">${esc(ft('empty','No feed matches the filter'))}</div>`:'')}</div>`;
+    for(const el of root.querySelectorAll('input[data-mixed]'))el.indeterminate=true;
+    if(focus){
+      const el=focus[0]==='id'?document.getElementById(focus[1]):root.querySelector(`[${focus[0]}="${CSS.escape(focus[1])}"]`);
+      el?.focus({preventScroll:true});if(el?.id==='feedsSearch')el.setSelectionRange(el.value.length,el.value.length);
+    }
+  }
+  function openFeedEditor(url){
+    feedsView.editing=feedsView.editing===url?null:url;feedsView.moving=null;renderFeedsTab();
+    if(feedsView.editing)document.querySelector(`#settingsFeedsTab form[data-edit-url="${CSS.escape(url)}"] input`)?.focus();
+  }
+  function bindFeedsEvents(){
+    const root=document.getElementById('settingsFeedsTab');if(!root||root.dataset.bound)return;root.dataset.bound='1';
+    document.querySelector('.settings-tabs')?.addEventListener('click',event=>{const tab=event.target.closest('[data-settings-tab]');if(tab)selectSettingsTab(tab.dataset.settingsTab);});
+    root.addEventListener('input',event=>{if(event.target.id==='feedsSearch'){feedsView.query=event.target.value;renderFeedsTab();}});
+    root.addEventListener('keydown',event=>{
+      if(event.key!=='Escape')return;
+      if(event.target.closest('form.feeds-edit')){event.stopPropagation();const url=feedsView.editing;feedsView.editing=null;renderFeedsTab();root.querySelector(`[data-feed-edit="${CSS.escape(url)}"]`)?.focus();return;}
+      if(event.target.closest('select[data-feed-country]')){event.stopPropagation();const url=feedsView.moving;feedsView.moving=null;renderFeedsTab();root.querySelector(`[data-feed-move="${CSS.escape(url)}"]`)?.focus();}
+    });
+    root.addEventListener('change',event=>{
+      const target=event.target;
+      if(target.id==='feedsKind'||target.id==='feedsState'||target.id==='feedsRegion'){feedsView[target.id==='feedsKind'?'kind':target.id==='feedsState'?'state':'region']=target.value;renderFeedsTab();return;}
+      if(target.matches('select[data-feed-country]')){
+        const url=target.dataset.feedCountry;const country=target.value;
+        const row=feedRows().find(item=>item.url===url);
+        if((row?.country||'')===country){feedsView.moving=null;renderFeedsTab();return;}
+        feedsChange('/api/feeds/country',{url,country},result=>ft('movedTo','{source} is now in {country}.',{source:row?.source||url,country:feedCountryName(result.country)})).then(ok=>{if(ok)feedsView.moving=null;});
+        return;
+      }
+      if(target.matches('input[data-feed-url]')){feedsChange('/api/feeds/toggle',{url:target.dataset.feedUrl,enabled:target.checked});return;}
+      if(target.matches('input[data-feed-group]')){
+        const urls=groupUrls(target.dataset.feedGroup);if(!urls.length)return;
+        feedsChange('/api/feeds/toggle',{urls,enabled:target.checked},result=>ft(target.checked?'groupOn':'groupOff',target.checked?'{count} feeds switched on.':'{count} feeds switched off.',{count:result.changed??urls.length}));return;
+      }
+      if(target.id==='feedsImportFile'&&target.files?.[0]){
+        const file=target.files[0];target.value='';
+        if(file.size>900*1024){feedsSay(ft('tooLarge','The OPML file is larger than 900 KB.'),true);return;}
+        file.text().then(opml=>feedsChange('/api/feeds/opml',{opml},result=>ft('imported','Imported: {added} added, {enabled} switched on, {skipped} skipped.',{added:result.added??0,enabled:result.enabled??0,skipped:result.skipped??0})));
+      }
+    });
+    root.addEventListener('click',event=>{
+      const target=event.target.closest('button');if(!target)return;
+      if(target.dataset.feedOpen){const key=target.dataset.feedOpen;if(feedsView.open.has(key))feedsView.open.delete(key);else feedsView.open.add(key);renderFeedsTab();return;}
+      if(target.id==='feedsExpand'){for(const region of feedGroups(feedRows()).keys())feedsView.open.add('r:'+region);renderFeedsTab();return;}
+      if(target.id==='feedsCollapse'){feedsView.open.clear();renderFeedsTab();return;}
+      if(target.id==='feedsAddToggle'){feedsView.adding=!feedsView.adding;renderFeedsTab();if(feedsView.adding)document.getElementById('feedsAddSource')?.focus();return;}
+      if(target.dataset.feedMove){feedsView.moving=feedsView.moving===target.dataset.feedMove?null:target.dataset.feedMove;feedsView.editing=null;renderFeedsTab();root.querySelector(`select[data-feed-country="${CSS.escape(feedsView.moving||'')}"]`)?.focus();return;}
+      if(target.dataset.feedEdit){openFeedEditor(target.dataset.feedEdit);return;}
+      if(target.dataset.feedCancel){feedsView.editing=null;renderFeedsTab();return;}
+      if(target.dataset.feedHome){
+        const row=feedRows().find(item=>item.url===target.dataset.feedHome);
+        feedsChange('/api/feeds/country',{url:target.dataset.feedHome,country:row?.defaultCountry||''}).then(ok=>{if(ok){feedsView.editing=null;feedsView.moving=null;}});return;
+      }
+      if(target.id==='feedsImport'){document.getElementById('feedsImportFile')?.click();return;}
+      if(target.dataset.feedRemove){if(confirm(ft('removeConfirm','Remove this feed from your own list?')))feedsChange('/api/feeds/custom/remove',{url:target.dataset.feedRemove}).then(ok=>{if(ok){feedsView.editing=null;renderFeedsTab();}});return;}
+      if(target.dataset.feedAll){feedsChange('/api/feeds/toggle',{kind:target.dataset.feedAll,enabled:target.dataset.enabled==='true'});return;}
+      if(target.id==='feedsReset'&&confirm(ft('resetConfirm','Switch every built-in feed back on, move each to its own country and delete your own feeds?')))feedsChange('/api/feeds/reset',{});
+    });
+    root.addEventListener('submit',event=>{
+      const form=event.target;event.preventDefault();
+      const values=Object.fromEntries([...new FormData(form).entries()].map(([key,value])=>[key,String(value).trim()]));
+      if(form.id==='feedsAddForm'){
+        const body=Object.fromEntries(Object.entries(values).filter(([,value])=>value!==''));
+        feedsChange('/api/feeds/custom',body,result=>ft('addedOne','Added {source}.',{source:result.feed?.source||body.source})).then(ok=>{if(ok){feedsView.adding=false;renderFeedsTab();}});
+        return;
+      }
+      if(!form.matches('form.feeds-edit'))return;
+      const url=form.dataset.editUrl;const row=feedRows().find(item=>item.url===url);if(!row)return;
+      const request=row.kind==='custom'
+        ?feedsChange('/api/feeds/custom/update',{url,source:values.source,lang:values.lang||'en',country:values.country,tier:Number(values.tier)},result=>ft('updated','Saved {source}.',{source:result.feed?.source||values.source}))
+        :feedsChange('/api/feeds/country',{url,country:values.country},result=>ft('movedTo','{source} is now in {country}.',{source:row.source,country:feedCountryName(result.country)}));
+      request.then(ok=>{if(ok){feedsView.editing=null;renderFeedsTab();}});
+    });
   }
 
 // The Signal Guide in the page language: glossary.* for the dialog's own words, glossary.items.<id>.<field> per entry, the English of

@@ -30,16 +30,26 @@ When the Crucix server is already running (`crucix --serve` or `npm start`), the
 
 ## 📁 Where is `.env` stored?
 
-Crucix searches for `.env` in the following order:
+The setup page and the wizard **write** the settings file, not the project `.env`:
 
-1. `CRUCIX_ENV_FILE` environment variable (if specified)
-2. Current working directory `.env`
-3. Repository root `.env`
-4. **User Profile Directory**:
-   - Windows: `C:\Users\<User>\.crucix\.env`
-   - Linux / macOS: `~/.crucix/.env`
+1. `CRUCIX_ENV_FILE` if set (the file itself)
+2. `CRUCIX_HOME/.env` if `CRUCIX_HOME` is set
+3. **User profile**: Windows `%USERPROFILE%\.crucix\.env`, Linux/macOS `~/.crucix/.env`
 
-> **💡 Note:** The standalone native executable (`crucix.exe` / `crucix`) defaults to `%USERPROFILE%\.crucix\.env` (or `~/.crucix/.env`), allowing you to run it from any directory while keeping your configuration and data intact.
+On load, that settings file is read first, then `./.env`, the repository `.env`, `~/.crucix.env` and `apis/.env`. The first file that sets a key wins. News-feed choices (Settings → News feeds) are stored next to it as `feeds.json`.
+
+```bash
+npx crucix                 # first run: wizard, then the dashboard
+crucix install             # create ~/.crucix without starting
+```
+
+> **💡 Note:** An npm install and the standalone binary never write `.env` or `runs/` next to their code. A git checkout still uses its own `runs/` when that folder already exists, but settings still go to the profile.
+
+---
+
+## News feeds (Settings)
+
+Open the dashboard → **Settings** → **News feeds**. Switch a region or a country group, or one feed. Click the country name on a row and pick another country from the named list. Add your own RSS, or move a list with OPML import/export. Changes apply from the next sweep. The file path shown on the tab is the profile `feeds.json`.
 
 ---
 
@@ -69,11 +79,14 @@ ALERT_NOTIFY_CHANNELS=telegram
 ```
 
 ### 4. Available Bot Commands:
-- `/brief` — Executive intelligence briefing
-- `/status` — System health and status of all 71 OSINT data sources
+- `/brief` `[topic]` — Executive briefing of the latest sweep (includes held below-tier alerts)
+- `/ask` `<question>` — Answer from the latest sweep only (allow-listed users)
+- `/risk` `<CC>` — Country risk for an ISO2 code (for example `UA`)
+- `/status` — System health and status of the OSINT sources
 - `/sweep` — Trigger an immediate sweep cycle
 - `/alerts` — List active alerts
 - `/mute 2h` — Mute alerts for 2 hours
+- `/unmute` — Resume alerts
 
 ---
 

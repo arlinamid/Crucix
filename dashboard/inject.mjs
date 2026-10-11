@@ -15,7 +15,9 @@ import { inlineJson } from '../lib/html.mjs';
 import { safeFetch } from '../apis/utils/fetch.mjs';
 import { parseFeed } from '../apis/utils/rss.mjs';
 import { vesselName, mmsiOf } from '../apis/utils/ais-collector.mjs';
-import { NEWS_FEEDS, feedBySource, HUNGARIAN_SOURCES, OFFICIAL_SOURCES } from '../apis/utils/news-feeds.mjs';
+import { feedBySource, HUNGARIAN_SOURCES, OFFICIAL_SOURCES } from '../apis/utils/news-feeds.mjs';
+import { activeNewsFeeds } from '../lib/news/feed-store.mjs';
+import { buildMarkets } from '../lib/markets/build.mjs';
 import config from '../crucix.config.mjs';
 import { createLLMProvider } from '../lib/llm/index.mjs';
 import { generateRuleBasedIdeas, resolveIdeas } from '../lib/llm/rule-ideas.mjs';
@@ -365,9 +367,10 @@ const MAX_PER_FEED = 15;
 const NEWS_LIMIT = 100;
 const PER_SOURCE_LIMIT = 5;
 
-// `customFeeds` takes [url, source] pairs (tests, local overrides); the default is the tiered registry.
+// `customFeeds` takes [url, source] pairs (tests, local overrides); the default is the tiered registry minus the feeds
+// switched off in the dashboard, plus the operator's own feeds (the profile feeds.json, lib/news/feed-store.mjs).
 export async function fetchAllNews(customFeeds) {
-  const feeds = customFeeds ? customFeeds.map(([url, source]) => ({ ...feedBySource(source), url, source })) : NEWS_FEEDS;
+  const feeds = customFeeds ? customFeeds.map(([url, source]) => ({ ...feedBySource(source), url, source })) : activeNewsFeeds();
 
   const results = await Promise.allSettled(
     feeds.map(feed => fetchRSS(feed.url, feed.source, feed))
@@ -737,30 +740,7 @@ export async function synthesize(data, options = {}) {
   // === Yahoo Finance live market data ===
   const yfData = data.sources.YFinance || {};
   const yfQuotes = yfData.quotes || {};
-  const markets = {
-    indexes: (yfData.indexes || []).map(q => ({
-      symbol: q.symbol, name: q.name, price: q.price,
-      change: q.change, changePct: q.changePct, history: q.history || []
-    })),
-    rates: (yfData.rates || []).map(q => ({
-      symbol: q.symbol, name: q.name, price: q.price,
-      change: q.change, changePct: q.changePct
-    })),
-    commodities: (yfData.commodities || []).map(q => ({
-      symbol: q.symbol, name: q.name, price: q.price,
-      change: q.change, changePct: q.changePct, history: q.history || []
-    })),
-    crypto: (yfData.crypto || []).map(q => ({
-      symbol: q.symbol, name: q.name, price: q.price,
-      change: q.change, changePct: q.changePct
-    })),
-    vix: yfQuotes['^VIX'] ? {
-      value: yfQuotes['^VIX'].price,
-      change: yfQuotes['^VIX'].change,
-      changePct: yfQuotes['^VIX'].changePct,
-    } : null,
-    timestamp: yfData.summary?.timestamp || null,
-  };
+  const markets = buildMarkets(data.sources, { baseCurrency: config.markets?.baseCurrency });
 
   const yfGold = yfQuotes['GC=F'];
   const yfSilver = yfQuotes['SI=F'];

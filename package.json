@@ -1,10 +1,47 @@
 {
   "name": "crucix",
-  "version": "2.38.1",
+  "version": "2.39.0",
   "description": "Local intelligence engine - 52 OSINT adapters, live dashboard, bounded requests, optional local or cloud AI.",
   "type": "module",
+  "bin": {
+    "crucix": "scripts/cli.mjs"
+  },
+  "files": [
+    "apis/",
+    "lib/",
+    "data/",
+    "dashboard/",
+    "locales/",
+    "scripts/",
+    "!scripts/build-exe.mjs",
+    "!scripts/verify-exe.mjs",
+    "!scripts/install-local.mjs",
+    "!scripts/publish-npm.mjs",
+    "!scripts/*.py",
+    "!scripts/*-qa.mjs",
+    "!scripts/build-sites.mjs",
+    "!scripts/bundle-dashboard-assets.mjs",
+    "!**/.env",
+    "!**/.env.*.local",
+    "!**/*.pem",
+    "!**/*.key",
+    "!**/*.bak",
+    "!**/*.tmp",
+    "server.mjs",
+    "crucix.config.mjs",
+    "diag.mjs",
+    ".env.example"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arlinamid/Crucix.git"
+  },
   "scripts": {
-    "test": "node --test test/*.test.mjs",
+    "test": "node --import ./test/isolate-profile.mjs --test test/*.test.mjs",
     "check": "node scripts/check.mjs",
     "start": "node server.mjs",
     "dev": "node --trace-warnings server.mjs",
@@ -16,6 +53,8 @@
     "build:exe": "node scripts/build-exe.mjs",
     "verify:exe": "node scripts/verify-exe.mjs",
     "install:local": "node scripts/install-local.mjs",
+    "publish:manual": "node scripts/publish-npm.mjs --manual",
+    "pack:audit": "node scripts/publish-npm.mjs --dry-run",
     "benchmark:rss": "node scripts/benchmark-world-rss.mjs",
     "sweep": "node apis/briefing.mjs",
     "inject": "node dashboard/inject.mjs",

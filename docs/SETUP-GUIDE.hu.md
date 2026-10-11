@@ -30,16 +30,26 @@ Ha a Crucix éles szervere már fut a háttérben (`crucix --serve` vagy `npm st
 
 ## 📁 Hol található a `.env` konfigurációs fájl?
 
-A Crucix a következő sorrendben keresi a konfigurációt:
+A beállító oldal és a varázsló a **profilba ír**, nem a projekt `.env` fájljába:
 
-1. `CRUCIX_ENV_FILE` környezeti változó által mutatott fájl (ha meg van adva)
-2. Az aktuális munkakönyvtár `.env` fájlja
-3. A projekt gyökérkönyvtára (`.env`)
-4. **Felhasználói profilkönyvtár**:
-   - Windows: `C:\Users\<Felhasználó>\.crucix\.env`
-   - Linux / macOS: `~/.crucix/.env`
+1. `CRUCIX_ENV_FILE`, ha meg van adva (maga a fájl)
+2. `CRUCIX_HOME/.env`, ha a `CRUCIX_HOME` be van állítva
+3. **Felhasználói profil**: Windows `%USERPROFILE%\.crucix\.env`, Linux/macOS `~/.crucix/.env`
 
-> **💡 Megjegyzés:** A natív önálló bináris (`crucix.exe`) a `%USERPROFILE%\.crucix\.env` fájlt használja, így bárhonnan futtathatod, mindig a saját beállításaidat és adatbázisodat éri el.
+Betöltéskor ez a fájl az első, utána jön a `./.env`, a repo `.env`, a `~/.crucix.env` és az `apis/.env`. Az első fájl, amelyik egy kulcsot beállít, nyer. A hírcsatornák (Beállítások → Hírcsatornák) a profil `feeds.json` fájljában vannak.
+
+```bash
+npx crucix                 # első indítás: varázsló, majd a dashboard
+crucix install             # ~/.crucix létrehozása indítás nélkül
+```
+
+> **💡 Megjegyzés:** Az npm-telepítés és a natív bináris soha nem ír `.env`-t vagy `runs/` mappát a kódja mellé. Egy git checkout a saját `runs/` mappáját használja, ha az már létezik, de a beállítások ettől még a profilba mennek.
+
+---
+
+## Hírcsatornák (Beállítások)
+
+A dashboardon: **Beállítások** → **Hírcsatornák**. Egy régiót, országot vagy egyetlen csatornát kapcsolhatsz. A csatorna melletti országnévre kattintva másik országba teszed. Saját RSS felvehető, a lista OPML-lel vihető át. A változás a következő frissítéstől él. A fülön látható útvonal a profil `feeds.json` fájlja.
 
 ---
 
@@ -69,11 +79,14 @@ ALERT_NOTIFY_CHANNELS=telegram
 ```
 
 ### 4. Elérhető Telegram Bot Parancsok:
-- `/brief` — Friss vezetői intelligencia összefoglaló
-- `/status` — Rendszerállapot és a 71 OSINT adatforrás vizsgálata
+- `/brief` `[téma]` — A legutóbbi sweep vezetői összefoglalója (a visszatartott, szint alatti riasztásokkal)
+- `/ask` `<kérdés>` — Válasz csak a legutóbbi sweep adataiból (engedélyezett felhasználóknak)
+- `/risk` `<országkód>` — Országkockázat kétbetűs kódra (például `UA`)
+- `/status` — Rendszerállapot és az OSINT források
 - `/sweep` — Azonnali elemzési és adatgyűjtési ciklus indítása
 - `/alerts` — Aktív riasztások listázása
 - `/mute 2h` — Riasztások némítása 2 órára
+- `/unmute` — Riasztások újraindítása
 
 ---
 

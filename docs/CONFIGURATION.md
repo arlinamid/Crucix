@@ -11,12 +11,16 @@ Crucix doubles as an interactive Telegram bot. Beyond sending alerts, it respond
 |---------|-------------|
 | `/status` | System health, last sweep time, source status, LLM status |
 | `/sweep` | Trigger a manual sweep cycle |
-| `/brief` | Compact text summary of the latest intelligence (direction, key metrics, top OSINT) |
+| `/brief` `[topic]` | Compact summary of the latest sweep; optional topic; includes held (below-tier) alerts |
+| `/ask` `<question>` | Answer from the latest sweep only (allow-listed users, 500 tokens, no internet) |
+| `/risk` `<CC>` | Country risk line for an ISO2 code (for example `UA`) |
 | `/portfolio` | Portfolio status (if Alpaca connected) |
 | `/alerts` | Recent alert history with tiers |
 | `/mute` / `/mute 2h` | Silence alerts for 1h (or custom duration) |
 | `/unmute` | Resume alerts |
 | `/help` | Show all available commands |
+
+Alerts include evidence, a source link and a “why it matters” line. Tiers below `TELEGRAM_ALERT_MIN_TIER` (default PRIORITY) are held for `/brief`. In a group chat, `TELEGRAM_ALLOWED_USER_IDS` limits who may run commands, `/ask` included.
 
 This requires `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`. The bot polls for messages every 5 seconds (configurable via `TELEGRAM_POLL_INTERVAL`).
 
@@ -28,7 +32,9 @@ Crucix also supports Discord as a full-featured bot with slash commands and rich
 |---------|-------------|
 | `/status` | System health, last sweep time, source status, LLM status |
 | `/sweep` | Trigger a manual sweep cycle |
-| `/brief` | Compact text summary of the latest intelligence |
+| `/brief` `[topic]` | Compact summary of the latest sweep; optional topic; includes held alerts |
+| `/ask` `<question>` | Answer from the latest sweep only (allow-listed users, 500 tokens) |
+| `/risk` `<CC>` | Country risk line for an ISO2 code |
 | `/portfolio` | Portfolio status (if Alpaca connected) |
 
 Alerts are delivered as rich embeds with color-coded sidebars: red for FLASH, yellow for PRIORITY, blue for ROUTINE. Each embed includes signal details, confidence scores, and cross-domain correlations.
@@ -59,14 +65,14 @@ cp .env.example .env
 Crucix and the standalone executable (`crucix.exe` / `crucix`) automatically discover configuration files in the following priority order:
 
 1. **`CRUCIX_ENV_FILE`**: If set, loads exclusively from this file path.
-2. **Current working directory**: `./.env`
-3. **Repository root**: `<Crucix>/.env`
-4. **User Profile Directory (Cross-Platform)**:
-   - Windows: `%USERPROFILE%\.crucix\.env` (or `%USERPROFILE%\.crucix.env`)
-   - Linux / macOS: `~/.crucix/.env` (or `~/.crucix.env`)
-5. **Legacy fallback**: `apis/.env`
+2. **Settings file (what the setup page and the wizard write)**:
+   - `CRUCIX_HOME/.env` when `CRUCIX_HOME` is set
+   - otherwise Windows `%USERPROFILE%\.crucix\.env`, Linux/macOS `~/.crucix/.env`
+3. **Current working directory**: `./.env`
+4. **Repository root**: `<Crucix>/.env` (read for leftover keys; the wizard no longer writes it)
+5. **Legacy names**: `~/.crucix.env`, `apis/.env`
 
-Variables defined earlier take precedence. Any variable not defined in your local `.env` will fall back to your user profile (`~/.crucix/.env` or `%USERPROFILE%\.crucix\.env`). Run data (`RUNS_DIR`) similarly defaults to `<Crucix>/runs` or `~/.crucix/runs`.
+The first file that sets a key wins, so a value saved in the profile is the one in force. A variable already set in the process environment is never overwritten. News-feed overrides live in the same profile as `feeds.json`. Sweep output follows `RUNS_DIR`, then `CRUCIX_HOME/runs`; a source checkout that already has `runs/` keeps using it, an npm install never writes next to its code.
 
 ### Required for Best Results (all free)
 
@@ -75,8 +81,9 @@ Variables defined earlier take precedence. Any variable not defined in your loca
 | `FRED_API_KEY` | Federal Reserve Economic Data | [fred.stlouisfed.org](https://fred.stlouisfed.org/docs/api/api_key.html) — instant, free |
 | `FIRMS_MAP_KEY` | NASA FIRMS (satellite fire data) | [firms.modaps.eosdis.nasa.gov](https://firms.modaps.eosdis.nasa.gov/api/area/) — instant, free |
 | `EIA_API_KEY` | US Energy Information Administration | [api.eia.gov](https://www.eia.gov/opendata/register.php) — instant, free |
+| `FMP_API_KEY` | Financial Modeling Prep quotes and FX (two batch calls per sweep) | [site.financialmodelingprep.com/register](https://site.financialmodelingprep.com/register) — free, 250 calls/day |
 
-These three unlock the most valuable economic and satellite data. Each takes about 60 seconds to register.
+These unlock the most valuable economic, satellite and market data. Each takes about 60 seconds to register. Without `FMP_API_KEY`, Yahoo and ECB still fill the markets panel.
 
 ### Optional (enable additional sources)
 
@@ -86,6 +93,7 @@ These three unlock the most valuable economic and satellite data. Each takes abo
 | `AISSTREAM_API_KEY` | Maritime: live AIS vessel counts at 11 chokepoints. The dashboard server keeps one WebSocket open (one-shot briefings do not); a key allows 3 connections, the service has no SLA and no written licence (aisstream issue #290) | [aisstream.io/account](https://aisstream.io/account) — free, sign in with GitHub |
 | `OPENSKY_CLIENT_ID` + `OPENSKY_CLIENT_SECRET` | OpenSky flight hotspots: 4,000 instead of 400 credits/day, refresh every 15 min instead of 2 h | [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → "Create a new API client" → `clientId` / `clientSecret` from `credentials.json` — free, OAuth2 |
 | `ADSB_API_KEY` | Unfiltered flight tracking | [RapidAPI](https://rapidapi.com/adsbexchange/api/adsbexchange-com1) — ~$10/mo |
+| `FINNHUB_API_KEY` | Second quote source for US-listed equities | [finnhub.io/register](https://finnhub.io/register) — free, 60 calls/minute |
 
 ### LLM Provider (optional, for AI-enhanced ideas)
 
@@ -115,6 +123,8 @@ For Codex, run `npx @openai/codex login` to authenticate via your ChatGPT subscr
 | `TELEGRAM_CHAT_ID` | Get via [@userinfobot](https://t.me/userinfobot) |
 | `TELEGRAM_CHANNELS` | *(Optional)* Comma-separated extra channel IDs to monitor beyond the 17 built-in channels |
 | `TELEGRAM_POLL_INTERVAL` | *(Optional)* Bot command polling interval in ms (default: 5000) |
+| `TELEGRAM_ALERT_MIN_TIER` | *(Optional)* Lowest tier sent on its own: `FLASH`, `PRIORITY` (default), `ROUTINE` |
+| `TELEGRAM_ALLOWED_USER_IDS` | *(Optional)* Telegram user ids allowed to run commands, `/ask` included |
 
 ### Discord Bot + Alerts (optional)
 
@@ -124,6 +134,7 @@ For Codex, run `npx @openai/codex login` to authenticate via your ChatGPT subscr
 | `DISCORD_CHANNEL_ID` | Right-click channel in Discord (Developer Mode on) → Copy Channel ID |
 | `DISCORD_GUILD_ID` | *(Optional)* Right-click server → Copy Server ID. Enables instant slash command registration (otherwise takes up to 1 hour for global commands) |
 | `DISCORD_WEBHOOK_URL` | *(Optional)* Channel Settings → Integrations → Webhooks → New Webhook → Copy URL. Use this for alert-only mode without a bot |
+| `DISCORD_ALERT_MIN_TIER` | *(Optional)* Lowest tier sent on its own: `FLASH`, `PRIORITY` (default), `ROUTINE` |
 
 **Discord bot setup:**
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications) and create a new application
@@ -156,6 +167,8 @@ Crucix still works with zero API keys. Most of the 71 sources need no authentica
 | `npm run diag` | `node diag.mjs` | Run diagnostics (Node version, imports, port check) |
 | `npm test` | `node --test test/*.test.mjs` | Local regressions using mocks/fixtures |
 | `npm run check` | `node scripts/check.mjs` | JavaScript syntax and locale checks |
+| `npm run publish:manual` | `node scripts/publish-npm.mjs --manual` | Local npm publish: clean tree, check, test, pack audit, type the version |
+| `npm run pack:audit` | `node scripts/publish-npm.mjs --dry-run` | Audit `npm pack` without publishing |
 
 ### Command Line Interface (CLI)
 
@@ -213,10 +226,21 @@ All settings are in `.env` with sensible defaults:
 | `TELEGRAM_CHAT_ID` | — | Your Telegram chat ID |
 | `TELEGRAM_CHANNELS` | — | Extra channel IDs to monitor (comma-separated) |
 | `TELEGRAM_POLL_INTERVAL` | `5000` | Bot command polling interval (ms) |
+| `TELEGRAM_ALERT_MIN_TIER` | `PRIORITY` | Lowest Telegram alert tier sent on its own (`FLASH`, `PRIORITY`, `ROUTINE`) |
+| `TELEGRAM_ALLOWED_USER_IDS` | — | Telegram user ids allowed to run commands, `/ask` included |
 | `DISCORD_BOT_TOKEN` | disabled | For Discord alerts + slash commands |
 | `DISCORD_CHANNEL_ID` | — | Discord channel for alerts |
 | `DISCORD_GUILD_ID` | — | Server ID (instant slash command registration) |
 | `DISCORD_WEBHOOK_URL` | — | Webhook URL (alert-only fallback, no bot needed) |
+| `DISCORD_ALERT_MIN_TIER` | `PRIORITY` | Lowest Discord alert tier sent on its own |
+| `FMP_API_KEY` | — | Financial Modeling Prep; two batch calls per sweep |
+| `FMP_DAILY_LIMIT` | `250` | Daily FMP call cap (UTC) |
+| `FINNHUB_API_KEY` | — | Second quote source for US-listed equities |
+| `CRUCIX_BASE_CURRENCY` | `USD` | Default FX base (`USD`, `EUR`, `GBP`, `HUF`, `JPY`, `CHF`, `CAD`, `AUD`, `CNY`) |
+| `CRUCIX_HOME` | `~/.crucix` | Profile folder for `.env`, `feeds.json` and (when set) `runs/` |
+| `CRUCIX_ENV_FILE` | — | Absolute path of the `.env` the setup page writes |
+| `LLM_ASK_MAX_TOKENS` | `500` | Output budget of `/ask` (64–2048) |
+| `LLM_ASK_TIMEOUT_MS` | `45000` | Timeout of `/ask` (ms) |
 | `LLM_BASE_URL` | — | Separate OpenAI-compatible endpoint |
 | `ANTHROPIC_BASE_URL` | — | Anthropic Messages endpoint for `LLM_PROVIDER=anthropic` (a self-hosted gateway or router); default `https://api.anthropic.com` |
 | `ANTHROPIC_AUTH_TOKEN` | — | Bearer token for `LLM_PROVIDER=anthropic`, sent as `Authorization: Bearer` instead of `x-api-key`; use it or `LLM_API_KEY`, not both |

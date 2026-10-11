@@ -1,2 +1,5 @@
 # Preserve original third-party bytes and formatting for the SHA-256 ledger.
 dashboard/public/vendor/** -text -whitespace
+# npm bin entry points: a CR after the shebang breaks `crucix` on Linux and macOS ("env: node\r"), whatever core.autocrlf says.
+scripts/cli.mjs text eol=lf
+server.mjs text eol=lf

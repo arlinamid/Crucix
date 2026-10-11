@@ -150,9 +150,12 @@ test('getEnvSearchPaths: resolves explicit CRUCIX_ENV_FILE or falls back to user
 
   const testHome = resolve('/test-home');
   const testCwd = resolve('/test-cwd');
-  const paths = getEnvSearchPaths({ envFile: null, cwd: testCwd, home: testHome });
-  assert.ok(paths.includes(resolve(testCwd, '.env')), 'Includes cwd .env');
-  assert.ok(paths.includes(resolve(testHome, '.crucix', '.env')), 'Includes user profile ~/.crucix/.env (%USERPROFILE%\\.crucix\\.env)');
+  const paths = getEnvSearchPaths({ envFile: null, cwd: testCwd, home: testHome, crucixHomeDir: null });
+  assert.equal(paths[0], resolve(testHome, '.crucix', '.env'), 'the settings file (%USERPROFILE%\\.crucix\\.env) is read first, so saved settings win');
+  assert.ok(paths.indexOf(resolve(testCwd, '.env')) > 0, 'Includes cwd .env after it');
   assert.ok(paths.includes(resolve(testHome, '.crucix.env')), 'Includes user profile ~/.crucix.env');
-  assert.ok(paths.length >= 3, 'Multiple candidates searched');
+
+  const custom = getEnvSearchPaths({ envFile: null, cwd: testCwd, home: testHome, crucixHomeDir: resolve('/srv/crucix') });
+  assert.equal(custom[0], resolve('/srv/crucix', '.env'), 'CRUCIX_HOME replaces ~/.crucix');
+  assert.ok(!custom.includes(resolve(testHome, '.crucix', '.env')));
 });

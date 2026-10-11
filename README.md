@@ -2,12 +2,13 @@
 
 # Crucix
 
-**Your own intelligence terminal. 71 sources. One command. Local processing.**
+**Your own intelligence terminal. 73 sources. One command. Local processing.**
 
 [![Node.js 22+](https://img.shields.io/badge/node-22%2B-brightgreen)](#quick-start)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
 [![Dependencies](https://img.shields.io/badge/dependencies-3-orange)](docs/ARCHITECTURE.md#design-principles)
-[![Sources](https://img.shields.io/badge/OSINT%20sources-71-cyan)](docs/DATA-SOURCES.md#data-sources-71)
+[![Sources](https://img.shields.io/badge/OSINT%20sources-73-cyan)](docs/DATA-SOURCES.md#data-sources-73)
+[![npm](https://img.shields.io/npm/v/crucix)](https://www.npmjs.com/package/crucix)
 [![Docker](https://img.shields.io/badge/docker-ready-blue?logo=docker)](#docker)
 
 ![Crucix Dashboard](docs/dashboard.png)
@@ -32,11 +33,11 @@
 >
 > **Showcase site:** an animated, bilingual (HU/EN) presentation of what Crucix does lives in [docs/site](docs/site/index.html) — open `docs/site/index.html` in a browser, no build step.
 
-Crucix pulls satellite fire detection, flight tracking (including military air activity and orbits), radiation and wind at nuclear sites, cyclones and launches, earthquakes and disasters, economic indicators, live market prices, conflict data, sanctions lists, cyber and internet signals and social sentiment from 71 open-source intelligence sources — in parallel, every 15 minutes — and renders everything on a single Jarvis-style dashboard with a 3D globe and a flat map. On top of the raw feeds it keeps a searchable event history, a country risk index, an alert engine and a replayable sweep archive.
+Crucix pulls satellite fire detection, flight tracking (including military air activity and orbits), radiation and wind at nuclear sites, cyclones and launches, earthquakes and disasters, economic indicators, live market prices, conflict data, sanctions lists, cyber and internet signals and social sentiment from 73 open-source intelligence sources — in parallel, every 15 minutes — and renders everything on a single Jarvis-style dashboard with a 3D globe and a flat map. On top of the raw feeds it keeps a searchable event history, a country risk index, an alert engine and a replayable sweep archive.
 
-Hook it up to an LLM and it becomes a **two-way intelligence assistant** — pushing multi-tier alerts to Telegram and Discord when something meaningful changes, responding to commands like `/brief` and `/sweep` from your phone, and generating actionable trade ideas grounded in real cross-domain data. Your own analyst that watches the world while you sleep.
+Hook it up to an LLM and it becomes a **two-way intelligence assistant** — pushing multi-tier alerts to Telegram and Discord when something meaningful changes, responding to commands like `/brief`, `/ask` and `/risk` from your phone, and generating actionable trade ideas grounded in real cross-domain data. Your own analyst that watches the world while you sleep.
 
-The server and data run on your machine. External feeds need network access; browser map/font libraries are pinned local assets. Cloud AI and paid APIs are optional. The app has no built-in telemetry. Start with `node server.mjs`.
+The server and data run on your machine. Settings and feed overrides live in `%USERPROFILE%\.crucix` / `~/.crucix` (or `CRUCIX_HOME`). External feeds need network access; browser map/font libraries are pinned local assets. Cloud AI and paid APIs are optional. The app has no built-in telemetry. Start with `npx crucix` or `node server.mjs`.
 
 ## Documentation
 
@@ -47,7 +48,7 @@ The README is the short version. Core documentation is provided in English:
 | [**Setup & Configuration Guide**](docs/SETUP-GUIDE.md) | Interactive setup wizard, Telegram/Discord notifications, LLM setup, and free API keys |
 | [**Features by release**](docs/FEATURES.md) | What each version added: alert engine, country risk, record inspector, sweep archive, map layers, new sources |
 | [**Configuration**](docs/CONFIGURATION.md) | API keys, Telegram and Discord bots, the LLM layer, environment variables, npm scripts |
-| [**Data sources**](docs/DATA-SOURCES.md) | All 71 sources by tier, with keys, licences and limits |
+| [**Data sources**](docs/DATA-SOURCES.md) | All 73 sources by tier, with keys, licences and limits |
 | [**HTTP API**](docs/API.md) | The JSON API: routes, parameters, errors, CORS, recipes |
 | [**Embedding**](docs/EMBEDDING.md) | Show Crucix or a status widget on your own site (iframe) |
 | [**Architecture**](docs/ARCHITECTURE.md) | The sweep cycle, components and design principles |
@@ -94,21 +95,25 @@ It was built for anyone who wants to understand what's actually happening in the
 ## Quick Start
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/mp3pintyo/Crucix.git
+# From npm (recommended): first run opens the setup wizard
+npx crucix
+
+# Or install the command
+npm install -g crucix
+crucix install          # ~/.crucix (.env and runs/)
+crucix                  # dashboard; wizard if no .env yet
+```
+
+Settings the wizard and **Settings → News feeds** save go to `%USERPROFILE%\.crucix` on Windows or `~/.crucix` on Linux/macOS. Set `CRUCIX_HOME` to choose another folder, or `CRUCIX_ENV_FILE` to name the `.env` itself.
+
+From a git checkout (development):
+
+```bash
+git clone https://github.com/arlinamid/Crucix.git
 cd Crucix
-
-# 2. Install locked dependencies (Express, fast-xml-parser, h3-js, plus optional Discord support)
 npm ci
-
-# 3. Copy env template and add your API keys (see docs/CONFIGURATION.md)
-cp .env.example .env
-
-# 4. Start the dashboard
-npm run dev
-
-# Or query intelligence directly from the terminal (no browser or server needed)
-npm run cli -- -b
+npm run dev             # dashboard at http://localhost:3117
+npm run cli -- -b       # briefing in the terminal, no browser
 ```
 
 > **If `npm run dev` fails silently** (exits with no output), run Node directly instead:
@@ -117,14 +122,14 @@ npm run cli -- -b
 > ```
 > This bypasses npm's script runner, which can swallow errors on some systems (particularly PowerShell on Windows). You can also run `node diag.mjs` to diagnose the exact issue — it checks your Node version, tests each module import individually, and verifies port availability. See [Troubleshooting](docs/TROUBLESHOOTING.md#troubleshooting) for more.
 
-The dashboard opens automatically at `http://localhost:3117` and immediately begins its first intelligence sweep. This initial sweep queries all 71 sources in parallel and typically takes 30–60 seconds — the dashboard will appear empty until the sweep completes and pushes the first data update. After that, it auto-refreshes every 15 minutes via SSE (Server-Sent Events). No manual page refresh needed.
+The dashboard opens automatically at `http://localhost:3117` and immediately begins its first intelligence sweep. This initial sweep queries all 73 sources in parallel and typically takes 30–60 seconds — the dashboard will appear empty until the sweep completes and pushes the first data update. After that, it auto-refreshes every 15 minutes via SSE (Server-Sent Events). No manual page refresh needed.
 
 **Requirements:** Node.js 22+ (uses native `fetch`, top-level `await`, ESM)
 
 ### Docker
 
 ```bash
-git clone https://github.com/mp3pintyo/Crucix.git
+git clone https://github.com/arlinamid/Crucix.git
 cd Crucix
 cp .env.example .env    # add your API keys
 docker compose up -d
@@ -157,10 +162,10 @@ A self-contained Jarvis-style HUD with:
 - **Globe basemap button** — night lights or the daily NASA GIBS satellite image of yesterday; the **©** button lists the credits and licences of what is on screen
 - **Animated 3D flight corridor arcs** between air traffic hotspots and global hubs
 - **14 Geopolitical Region filters & Country selector** — 14 regions (`World`, `Americas`, `North America`, `Latin America`, `Europe`, `Eastern Europe`, `Middle East`, `Africa`, `Asia Pacific`, `Central Asia`, `South Asia`, `East Asia`, `Southeast Asia`, `Oceania`) plus an interactive country dropdown showing active story counts (e.g. `[UA] Ukraine (8)`) with targeted zoom
-- **Live market data** — indexes, crypto, energy, commodities via Yahoo Finance (no API key needed)
+- **Live market data** — indexes, world indexes, equities, FX crosses, crypto, energy and commodities. Yahoo needs no key; optional `FMP_API_KEY` and `FINNHUB_API_KEY` take priority. The FX base is `CRUCIX_BASE_CURRENCY` (default USD) or the dashboard dropdown
 - **Risk gauges** — VIX, high-yield spread, supply chain pressure index
 - **OSINT feed** — English-language posts from 17 Telegram intelligence channels (expandable)
-- **News ticker & World RSS catalog** — merged RSS + GDELT headlines + Telegram posts, auto-scrolling with newest-first ordering and diversity capping. Supported by a 539-feed world RSS catalog covering 195 countries with a 30-minute background runner
+- **News ticker & World RSS catalog** — merged RSS + GDELT headlines + Telegram posts, auto-scrolling with newest-first ordering and diversity capping. Supported by a 539-feed world RSS catalog covering 195 countries. **Settings → News feeds** switches groups on or off, adds your own RSS and imports OPML; choices live in the profile `feeds.json`
 - **Command Line Interface (CLI) & Headless Collector** — query briefing, markets, risk, earthquakes, thermal hotspots, and news directly in the terminal via `npm run cli` (works with the server or standalone/offline via `--no-server`, plus `npm run daemon` for headless server and `npm run collector` for recurring terminal data harvesting)
 - **Sweep delta** — live panel showing what changed since last sweep (new signals, escalations, de-escalations with severity)
 - **Cross-source signals** — correlated intelligence across satellite, economic, conflict, and social domains
@@ -188,7 +193,7 @@ The preference is saved in browser local storage, so the UI will remember your l
 
 ### Auto-Refresh
 The server runs a sweep cycle every 15 minutes (configurable). Each cycle:
-1. Queries all 71 sources in parallel (~30s)
+1. Queries all 73 sources in parallel (~30s)
 2. Synthesizes raw data into dashboard format
 3. Computes delta from previous run (what changed, escalated, de-escalated) — visible in the **Sweep Delta** panel on the dashboard
 4. Generates LLM trade ideas (if configured)
@@ -197,7 +202,7 @@ The server runs a sweep cycle every 15 minutes (configurable). Each cycle:
 7. Pushes update to all connected browsers via SSE
 
 ### Alerts, bots and the LLM layer
-Alerts reach you on the dashboard, and optionally in Telegram, Discord, ntfy or a webhook; with an LLM key Crucix also writes trade ideas and cited briefings. Telegram and Discord are two-way (`/status`, `/brief`, `/sweep`, `/mute`, …). All of it is off until you set the matching keys: see [Configuration](docs/CONFIGURATION.md).
+Alerts reach you on the dashboard, and optionally in Telegram, Discord, ntfy or a webhook; with an LLM key Crucix also writes trade ideas and cited briefings. Telegram and Discord alerts include source links and a “why it matters” line. The bots are two-way (`/status`, `/brief`, `/ask`, `/risk`, `/sweep`, `/mute`, …). `/ask` reads only the latest sweep. All of it is off until you set the matching keys: see [Configuration](docs/CONFIGURATION.md).
 
 
 ---

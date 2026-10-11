@@ -689,6 +689,49 @@
             </div>
           </div>
 
+          <!-- FMP -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">📈 Financial Modeling Prep (Részvények, Indexek, Devizák)</div>
+              <div class="source-sub">Napi sáv, 52 hetes sáv, forgalom, piaci kapitalizáció; 250 hívás/nap ingyenes (Crucix: ~192)</div>
+            </div>
+            <a href="https://site.financialmodelingprep.com/register" target="_blank" rel="noopener" class="click-btn">
+              <span>🔑</span> <strong>Regisztráció (Kattints ide)</strong>
+            </a>
+            <div class="source-input-wrap">
+              <input type="text" id="FMP_API_KEY" name="FMP_API_KEY" class="form-input" placeholder="FMP_API_KEY" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- FINNHUB -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">💹 Finnhub (Második részvényforrás)</div>
+              <div class="source-sub">Amerikai tőzsdei részvények, 60 hívás/perc ingyenes</div>
+            </div>
+            <a href="https://finnhub.io/register" target="_blank" rel="noopener" class="click-btn">
+              <span>🔑</span> <strong>Regisztráció (Kattints ide)</strong>
+            </a>
+            <div class="source-input-wrap">
+              <input type="text" id="FINNHUB_API_KEY" name="FINNHUB_API_KEY" class="form-input" placeholder="FINNHUB_API_KEY" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- BASE CURRENCY -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">💱 Alap deviza (Base currency)</div>
+              <div class="source-sub">Az árfolyam-keresztek ehhez viszonyítva jelennek meg; a dashboardon felhasználónként átállítható</div>
+            </div>
+            <div class="source-input-wrap">
+              <select id="CRUCIX_BASE_CURRENCY" name="CRUCIX_BASE_CURRENCY" class="form-input">
+                <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option>
+                <option value="HUF">HUF</option><option value="JPY">JPY</option><option value="CHF">CHF</option>
+                <option value="CAD">CAD</option><option value="AUD">AUD</option><option value="CNY">CNY</option>
+              </select>
+            </div>
+          </div>
+
           <!-- AISSTREAM -->
           <div class="source-card">
             <div class="source-info">
@@ -1142,7 +1185,7 @@
 
     async function exitSetup() {
       try {
-        await fetch('/api/setup/exit', { method: 'POST' });
+        await fetch('/api/setup/exit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       } catch {}
       closeWindowNow();
     }

@@ -131,6 +131,8 @@ export default {
     alertTimeoutMs: envInteger('LLM_ALERT_TIMEOUT_MS', 30000, 1000, 360000),
     briefingMaxTokens: envInteger('LLM_BRIEFING_MAX_TOKENS', 1200, 128, 8192), // cited briefings (getLLMBudget(config, 'briefing'))
     briefingTimeoutMs: envInteger('LLM_BRIEFING_TIMEOUT_MS', 60000, 1000, 360000),
+    askMaxTokens: envInteger('LLM_ASK_MAX_TOKENS', 500, 64, 2048), // the bots' /ask answers (getLLMBudget(config, 'ask'))
+    askTimeoutMs: envInteger('LLM_ASK_TIMEOUT_MS', 45000, 1000, 360000),
     everyNSweeps: envInteger('LLM_IDEAS_EVERY_N_SWEEPS', 1, 1, 96),
     tradeIdeasLang: process.env.TRADE_IDEAS_LANG || process.env.CRUCIX_LANG || 'en',
   },
@@ -140,6 +142,8 @@ export default {
     chatId: process.env.TELEGRAM_CHAT_ID || null,
     botPollingInterval: envInteger('TELEGRAM_POLL_INTERVAL', 5000, 1000, 300000),
     channels: process.env.TELEGRAM_CHANNELS || null, // Comma-separated extra channel IDs
+    minTier: (process.env.TELEGRAM_ALERT_MIN_TIER || 'PRIORITY').trim().toUpperCase(), // FLASH | PRIORITY | ROUTINE; lower tiers wait for /brief
+    allowedUserIds: (process.env.TELEGRAM_ALLOWED_USER_IDS || '').split(',').map(id => id.trim()).filter(Boolean), // group chats: who may run commands
   },
 
   discord: {
@@ -148,6 +152,7 @@ export default {
     guildId: process.env.DISCORD_GUILD_ID || null, // Server ID (for instant slash command registration)
     allowedUserIds: (process.env.DISCORD_ALLOWED_USER_IDS || '').split(',').map(id => id.trim()).filter(Boolean),
     webhookUrl: process.env.DISCORD_WEBHOOK_URL || null, // Fallback: webhook-only alerts (no bot needed)
+    minTier: (process.env.DISCORD_ALERT_MIN_TIER || 'PRIORITY').trim().toUpperCase(), // FLASH | PRIORITY | ROUTINE; lower tiers wait for /brief
   },
 
   // Alert engine: notification channels exist only when their variable is set (see .env.example)
@@ -179,6 +184,11 @@ export default {
   risk: {
     enabled: envBoolean('RISK_ENABLED', true),
     retentionDays: envInteger('RISK_RETENTION_DAYS', 35, 14, 90), // event references and score series kept
+  },
+
+  // Market quotes: the default base currency of the FX crosses (each dashboard user can pick another one)
+  markets: {
+    baseCurrency: (process.env.CRUCIX_BASE_CURRENCY || 'USD').trim().toUpperCase(), // lib/markets/fx.mjs validates it
   },
 
   // Delta engine thresholds — override defaults from lib/delta/engine.mjs

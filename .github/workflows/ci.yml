@@ -7,6 +7,19 @@ on:
   pull_request:
     branches: [master, main]
   workflow_dispatch:
+    inputs:
+      publish_npm:
+        description: 'Publish package.json version to npm (needs approval in the npm environment)'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'npm publish --dry-run (nothing reaches the registry)'
+        type: boolean
+        default: true
+      tag_override:
+        description: 'npm dist-tag (empty: latest, or next for a prerelease)'
+        type: string
+        default: ''
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -211,7 +224,47 @@ jobs:
           docker run --rm --entrypoint node crucix-ci-test -e "require('node:fs').writeFileSync('/app/runs/permission-test', 'ok'); if (process.getuid() === 0) process.exit(1); console.log('UID', process.getuid(), 'runs writable');"
           docker run --rm --entrypoint node crucix-ci-test scripts/verify-assets.mjs
 
-  # 7. Central CI Gate (Summary check required for branch protection)
+  # 7. npm release: a v* tag, or a manual run with publish_npm. The "npm" environment holds NPM_ACCESS_TOKEN and should
+  # require a reviewer, so nothing is published without an approval. Provenance comes from the id-token permission.
+  publish-npm:
+    name: Publish to npm
+    needs: [syntax-and-lint, test, security-audit, package-executables]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_npm)
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/crucix
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Audit, check the version and publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_ACCESS_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          TAG_OVERRIDE: ${{ inputs.tag_override }}
+        shell: bash
+        run: |
+          args=(--ci)
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          if [ -n "$TAG_OVERRIDE" ]; then args+=(--tag "$TAG_OVERRIDE"); fi
+          node scripts/publish-npm.mjs "${args[@]}"
+
+  # 8. Central CI Gate (Summary check required for branch protection)
   ci-gate:
     name: CI Quality Gate (All Checks Passed)
     if: always()

@@ -4,9 +4,9 @@ Every source, grouped by tier, with its key requirement, licence note and what i
 
 [← Back to the README](../README.md) · [Documentation index](../README.md#documentation)
 
-## Data Sources (71)
+## Data Sources (73)
 
-71 source adapters run in every sweep: 31 established feeds in tiers 1–6, the 36 "current public data" feeds of tier 7 and 4 country inputs in tier 8. Static datasets that ship with the program (pipelines, bases, mapped sites) are listed after the tiers.
+73 source adapters run in every sweep: 33 established feeds in tiers 1–6, the 36 "current public data" feeds of tier 7 and 4 country inputs in tier 8. Static datasets that ship with the program (pipelines, bases, mapped sites) are listed after the tiers.
 
 ### Tier 1: Core OSINT & Geopolitical (11)
 
@@ -55,11 +55,15 @@ Every source, grouped by tier, with its key requirement, licence note and what i
 |--------|---------------|------|
 | **CelesTrak** | Satellite launches, ISS tracking, military constellations, Starlink/OneWeb counts | None |
 
-### Tier 5: Live Market Data (1)
+### Tier 5: Live Market Data (3)
 
 | Source | What It Tracks | Auth |
 |--------|---------------|------|
-| **Yahoo Finance** | Real-time prices: SPY, QQQ, BTC, Gold, WTI, VIX + 9 more | None |
+| **Financial Modeling Prep** | Batch equity, index and forex quotes (two calls per sweep; `FMP_DAILY_LIMIT` caps the day) | Free key (`FMP_API_KEY`); without it the source is off |
+| **Finnhub** | Second quote source for the US-listed equities (key in the `X-Finnhub-Token` header) | Free key (`FINNHUB_API_KEY`); without it the source is off |
+| **Yahoo Finance** | Indexes, world indexes (DAX, FTSE, Nikkei, Hang Seng, BUX), FX, crypto, energy, metals, VIX and the sector equities. Daily change is against the previous daily bar | None |
+
+The markets panel merges them in that order (freshest timestamp wins, FMP first on a tie). ECB daily FX fills any missing pair. The FX base is `CRUCIX_BASE_CURRENCY` (default USD).
 
 ### Tier 6: Cyber & Infrastructure (3)
 

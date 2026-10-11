@@ -123,6 +123,22 @@ Not available when `RISK_ENABLED=false` (404). These routes take no query parame
 | `GET /api/news/country/:code` | Country-specific news items (e.g. `HU`, `DE`, `JP`, `BR`). Returns cached feeds by default (30-minute background cache) or on-demand live with `?live=true`. Query parameter: `limit` (1–50, default 10). |
 | `GET /api/news/world` | Global balanced news items from the 30-minute world cache (up to 50 items, newest first, max 2 items per country for diversity). |
 
+### News feeds (Settings)
+
+Same-origin JSON on every change (the setup and alert routes use the same guard). The store is the profile `feeds.json` (`CRUCIX_HOME` or `~/.crucix`). The next sweep and the world RSS runner read it.
+
+| Endpoint | Returns |
+|----------|---------|
+| `GET /api/feeds` | The lists (`core`, `world`, `custom`), counts, the `file` path, `profile` and `envFile` |
+| `POST /api/feeds/toggle` | `{url, enabled}`, `{urls, enabled}` (a region or country) or `{kind, enabled}` (`core`, `world`, `custom`) |
+| `POST /api/feeds/country` | `{url, country}` — ISO2 or `""` / `GLOBAL` for no country |
+| `POST /api/feeds/custom` | Add a feed `{source, url, lang?, country?, tier?}` |
+| `POST /api/feeds/custom/update` | Change name, language, country or tier of a custom feed |
+| `POST /api/feeds/custom/remove` | `{url}` |
+| `POST /api/feeds/reset` | All registry feeds on and in their own country, no custom feeds |
+| `GET /api/feeds/opml` | OPML of the feeds that are on (`?scope=all` includes the off ones) |
+| `POST /api/feeds/opml` | `{opml}` — known URLs are switched on, new valid URLs become custom feeds |
+
 ### Other
 
 | Endpoint | Returns |

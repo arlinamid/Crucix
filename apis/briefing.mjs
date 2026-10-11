@@ -43,6 +43,8 @@ import { briefing as space } from './sources/space.mjs';
 
 // === Tier 5: Live Market Data ===
 import { briefing as yfinance } from './sources/yfinance.mjs';
+import { briefing as fmp } from './sources/fmp.mjs';
+import { briefing as finnhub } from './sources/finnhub.mjs';
 
 // === Tier 6: Cyber & Infrastructure ===
 import { briefing as cisaKev } from './sources/cisa-kev.mjs';
@@ -167,6 +169,8 @@ export async function fullBriefing() {
 
     // Tier 5: Live Market Data
     runSource('YFinance', yfinance),
+    runSource('FMP', fmp),
+    runSource('Finnhub', finnhub),
 
     // Tier 6: Cyber & Infrastructure
     runSource('CISA-KEV', cisaKev),
@@ -177,7 +181,7 @@ export async function fullBriefing() {
     runSource('Meteoalarm', meteoalarm, { countries: config.publicSources.meteoalarmCountries }),
     runSource('GDACS', gdacs),
     runSource('NOAA-SWPC', swpc),
-    runSource('ECB', ecb),
+    runSource('ECB', ecb, { currencies: ['USD', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'HUF', 'CNY'] }),
     runSource('NASA-EONET', eonet),
     runSource('RIPEstat', ripestat, { resources: config.publicSources.routingASNs }),
     runSource('FIRST-EPSS', epss),
