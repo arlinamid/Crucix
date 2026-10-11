@@ -234,6 +234,9 @@ function ci(opts, pkg) {
   if (oidc) {
     delete env.NODE_AUTH_TOKEN;
     delete env.NPM_TOKEN;
+    delete env.NPM_ACCESS_TOKEN;
+    // setup-node's registry-url writes always-auth + ${NODE_AUTH_TOKEN} into this file; that blocks OIDC.
+    delete env.NPM_CONFIG_USERCONFIG;
   } else {
     env.NODE_AUTH_TOKEN = token;
   }

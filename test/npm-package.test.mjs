@@ -63,6 +63,8 @@ test('the publish-npm job runs after the gates, in the npm environment, with onl
   assert.match(job, /environment:\n\s+name: npm/);
   assert.match(job, /permissions:\n\s+contents: read\n\s+id-token: write\n/);
   assert.doesNotMatch(job, /NODE_AUTH_TOKEN:/, 'OIDC trusted publishing: a 2FA token would fail with EOTP');
+  assert.doesNotMatch(job, /registry-url:/, 'setup-node registry-url writes a dummy token that blocks OIDC');
+  assert.match(job, /npm install -g npm@\^11\.15\.0/);
   assert.match(job, /node scripts\/publish-npm\.mjs "\$\{args\[@\]\}"/);
   assert.match(job, /persist-credentials: false/);
   const script = job.slice(job.lastIndexOf('run: |'));

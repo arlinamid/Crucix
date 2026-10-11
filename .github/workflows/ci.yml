@@ -224,8 +224,10 @@ jobs:
           docker run --rm --entrypoint node crucix-ci-test -e "require('node:fs').writeFileSync('/app/runs/permission-test', 'ok'); if (process.getuid() === 0) process.exit(1); console.log('UID', process.getuid(), 'runs writable');"
           docker run --rm --entrypoint node crucix-ci-test scripts/verify-assets.mjs
 
-  # 7. npm release: a v* tag, or a manual run with publish_npm. The "npm" environment holds NPM_ACCESS_TOKEN and should
-  # require a reviewer, so nothing is published without an approval. Provenance comes from the id-token permission.
+  # 7. npm release: a v* tag, or a manual run with publish_npm. The "npm" environment
+  # should require a reviewer. Publish is GitHub OIDC (Trusted Publisher), not a token.
+  # Do not set registry-url on setup-node here: that writes an .npmrc with a dummy
+  # NODE_AUTH_TOKEN, and npm then skips OIDC and the registry returns 404.
   publish-npm:
     name: Publish to npm
     needs: [syntax-and-lint, test, security-audit, package-executables]
@@ -247,13 +249,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
+
+      - name: Install npm 11 for trusted publishing
+        run: npm install -g npm@^11.15.0
 
       - name: Install Dependencies
         run: npm ci --ignore-scripts
 
-      # Do not pass an npm access token: a classic 2FA login makes publish ask for an OTP.
-      # Publish uses GitHub OIDC (id-token: write) as an npm Trusted Publisher.
       - name: Audit, check the version and publish
         env:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
