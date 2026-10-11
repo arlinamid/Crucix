@@ -30,6 +30,7 @@ console.log(`📂 Célfájl:          ${targetExe}\n`);
 mkdirSync(binDir, { recursive: true });
 mkdirSync(distBuildDir, { recursive: true });
 execSync(`"${process.execPath}" scripts/sync-setup-html.mjs`, { stdio: 'inherit', cwd: ROOT });
+execSync(`"${process.execPath}" scripts/bundle-dashboard-assets.mjs`, { stdio: 'inherit', cwd: ROOT });
 
 // 2. Bundle the entire application into a single self-contained CommonJS file
 console.log('📦 [1/4] Alkalmazás és forrásmodulok egybecsomagolása (esbuild bundle)...');

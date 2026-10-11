@@ -108,6 +108,44 @@ try {
       child.kill();
     } catch {}
   }
+
+  console.log('▶️ Standalone web szerver & dashboard (jarvis.html) tesztelése...');
+  const serverPort = 39486;
+  const serverChild = spawn(exePath, ['server', '--headless', '--port', String(serverPort)], {
+    cwd: testIsolatedDir,
+    env: {
+      ...process.env,
+      PORT: String(serverPort),
+      NO_AUTO_OPEN: '1',
+      HEADLESS: '1',
+      CRUCIX_HOME: join(testIsolatedDir, '.crucix'),
+      RUNS_DIR: join(testIsolatedDir, '.crucix', 'runs'),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  try {
+    let serverOk = false;
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 250));
+      try {
+        const res = await fetch(`http://localhost:${serverPort}/`);
+        if (res.status === 200) {
+          const body = await res.text();
+          assert.ok(body.includes('CRUCIX') || body.includes('jarvis'), 'A dashboard HTML nem megfelelő');
+          assert.ok(!body.includes('ENOENT'), 'ENOENT hiba történt a dashboard kiszolgálásakor');
+          serverOk = true;
+          break;
+        }
+      } catch {}
+    }
+    assert.ok(serverOk, 'A standalone web szerver nem indult el vagy nem szolgálta ki a dashboardot');
+    console.log('✅ Standalone web szerver & dashboard sikeres: a jarvis.html és statikus modulok hiba nélkül betöltődnek!');
+  } finally {
+    try {
+      serverChild.kill();
+    } catch {}
+  }
 } finally {
   try {
     rmSync(testIsolatedDir, { recursive: true, force: true });

@@ -43,7 +43,6 @@ mkdirSync(userLocalBinDir, { recursive: true });
 // so user cannot tamper with source code and only runtime data remains.
 const legacyDirs = [
   'apis',
-  'dashboard',
   'lib',
   'locales',
   'scripts',
@@ -58,6 +57,12 @@ for (const dir of legacyDirs) {
       console.log(`   🧹 Korábbi nyílt forráskönyvtár törölve a profilból: ${dir}/`);
     } catch {}
   }
+}
+
+// Clean up any non-public files in dashboard/ if they exist
+const legacyDashboardInject = join(userCrucixDir, 'dashboard', 'inject.mjs');
+if (existsSync(legacyDashboardInject)) {
+  try { rmSync(legacyDashboardInject, { force: true }); } catch {}
 }
 
 const legacyFiles = [
@@ -82,6 +87,18 @@ const destEnv = join(userCrucixDir, '.env');
 if (!existsSync(destEnv) && existsSync(srcEnv)) {
   copyFileSync(srcEnv, destEnv);
   console.log('   • .env konfiguráció létrehozva a profilban');
+}
+
+// Copy dashboard client assets (HTML, CSS, JS, fonts) to ~/.crucix and ~/.local/bin
+const srcDashboardPublic = join(ROOT, 'dashboard', 'public');
+if (existsSync(srcDashboardPublic)) {
+  const destProfilePublic = join(userCrucixDir, 'dashboard', 'public');
+  const destBinPublic = join(userLocalBinDir, 'dashboard', 'public');
+  mkdirSync(destProfilePublic, { recursive: true });
+  mkdirSync(destBinPublic, { recursive: true });
+  cpSync(srcDashboardPublic, destProfilePublic, { recursive: true });
+  cpSync(srcDashboardPublic, destBinPublic, { recursive: true });
+  console.log('   • Dashboard webes felület (HTML, CSS, JS) szinkronizálva');
 }
 
 // Copy initial seed data to runs/ if user profile runs/ is empty

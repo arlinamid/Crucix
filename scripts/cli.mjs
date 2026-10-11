@@ -113,6 +113,8 @@ function parseArgs(argv = process.argv.slice(2)) {
     delta: false,
     all: false,
     setup: false,
+    server: false,
+    headless: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -121,6 +123,18 @@ function parseArgs(argv = process.argv.slice(2)) {
       opts.help = true;
     } else if (arg === 'setup' || arg === 'init' || arg === 'config' || arg === '--setup' || arg === '--config' || arg === 'wizard') {
       opts.setup = true;
+    } else if (arg === 'server' || arg === 'start' || arg === 'web' || arg === 'dashboard') {
+      opts.server = true;
+    } else if (arg === '--server' || arg === '--web' || arg === '--dashboard') {
+      opts.server = true;
+    } else if (arg === '--serve' || arg === '--start-server' || arg === '--daemon-server') {
+      opts.server = true;
+      opts.headless = true;
+    } else if (arg === '--headless' || arg === '--no-open' || arg === '--no-browser') {
+      opts.headless = true;
+    } else if (arg === '--port' || arg === '-p') {
+      const p = parseInt(args[++i], 10);
+      if (!isNaN(p) && p > 0) process.env.PORT = String(p);
     } else if (arg === '-L' || arg === '--lang') {
       opts.lang = (args[++i] || 'en').toLowerCase().slice(0, 2);
     } else if (arg.startsWith('--lang=')) {
@@ -176,8 +190,9 @@ function parseArgs(argv = process.argv.slice(2)) {
       opts.noServer = true;
     } else if (arg === '--sweep' || arg === '--run-sweep') {
       opts.sweep = true;
-    } else if (arg === '--serve' || arg === '--server' || arg === '--start-server') {
-      opts.serve = true;
+    } else if (arg === '--serve' || arg === '--start-server') {
+      opts.server = true;
+      opts.headless = true;
     } else if (arg === '--collector' || arg === '--daemon' || arg === '--watch') {
       opts.collector = true;
     } else if (arg === '-i' || arg === '--interval') {
@@ -280,6 +295,11 @@ Nyelvválasztás & Beállítás:
   -L, --lang <kód>                 Kimenet nyelve: en, hu, fr (alapértelmezett: en vagy CRUCIX_LANG)
   setup, init, --setup             Interaktív beállító varázsló (.env, Telegram, Discord, AI, API kulcsok) (--web / --cli)
 
+Szerver & Web Vezérlőpult:
+  server, start, dashboard, web    Crucix szerver és Jarvis webes vezérlőpult indítása (http://localhost:3117)
+  --serve, --headless              Háttérszerver indítása böngésző felnyitása NÉLKÜL (fejetlen / API mód)
+  --port <szám>, -p <szám>         Egyedi port megadása (alapértelmezett: 3117)
+
 Intelligencia & Összefoglalók:
   -b, --brief                      Vezetői intelligencia összefoglaló (piaci irány, VIX, olaj, arany, OSINT)
   -a, --all                        Teljes átfogó jelentés minden kulcsterületről a terminálban
@@ -357,8 +377,10 @@ Példák:
   ${c} --alerts --since 14d        # Az elmúlt 2 hét riasztásai
   ${c} -q "Trump" --since 14d      # Szöveges keresés az elmúlt 2 hét híreiben
   ${c} --country JP --no-server    # Japán hírek a helyi RSS gyorsítótárból
-  ${c} --collector                 # Folyamatos terminálos adatgyűjtő ciklus (15 percenként sweep)
+  ${c} server                      # Webes vezérlőpult indítása (böngésző automatikusan megnyílik)
+  ${c} start                       # crucix server szinonimája
   ${c} --serve                     # Crucix backend szerver indítása böngésző felnyitás NÉLKÜL
+  ${c} --collector                 # Folyamatos terminálos adatgyűjtő ciklus (15 percenként sweep)
   ${c} --source-data USGS          # USGS forrás nyers adatainak megjelenítése
   ${c} -a                          # Átfogó terminál jelentés minden kulcsterületről
   ${c} -b -L hu                    # Összefoglaló magyar nyelven
@@ -381,6 +403,11 @@ ${usage}
 Language & Setup:
   -L, --lang <code>                Output language: en, hu, fr (default: en or CRUCIX_LANG)
   setup, init, --setup             Interactive setup wizard (.env, Telegram, Discord, AI, API keys) (--web / --cli)
+
+Server & Web Dashboard:
+  server, start, dashboard, web    Start Crucix server and open Jarvis web dashboard (http://localhost:3117)
+  --serve, --headless              Start backend server in headless mode (no browser popup)
+  --port <number>, -p <number>     Specify custom port (default: 3117)
 
 Intelligence & Briefings:
   -b, --brief                      Executive intelligence briefing (market direction, VIX, oil, gold, OSINT)
@@ -459,8 +486,10 @@ Examples:
   ${c} --alerts --since 14d        # Alerts from the last 2 weeks
   ${c} -q "Trump" --since 14d      # Search news from the last 2 weeks
   ${c} --country JP --no-server    # Japan news from local cache
-  ${c} --collector                 # Continuous terminal collector loop (15m sweep)
+  ${c} server                      # Start server and launch Jarvis web dashboard in browser
+  ${c} start                       # Synonym for crucix server
   ${c} --serve                     # Start backend server without browser popup
+  ${c} --collector                 # Continuous terminal collector loop (15m sweep)
   ${c} --source-data USGS          # Raw data from USGS source
   ${c} -a                          # Comprehensive report across all areas
   ${c} -b -L hu                    # Briefing in Hungarian
@@ -1479,21 +1508,37 @@ async function main() {
     }
   }
 
-  // 0a. Start server in headless / data collector mode (no browser popup)
-  if (opts.serve) {
-    if (lang === 'hu') {
-      console.log('\n🚀 Crucix háttérszerver indítása Fejetlen (Headless / Adatgyűjtő) módban...');
-      console.log('🌐 Express REST API elindul (3117-es porton), kiszolgálja a CLI-t és a helyi hálózatot.');
-      console.log('🛑 A böngésző automatikus megnyitása letiltva (nincs felugró web UI).');
-      console.log('🛑 Leállításhoz: Nyomj Ctrl+C billentyűt\n');
+  // 0a. Start server (either Web Dashboard mode or Headless collector mode)
+  if (opts.server || opts.serve) {
+    const isHeadless = Boolean(opts.headless);
+    const targetPort = process.env.PORT || '3117';
+    if (isHeadless) {
+      process.env.NO_AUTO_OPEN = '1';
+      process.env.HEADLESS = '1';
+      if (lang === 'hu') {
+        console.log('\n🚀 Crucix háttérszerver indítása Fejetlen (Headless / Adatgyűjtő) módban...');
+        console.log(`🌐 Express REST API elindul (${targetPort}-es porton), kiszolgálja a CLI-t és a helyi hálózatot.`);
+        console.log('🛑 A böngésző automatikus megnyitása letiltva (nincs felugró web UI).');
+        console.log('🛑 Leállításhoz: Nyomj Ctrl+C billentyűt a terminálban\n');
+      } else {
+        console.log('\n🚀 Starting Crucix backend server in Headless (Collector) mode...');
+        console.log(`🌐 Express REST API starting on port ${targetPort}, serving CLI and local network.`);
+        console.log('🛑 Automatic browser launch disabled (no web UI popup).');
+        console.log('🛑 To stop: Press Ctrl+C in this terminal\n');
+      }
     } else {
-      console.log('\n🚀 Starting Crucix backend server in Headless (Collector) mode...');
-      console.log('🌐 Express REST API starting on port 3117, serving CLI and local network.');
-      console.log('🛑 Automatic browser launch disabled (no web UI popup).');
-      console.log('🛑 To stop: Press Ctrl+C\n');
+      delete process.env.NO_AUTO_OPEN;
+      delete process.env.HEADLESS;
+      if (lang === 'hu') {
+        console.log('\n🚀 Crucix szerver és Jarvis vezérlőpult indítása...');
+        console.log(`🌐 Webes felület: http://localhost:${targetPort} (automatikusan megnyílik a böngészőben)`);
+        console.log('🛑 Leállításhoz: Nyomj Ctrl+C billentyűt a terminálban\n');
+      } else {
+        console.log('\n🚀 Starting Crucix server and Jarvis dashboard...');
+        console.log(`🌐 Web Interface: http://localhost:${targetPort} (opening automatically in browser)`);
+        console.log('🛑 To stop: Press Ctrl+C in this terminal\n');
+      }
     }
-    process.env.NO_AUTO_OPEN = '1';
-    process.env.HEADLESS = '1';
     await import(pathToFileURL(join(ROOT, 'server.mjs')).href);
     return;
   }
@@ -2051,6 +2096,17 @@ async function main() {
     }
     console.log('');
   });
+
+  if (rawArgs.length === 0) {
+    const c = getCliCmd();
+    if (lang === 'hu') {
+      console.log(`💡 Tipp: A webes vezérlőpult indításához: ${c} server (vagy: ${c} start)`);
+      console.log(`   Összes parancs és súgó: ${c} --help\n`);
+    } else {
+      console.log(`💡 Tip: To start the web dashboard: ${c} server (or: ${c} start)`);
+      console.log(`   For all commands and options: ${c} --help\n`);
+    }
+  }
 }
 
 const entryHref = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;

@@ -49,6 +49,7 @@ import { archiveSweep } from './lib/sweeps/step.mjs';
 import { WORLD_FEEDS, getFeedsByCountry } from './apis/utils/news-feeds.mjs';
 import { parseFeed } from './apis/utils/rss.mjs';
 import { getWorldNewsByCountry, getWorldNews, getBalancedWorldNews, getWorldRssStats, startWorldRssScheduler } from './lib/world-rss-runner.mjs';
+import { resolveDashboardPublicDir, readJarvisHtml } from './lib/dashboard-path.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
@@ -323,19 +324,19 @@ if (config.web.corsOrigins.includes('*') && !config.auth.user) {
 }
 const app = express();
 installHttpSecurity(app, config.auth, config.web);
-app.use(express.static(join(ROOT, 'dashboard/public')));
+const dashboardDir = resolveDashboardPublicDir();
+app.use(express.static(dashboardDir));
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 app.get('/offline-shell', (_req, res) => {
-  res.type('html').send(renderOfflineShell(readFileSync(join(ROOT, 'dashboard/public/jarvis.html'), 'utf8'), getLocale()));
+  res.type('html').send(renderOfflineShell(readJarvisHtml(), getLocale()));
 });
 
 // Serve an empty dashboard until the first sweep, then inject the current locale.
 app.get('/', (req, res) => {
   if (!currentData) {
-    res.type('html').send(renderOfflineShell(readFileSync(join(ROOT, 'dashboard/public/jarvis.html'), 'utf8'), getLocale(), { offline: false }));
+    res.type('html').send(renderOfflineShell(readJarvisHtml(), getLocale(), { offline: false }));
   } else {
-    const htmlPath = join(ROOT, 'dashboard/public/jarvis.html');
-    let html = readFileSync(htmlPath, 'utf-8');
+    let html = readJarvisHtml();
     const dataScript = inlineJson(freshLiveSnapshot(currentData));
     
     html = html.replace(/^(let|const) D = .*;\s*$/m, () => `let D = ${dataScript};`);
