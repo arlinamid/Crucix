@@ -1,5 +1,7 @@
 # Changelog / Változásnapló
 
+- [2.39.3 — kvóták, RSS-pool és 180 s Cursor-ideas / quotas, RSS pool and 180 s Cursor ideas](docs/releases/v2.39.3.md) — 2026-10-11
+
 - [2.39.2 — `crucix --version`, két telepítési út / `crucix --version` and two install paths](docs/releases/v2.39.2.md) — 2026-10-11
 
 - [2.39.0 — npm csomag, hírcsatorna-kezelő, bizonyítékos botok és bővített piacok / npm package, news-feed manager, evidence bots and expanded markets](docs/releases/v2.39.0.md) — 2026-10-11

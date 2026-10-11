@@ -1,12 +1,13 @@
 import { readBoundedText } from '../utils/fetch.mjs';
 // ACLED — Armed Conflict Location & Event Data
 // Auth strategy (tries in order):
-//   1. Cookie-based session: POST /user/login?_format=json → session cookie
-//   2. OAuth Bearer token:   POST /oauth/token → Authorization header
+//   1. OAuth Bearer token:   POST /oauth/token (password grant + scope=authenticated)
+//   2. Cookie-based session: POST /user/login?_format=json → session cookie
 // Set ACLED_EMAIL and ACLED_PASSWORD in .env (your myACLED login credentials).
 // Data endpoint: GET https://acleddata.com/api/acled/read
 
 import { daysAgo } from '../utils/fetch.mjs';
+import { readQuota, writeQuota, clearQuota } from '../utils/quota-cache.mjs';
 import '../utils/env.mjs';
 
 const LOGIN_URL = 'https://acleddata.com/user/login?_format=json';
@@ -15,6 +16,31 @@ const API_BASE  = 'https://acleddata.com/api/acled/read';
 
 // Session cache
 let sessionCache = { cookies: null, token: null, method: null, expires: 0 };
+let lastGood = { at: 0, result: null };
+let hydrated = false;
+const LAST_GOOD_MS = 6 * 60 * 60 * 1000;
+const ACLED_HEADERS = {
+  'User-Agent': 'Crucix/2.2',
+  Accept: 'application/json',
+};
+
+function hydrateQuota() {
+  if (hydrated) return;
+  hydrated = true;
+  const saved = readQuota('acled');
+  if (Number(saved?.at) > 0 && saved.result) lastGood = { at: saved.at, result: saved.result };
+}
+
+export function resetState({ disk = true } = {}) {
+  sessionCache = { cookies: null, token: null, method: null, expires: 0 };
+  lastGood = { at: 0, result: null };
+  hydrated = false;
+  if (disk) clearQuota('acled');
+}
+
+function isChallenge(status, text) {
+  return status === 403 && /just a moment|cf-browser-verification|attention required/i.test(text || '');
+}
 
 // Strategy 1: Cookie-based session login (mirrors browser login)
 async function loginCookie(email, password) {
@@ -22,7 +48,7 @@ async function loginCookie(email, password) {
   try {
     const res = await fetch(LOGIN_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...ACLED_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: email, pass: password }),
       redirect: 'manual',
       signal,
@@ -58,21 +84,30 @@ async function loginOAuth(email, password) {
       password: password,
       grant_type: 'password',
       client_id: 'acled',
+      scope: 'authenticated',
     });
 
     const res = await fetch(TOKEN_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: { ...ACLED_HEADERS, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
       signal,
     });
 
+    const text = await readBoundedText(res, 64 * 1024);
+    if (isChallenge(res.status, text)) {
+      return { error: `Cloudflare challenge (HTTP ${res.status}); ACLED is blocking scripted login`, blocked: true };
+    }
     if (!res.ok) {
-      await res.body?.cancel();
-      return { error: `OAuth failed (HTTP ${res.status})` };
+      let detail = '';
+      try {
+        const fail = JSON.parse(text);
+        detail = fail.error_description || fail.error || fail.message || '';
+      } catch { /* HTML or empty */ }
+      return { error: `OAuth failed (HTTP ${res.status}${detail ? `: ${String(detail).slice(0, 120)}` : ''})` };
     }
 
-    const data = JSON.parse(await readBoundedText(res));
+    const data = JSON.parse(text);
     if (!data.access_token) {
       return { error: 'OAuth response missing access_token' };
     }
@@ -109,6 +144,9 @@ async function authenticate() {
   }
   errors.push(`OAuth: ${oauthResult.error}`);
   if (debug) console.error(`[ACLED DEBUG] OAuth failed: ${oauthResult.error}`);
+  if (oauthResult.blocked) {
+    return { error: `All ACLED auth methods failed.\n${errors.join('\n')}` };
+  }
 
   // Fall back to cookie-based session
   const cookieResult = await loginCookie(email, password);
@@ -124,7 +162,7 @@ async function authenticate() {
 
 // Build headers based on auth method
 function authHeaders(session) {
-  const headers = { 'User-Agent': 'Crucix/1.0', 'Content-Type': 'application/json' };
+  const headers = { ...ACLED_HEADERS, 'Content-Type': 'application/json' };
   if (session.method === 'cookie' && session.cookies) {
     headers['Cookie'] = session.cookies;
   } else if (session.method === 'oauth' && session.token) {
@@ -228,7 +266,8 @@ function groupBy(events, field) {
 }
 
 // Briefing — last 7 days of global conflict events
-export async function briefing() {
+export async function briefing({ now = Date.now() } = {}) {
+  hydrateQuota();
   if (!process.env.ACLED_EMAIL || !process.env.ACLED_PASSWORD) {
     return {
       source: 'ACLED',
@@ -248,7 +287,10 @@ export async function briefing() {
   });
 
   if (data?.error) {
-    return { source: 'ACLED', timestamp: new Date().toISOString(), error: data.error };
+    if (lastGood.result && now - lastGood.at < LAST_GOOD_MS) {
+      return { ...lastGood.result, stale: true, message: data.error };
+    }
+    return { source: 'ACLED', timestamp: new Date(now).toISOString(), error: data.error };
   }
 
   let events = data?.data || [];
@@ -292,9 +334,9 @@ export async function briefing() {
       notes:      e.notes?.slice(0, 200),
     }));
 
-  return {
+  const result = {
     source: 'ACLED',
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(now).toISOString(),
     period: { start, end },
     totalEvents: events.length,
     totalFatalities,
@@ -303,6 +345,9 @@ export async function briefing() {
     topCountries,
     deadliestEvents,
   };
+  lastGood = { at: now, result };
+  writeQuota('acled', lastGood);
+  return result;
 }
 
 if (process.argv[1]?.endsWith('acled.mjs')) {

@@ -23,7 +23,7 @@ function mockResponse(t, data, capture = () => {}) {
 }
 
 test('validated budgets preserve defaults and accept explicitly bounded local budgets', () => {
-  assert.deepEqual(getLLMBudget({}, 'ideas'), { maxTokens: 4096, timeout: 90000 });
+  assert.deepEqual(getLLMBudget({}, 'ideas'), { maxTokens: 4096, timeout: 180000 });
   assert.deepEqual(getLLMBudget({}, 'alerts'), { maxTokens: 800, timeout: 30000 });
   assert.deepEqual(getLLMBudget({ ideasMaxTokens: '16384', ideasTimeoutMs: 360000 }, 'ideas'), { maxTokens: 16384, timeout: 360000 });
   assert.deepEqual(getLLMBudget({ alertMaxTokens: 4096, alertTimeoutMs: 180000 }, 'alerts'), { maxTokens: 4096, timeout: 180000 });

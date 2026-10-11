@@ -17,7 +17,7 @@ Every source, grouped by tier, with its key requirement, licence note and what i
 | **NASA FIRMS** | Satellite fire/thermal anomaly detection (3hr latency) | Free key |
 | **Maritime** | Reference chokepoints. With a key, the dashboard server keeps one aisstream.io WebSocket open and the source becomes a live one: per chokepoint the AIS-visible vessels seen within ±2° of its centre in the last hour (moving at 1 kn or more, tankers) with the metrics `<chokepoint>_vessels`, and up to 89 of the most recently seen vessels as markers of the maritime map layer (markers only: not live records, events or history). Current within 5 minutes of the last message, failed after 10. aisstream.io has no SLA and no written licence (aisstream issue #290); a key allows 3 connections, and uncompressed connections may be bandwidth-limited (shown as a warning) | Free key for live data (`AISSTREAM_API_KEY`); none for reference data |
 | **Safecast** | Citizen-science radiation readings near 6 nuclear sites; two sites are refreshed per sweep and the rest come from a cache of at most 3 hours with its age shown | None |
-| **ACLED** | Armed conflict events: battles, explosions, protests | Free (OAuth2) |
+| **ACLED** | Armed conflict events: battles, explosions, protests. OAuth2 password grant with `scope=authenticated`; last good briefing kept 6 hours if Cloudflare challenges the login | Free (OAuth2) |
 | **ReliefWeb** | UN humanitarian crisis tracking | None |
 | **WHO** | Disease outbreaks and health emergencies | None |
 | **OFAC** | US Treasury sanctions (SDN list) | None |
@@ -30,7 +30,7 @@ Every source, grouped by tier, with its key requirement, licence note and what i
 |--------|---------------|------|
 | **FRED** | 22 key indicators: yield curve, CPI, VIX, fed funds, M2 | Free key |
 | **US Treasury** | National debt, yields, fiscal data | None |
-| **BLS** | CPI, unemployment, nonfarm payrolls, PPI | None |
+| **BLS** | CPI, unemployment, nonfarm payrolls, PPI. Cached 12 hours so a 15-minute sweep stays under the v1 daily cap (~25). Optional `BLS_API_KEY` uses v2 (500/day) | None (optional key) |
 | **EIA** | WTI/Brent crude, natural gas, inventories | Free key |
 | **GSCPI** | NY Fed Global Supply Chain Pressure Index | None |
 | **USAspending** | Federal spending and defense contracts | None |
@@ -41,7 +41,7 @@ Every source, grouped by tier, with its key requirement, licence note and what i
 | Source | What It Tracks | Auth |
 |--------|---------------|------|
 | **NOAA/NWS** | Active US weather alerts | None |
-| **EPA RadNet** | US government radiation monitoring | None |
+| **EPA RadNet** | US government radiation monitoring. EPA's WAF returns 403; Crucix does not retry for 6 hours and keeps the last good reading | None (often blocked) |
 | **USPTO Patents** | Patent filings in 7 strategic tech areas | None |
 | **Bluesky** | Social sentiment on geopolitical/market topics | None |
 | **Reddit** | Social sentiment from key subreddits | OAuth |
@@ -53,7 +53,7 @@ Every source, grouped by tier, with its key requirement, licence note and what i
 
 | Source | What It Tracks | Auth |
 |--------|---------------|------|
-| **CelesTrak** | Satellite launches, ISS tracking, military constellations, Starlink/OneWeb counts | None |
+| **CelesTrak** | Satellite launches, ISS tracking, military counts. Cached 2 hours (GP updates on that cadence). Starlink/OneWeb mega-lists are not pulled every sweep | None |
 
 ### Tier 5: Live Market Data (3)
 
@@ -114,7 +114,7 @@ Added since v2.11 (twenty-seven more keyless feeds: ten in v2.11, then ThreatFox
 | ADSB Orbits (adsb.lol) | Military aircraft flying orbits (circles, racetracks) in the last two hours, one aggregate row per theater: count, types, countries of registry (adsbdb); no callsigns | `api.adsb.lol/v2/mil` (shared with ADSB-Military) and `adsb.lol/data/traces/` (at most 12 aircraft a sweep) | None | 25 min | ODbL 1.0 |
 | Open-Meteo wind | Modelled current 10 m wind (speed, from, toward, gusts) at the six watched nuclear sites; not a dispersion forecast | `api.open-meteo.com/v1/forecast` (one request for six points) | None (non-commercial use; a commercial deployment needs a key) | 3 h; 10 min cache | CC BY 4.0 |
 | NOAA NHC / CPHC | Active tropical cyclones of the Atlantic and the eastern and central North Pacific: one row per storm (class, sustained wind, pressure, movement; rated by wind from low to critical) and the advisory forecast track, points and cone for the map layer | `nhc.noaa.gov/CurrentStorms.json` and the NHC tropical-weather-summary MapServer (layers 5, 6, 7; server-generalised geometry) | None | Advisory 8 h; row 12 h; 5 min cache | U.S. public domain (NOAA/NWS) |
-| Launch Library 2 | Orbital launches in the next 14 days and the last 7 days, at their pad; government and military payloads rated moderate, failures elevated | `ll.thespacedevs.com/2.3.0/launches/{upcoming,previous}` | None (15 calls an hour anonymously; 2 per sweep, 15 min cache, the last good answer for an hour when throttled) | Entry updated within 12 h | The Space Devs terms (use and share; attribution encouraged) |
+| Launch Library 2 | Orbital launches in the next 14 days and the last 7 days, at their pad; government and military payloads rated moderate, failures elevated | `ll.thespacedevs.com/2.3.0/launches/{upcoming,previous}` | None (15 calls an hour anonymously; 2 per sweep, 15 min cache, the last good answer for an hour when throttled) | Catalog `last_updated` within 72 h; row 30 days | The Space Devs terms (use and share; attribution encouraged) |
 | JMA Typhoon | Active tropical cyclones of the western North Pacific from the Japan Meteorological Agency: one row per system (class, sustained wind, pressure, speed; rated by wind) and the forecast positions up to five days ahead as a track for the map layer; no cone (the JMA publishes probability circles) | `jma.go.jp/bosai/typhoon/data/targetTc.json` and `.../<TCxxxx>/specifications.json` | None | Advisory 8 h; row 12 h; 5 min cache | Government of Japan Standard Terms of Use (CC BY 4.0 compatible) |
 | ECDC Threats | The newest outbreak news and epidemiological updates of the European Centre for Disease Prevention and Control; the ALERT / WARNING / WATCH level is read from the headline words only, it is not an ECDC risk assessment | `ecdc.europa.eu/en/taxonomy/term/1307/feed` and `.../1310/feed` (RSS) | None | Feed 14 d; item 21 d; 1 h cache | ECDC copyright notice (reuse with attribution) |
 | Central banks | Policy rates of 14 central banks (BIS, Hungary first), their change over about a quarter, the ECB euro short-term rate (€STR) and the ECB composite indicator of systemic stress (CISS; moderate from 0.3, high from 0.6, Crucix's own reading) | `stats.bis.org/api/v1/data/WS_CBPOL` and `data-api.ecb.europa.eu` (EST, CISS), SDMX JSON | None | Feed 14 d; policy rate row 120 d (the BIS date is the last reported day); €STR and CISS 10 d; 1 h cache | BIS terms of use and ECB reuse policy (attribution) |

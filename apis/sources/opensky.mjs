@@ -7,6 +7,7 @@
 // clientId/clientSecret of credentials.json go into OPENSKY_CLIENT_ID/OPENSKY_CLIENT_SECRET.
 
 import { safeFetch, readBoundedText } from '../utils/fetch.mjs';
+import { readQuota, writeQuota, clearQuota } from '../utils/quota-cache.mjs';
 import '../utils/env.mjs';
 
 const BASE = 'https://opensky-network.org/api';
@@ -30,12 +31,28 @@ let tokenCache = { token: null, expiresAt: 0 };
 let tokenRequest = null;                  // in-flight token request shared by the parallel hotspots
 let lastRound = { at: 0, result: null };  // last round that got data (and so spent credits)
 let blockedUntil = 0;                     // set by HTTP 429 from X-Rate-Limit-Retry-After-Seconds
+let hydrated = false;
 
-export function resetState() {
+function persistQuota() {
+  writeQuota('opensky', { blockedUntil, lastRound });
+}
+
+function hydrateQuota() {
+  if (hydrated) return;
+  hydrated = true;
+  const saved = readQuota('opensky');
+  if (!saved) return;
+  if (Number(saved.blockedUntil) > 0) blockedUntil = Number(saved.blockedUntil);
+  if (Number(saved.lastRound?.at) > 0 && saved.lastRound.result) lastRound = saved.lastRound;
+}
+
+export function resetState({ disk = true } = {}) {
   tokenCache = { token: null, expiresAt: 0 };
   tokenRequest = null;
   lastRound = { at: 0, result: null };
   blockedUntil = 0;
+  hydrated = false;
+  if (disk) clearQuota('opensky');
 }
 
 function credentials() {
@@ -177,6 +194,7 @@ function blocked(now) {
 
 // Briefing — check hotspot regions for flight activity
 export async function briefing({ now = Date.now() } = {}) {
+  hydrateQuota();
   if (now < blockedUntil) return blocked(now);
   const deadline = Date.now() + ROUND_BUDGET_MS;
   const creds = credentials();
@@ -239,7 +257,10 @@ export async function briefing({ now = Date.now() } = {}) {
   if (hotspotErrors.length < results.length) lastRound = { at: now, result };
   if (limits.length) {
     blockedUntil = now + Math.min(MAX_BLOCK_MS, Math.max(...limits));
+    persistQuota();
     if (hotspotErrors.length === results.length) return blocked(now);
+  } else if (hotspotErrors.length < results.length) {
+    persistQuota();
   }
   return result;
 }

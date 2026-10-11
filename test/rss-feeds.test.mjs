@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { parseFeed } from '../apis/utils/rss.mjs';
 import { NEWS_FEEDS, HUNGARIAN_SOURCES, feedBySource } from '../apis/utils/news-feeds.mjs';
-import { fetchAllNews } from '../dashboard/inject.mjs';
+import { fetchAllNews, resetNewsCache } from '../dashboard/inject.mjs';
+import { mapLimited } from '../apis/utils/rss-pool.mjs';
 
 test('parseFeed reads RSS, RDF and Atom and cuts every field', () => {
   const rss = '<rss><channel><item><title><![CDATA[Egy cím]]></title><link>https://a.example/1</link><pubDate>Wed, 07 Oct 2026 22:26:52 +0200</pubDate></item></channel></rss>';
@@ -40,7 +41,33 @@ test('the registry has unique https feeds with valid tiers, Hungarian sources an
   assert.equal(feedBySource('Nope'), undefined);
 });
 
+test('mapLimited never runs more workers than the cap', async () => {
+  let inflight = 0, peak = 0;
+  await mapLimited([1, 2, 3, 4, 5, 6], 2, async () => {
+    inflight += 1;
+    peak = Math.max(peak, inflight);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    inflight -= 1;
+  });
+  assert.equal(peak, 2);
+});
+
+test('fetchAllNews keeps the last headlines when every live feed fails', async t => {
+  resetNewsCache();
+  t.after(() => resetNewsCache());
+  const server = http.createServer((_req, res) => res.end('<rss><channel><item><title>Live story</title></item></channel></rss>'));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const url = `http://127.0.0.1:${server.address().port}`;
+  const first = await fetchAllNews([[url, 'Telex']]);
+  assert.equal(first[0].title, 'Live story');
+  const kept = await fetchAllNews([['http://127.0.0.1:1/', 'Telex']]);
+  assert.equal(kept[0].title, 'Live story');
+});
+
 test('fetchAllNews carries the tier, language and state flag and limits one busy feed', async t => {
+  resetNewsCache();
+  t.after(() => resetNewsCache());
   const items = Array.from({ length: 30 }, (_, index) => `<item><title>Ukraine story ${index}</title><pubDate>Wed, 07 Oct 2026 ${String(10 + (index % 10)).padStart(2, '0')}:00:00 GMT</pubDate></item>`).join('');
   const server = http.createServer((_req, res) => res.end(`<rss><channel>${items}</channel></rss>`));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

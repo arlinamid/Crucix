@@ -14,6 +14,7 @@ import { openBrowser } from '../lib/open-browser.mjs';
 import { inlineJson } from '../lib/html.mjs';
 import { safeFetch } from '../apis/utils/fetch.mjs';
 import { parseFeed } from '../apis/utils/rss.mjs';
+import { mapLimited, rssAgent, RSS_CONCURRENCY, RSS_TIMEOUT_MS } from '../apis/utils/rss-pool.mjs';
 import { vesselName, mmsiOf } from '../apis/utils/ais-collector.mjs';
 import { feedBySource, HUNGARIAN_SOURCES, OFFICIAL_SOURCES } from '../apis/utils/news-feeds.mjs';
 import { activeNewsFeeds } from '../lib/news/feed-store.mjs';
@@ -345,19 +346,23 @@ export function loadOpenSkyFallback(currentTimestamp, runsDir = config.runsDir |
 }
 
 // === RSS Fetching ===
+let lastCoreNews = [];
+export function resetNewsCache() { lastCoreNews = []; }
+
 async function fetchRSS(url, source, meta = {}) {
   try {
-    const response = await safeFetch(url, { timeout: 8000, retries: 0, format: 'text', maxBytes: 2 * 1024 * 1024 });
+    const response = await safeFetch(url, {
+      timeout: RSS_TIMEOUT_MS, retries: 0, format: 'text', maxBytes: 2 * 1024 * 1024, dispatcher: rssAgent,
+    });
     if (response.error) throw new Error(response.error);
     const items = [];
     for (const item of parseFeed(response.rawText)) {
       const link = sanitizeExternalUrl(item.link);
       if (item.title !== source) items.push({ title: item.title, date: item.date, source, url: link || undefined, ...(meta.tier ? { tier: meta.tier } : {}), ...(meta.lang && meta.lang !== 'en' ? { lang: meta.lang } : {}), ...(meta.state ? { state: true } : {}), ...(meta.country ? { country: meta.country } : {}) });
     }
-    return items.slice(0, MAX_PER_FEED);
+    return { source, items: items.slice(0, MAX_PER_FEED), error: null };
   } catch (e) {
-    console.log(`RSS fetch failed (${source}):`, e.message);
-    return [];
+    return { source, items: [], error: e.message };
   }
 }
 
@@ -369,16 +374,23 @@ const PER_SOURCE_LIMIT = 5;
 
 // `customFeeds` takes [url, source] pairs (tests, local overrides); the default is the tiered registry minus the feeds
 // switched off in the dashboard, plus the operator's own feeds (the profile feeds.json, lib/news/feed-store.mjs).
-export async function fetchAllNews(customFeeds) {
+export async function fetchAllNews(customFeeds, { now = Date.now(), concurrency = RSS_CONCURRENCY, budgetMs = 20000 } = {}) {
   const feeds = customFeeds ? customFeeds.map(([url, source]) => ({ ...feedBySource(source), url, source })) : activeNewsFeeds();
+  const deadline = now + budgetMs;
+  const results = await mapLimited(feeds, concurrency, async feed => {
+    if (Date.now() > deadline) return { source: feed.source, items: [], error: 'skipped after RSS budget' };
+    return fetchRSS(feed.url, feed.source, feed);
+  });
 
-  const results = await Promise.allSettled(
-    feeds.map(feed => fetchRSS(feed.url, feed.source, feed))
-  );
+  const fetched = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+  const failed = fetched.filter(r => r.error);
+  const ok = fetched.filter(r => !r.error && r.items.length);
+  if (failed.length || fetched.length !== feeds.length) {
+    const names = failed.slice(0, 6).map(r => r.source);
+    console.log(`RSS: ${ok.length}/${feeds.length} feeds ok, ${failed.length} failed${names.length ? ` (${names.join(', ')}${failed.length > 6 ? '…' : ''})` : ''}; ${concurrency} workers, ${RSS_TIMEOUT_MS / 1000}s each`);
+  }
 
-  const allNews = results
-    .filter(r => r.status === 'fulfilled')
-    .flatMap(r => r.value);
+  const allNews = fetched.flatMap(r => r.items);
 
   // De-duplicate and geo-tag
   const seen = new Set();
@@ -433,7 +445,16 @@ export async function fetchAllNews(customFeeds) {
     counts.set(item.source, (counts.get(item.source) || 0) + 1);
   }
   selected.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  return selected.slice(0, NEWS_LIMIT);
+  const next = selected.slice(0, NEWS_LIMIT);
+  if (next.length) {
+    lastCoreNews = next;
+    return next;
+  }
+  if (lastCoreNews.length) {
+    console.log(`RSS: no live headlines; keeping ${lastCoreNews.length} from the last successful fetch`);
+    return lastCoreNews;
+  }
+  return next;
 }
 
 // === Leverageable Ideas from Signals ===

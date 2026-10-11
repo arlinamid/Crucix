@@ -2,9 +2,30 @@
 // No API key required. Uses CelesTrak for public TLE data and launch info.
 // Tracks: Recent launches, ISS position, satellite decay alerts, space debris.
 
+import { Agent } from 'undici';
 import { safeFetch } from '../utils/fetch.mjs';
+import { readQuota, writeQuota, clearQuota } from '../utils/quota-cache.mjs';
 
 const CELESTRAK_BASE = 'https://celestrak.org';
+const CACHE_MS = 2 * 60 * 60 * 1000; // GP data updates about every two hours
+const LAST_GOOD_MS = 24 * 60 * 60 * 1000;
+const celestrakAgent = new Agent({ connect: { timeout: 20000, family: 4 }, connections: 3 });
+
+let lastGood = { at: 0, result: null };
+let hydrated = false;
+
+function hydrateQuota() {
+  if (hydrated) return;
+  hydrated = true;
+  const saved = readQuota('celestrak');
+  if (Number(saved?.at) > 0 && saved.result) lastGood = { at: saved.at, result: saved.result };
+}
+
+export function resetState({ disk = true } = {}) {
+  lastGood = { at: 0, result: null };
+  hydrated = false;
+  if (disk) clearQuota('celestrak');
+}
 
 // Satellite categories for monitoring
 const SAT_CATEGORIES = {
@@ -20,7 +41,9 @@ const SAT_CATEGORIES = {
 async function getTLEs(category) {
   const path = SAT_CATEGORIES[category];
   if (!path) return { error: 'Invalid category' };
-  const data = await safeFetch(`${CELESTRAK_BASE}${path}`, { timeout: 20000 });
+  const data = await safeFetch(`${CELESTRAK_BASE}${path}`, {
+    timeout: 25000, retries: 0, dispatcher: celestrakAgent,
+  });
   return data;
 }
 
@@ -95,16 +118,12 @@ async function getMilitaryCount() {
   return { count: data.length, byCountry };
 }
 
-// Get mega-constellation stats (Starlink, OneWeb)
-async function getConstellationStats() {
-  const [starlink, oneweb] = await Promise.all([
-    getTLEs('starlink'),
-    getTLEs('oneweb'),
-  ]);
-
+// Mega-lists (Starlink especially) trip CelesTrak's usage limits. Reuse the last counted totals.
+function getConstellationStats() {
+  const saved = readQuota('celestrak-constellations');
   return {
-    starlink: Array.isArray(starlink) ? starlink.length : 0,
-    oneweb: Array.isArray(oneweb) ? oneweb.length : 0,
+    starlink: Number(saved?.starlink) || 0,
+    oneweb: Number(saved?.oneweb) || 0,
   };
 }
 
@@ -137,21 +156,28 @@ function generateSignals(data) {
 }
 
 // Briefing export
-export async function briefing() {
+export async function briefing({ now = Date.now() } = {}) {
+  hydrateQuota();
+  if (lastGood.result && now >= lastGood.at && now - lastGood.at < CACHE_MS) {
+    return { ...lastGood.result, stale: true, message: `Cached CelesTrak result; next request after ${new Date(lastGood.at + CACHE_MS).toISOString()}` };
+  }
   try {
-    const [launches, stations, military, constellations] = await Promise.all([
+    const [launches, stations, military] = await Promise.all([
       getRecentLaunches(),
       getStationData(),
       getMilitaryCount(),
-      getConstellationStats(),
     ]);
+    const constellations = getConstellationStats();
 
     const hasData = !launches.error || !stations.error;
 
     if (!hasData) {
+      if (lastGood.result && now - lastGood.at < LAST_GOOD_MS) {
+        return { ...lastGood.result, stale: true, message: launches.error || stations.error || 'Failed to fetch space data' };
+      }
       return {
         source: 'Space/CelesTrak',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(now).toISOString(),
         status: 'error',
         error: launches.error || stations.error || 'Failed to fetch space data',
       };
@@ -160,9 +186,9 @@ export async function briefing() {
     const data = { launches, stations, military, constellations };
     const signals = generateSignals(data);
 
-    return {
+    const result = {
       source: 'Space/CelesTrak',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(now).toISOString(),
       status: 'active',
       recentLaunches: launches.recentLaunches || [],
       totalNewObjects: launches.totalObjects || 0,
@@ -174,10 +200,16 @@ export async function briefing() {
       constellations: constellations || {},
       signals,
     };
+    lastGood = { at: now, result };
+    writeQuota('celestrak', lastGood);
+    return result;
   } catch (e) {
+    if (lastGood.result && now - lastGood.at < LAST_GOOD_MS) {
+      return { ...lastGood.result, stale: true, message: e.message };
+    }
     return {
       source: 'Space/CelesTrak',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(now).toISOString(),
       status: 'error',
       error: e.message,
     };

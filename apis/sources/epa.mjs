@@ -4,8 +4,33 @@
 // Complements Safecast (citizen science) with official government readings.
 
 import { safeFetch } from '../utils/fetch.mjs';
+import { readQuota, writeQuota, clearQuota } from '../utils/quota-cache.mjs';
 
 const BASE = 'https://enviro.epa.gov/enviro/efservice';
+const BLOCK_MS = 6 * 60 * 60 * 1000; // EPA's WAF 403 does not clear within a sweep; do not retry for 6 hours
+
+let blockedUntil = 0;
+let lastGood = null;
+let hydrated = false;
+
+function hydrateQuota() {
+  if (hydrated) return;
+  hydrated = true;
+  const saved = readQuota('epa');
+  if (Number(saved?.blockedUntil) > 0) blockedUntil = Number(saved.blockedUntil);
+  if (saved?.lastGood) lastGood = saved.lastGood;
+}
+
+function persistQuota() {
+  writeQuota('epa', { blockedUntil, lastGood });
+}
+
+export function resetState({ disk = true } = {}) {
+  blockedUntil = 0;
+  lastGood = null;
+  hydrated = false;
+  if (disk) clearQuota('epa');
+}
 
 // RadNet analytical results endpoint
 const RADNET_ANALYTICAL = `${BASE}/RADNET_ANALYTICAL_RESULTS`;
@@ -123,14 +148,31 @@ function checkReading(reading) {
   return null;
 }
 
+function denied(now, error) {
+  return lastGood
+    ? { ...lastGood, stale: true, timestamp: lastGood.timestamp, message: error }
+    : { source: 'EPA RadNet', timestamp: new Date(now).toISOString(), error, readings: [], signals: ['Radiation readings unavailable'] };
+}
+
 // Briefing — get recent radiation readings from EPA network, flag anomalies
-export async function briefing() {
+export async function briefing({ now = Date.now() } = {}) {
+  hydrateQuota();
+  if (now < blockedUntil) {
+    return denied(now, `EPA RadNet provider access denied (HTTP 403); retry after ${new Date(blockedUntil).toISOString()}`);
+  }
+
   const readings = [];
   const signals = [];
 
   // Fetch recent analytical results (broad pull)
   const recentData = await getAnalyticalResults({ rows: 100 });
-  if (recentData.error) return { source: 'EPA RadNet', timestamp: new Date().toISOString(), error: recentData.status === 403 ? 'EPA RadNet provider access denied (HTTP 403)' : recentData.error, readings: [], signals: ['Radiation readings unavailable'] };
+  if (recentData.error) {
+    if (recentData.status === 403) {
+      blockedUntil = now + BLOCK_MS;
+      persistQuota();
+    }
+    return denied(now, recentData.status === 403 ? 'EPA RadNet provider access denied (HTTP 403)' : recentData.error);
+  }
   const recentRecords = Array.isArray(recentData) ? recentData : [];
 
   // Compact all readings
@@ -194,9 +236,9 @@ export async function briefing() {
     ])
   );
 
-  return {
+  const result = {
     source: 'EPA RadNet',
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(now).toISOString(),
     totalReadings: readings.length,
     ...(analyteResults.some(r => r.error) ? { error: 'Some EPA analyte requests failed' } : {}),
     readings: readings.slice(0, 50), // cap for briefing size
@@ -210,6 +252,11 @@ export async function briefing() {
     thresholds: THRESHOLDS,
     note: 'RadNet data may lag by hours to days. Near-real-time gamma data updates more frequently.',
   };
+  if (!result.error) {
+    lastGood = result;
+    persistQuota();
+  }
+  return result;
 }
 
 // Run standalone

@@ -92,6 +92,7 @@ These unlock the most valuable economic, satellite and market data. Each takes a
 | `ACLED_EMAIL` + `ACLED_PASSWORD` | Armed conflict event data | [acleddata.com/register](https://acleddata.com/register/) — free, OAuth2 |
 | `AISSTREAM_API_KEY` | Maritime: live AIS vessel counts at 11 chokepoints. The dashboard server keeps one WebSocket open (one-shot briefings do not); a key allows 3 connections, the service has no SLA and no written licence (aisstream issue #290) | [aisstream.io/account](https://aisstream.io/account) — free, sign in with GitHub |
 | `OPENSKY_CLIENT_ID` + `OPENSKY_CLIENT_SECRET` | OpenSky flight hotspots: 4,000 instead of 400 credits/day, refresh every 15 min instead of 2 h | [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → "Create a new API client" → `clientId` / `clientSecret` from `credentials.json` — free, OAuth2 |
+| `BLS_API_KEY` | BLS v2 (500 queries/day). Without it v1 is ~25/day; Crucix caches 12 hours either way | [data.bls.gov/registrationEngine](https://data.bls.gov/registrationEngine/) — free |
 | `ADSB_API_KEY` | Unfiltered flight tracking | [RapidAPI](https://rapidapi.com/adsbexchange/api/adsbexchange-com1) — ~$10/mo |
 | `FINNHUB_API_KEY` | Second quote source for US-listed equities | [finnhub.io/register](https://finnhub.io/register) — free, 60 calls/minute |
 
@@ -148,7 +149,7 @@ Alerts work with or without an LLM on both Telegram and Discord. With an LLM con
 
 ### Without Any Keys
 
-Crucix still works with zero API keys. Most of the 71 sources need no authentication at all, including all 36 live feeds and the country context inputs; the few that need a key or an account (FRED, FIRMS, EIA, ACLED, Reddit, Cloudflare Radar, ADS-B Exchange, optional Telegram) report a structured error or stay disabled, and the rest of the sweep continues normally.
+Crucix still works with zero API keys. Most of the 73 sources need no authentication at all, including all 36 live feeds and the country context inputs; the few that need a key or an account (FRED, FIRMS, EIA, ACLED, Reddit, Cloudflare Radar, ADS-B Exchange, optional Telegram) report a structured error or stay disabled, and the rest of the sweep continues normally.
 
 ## npm Scripts
 
@@ -248,6 +249,8 @@ All settings are in `.env` with sensible defaults:
 | `ANTHROPIC_BASE_URL` | — | Anthropic Messages endpoint for `LLM_PROVIDER=anthropic` (a self-hosted gateway or router); default `https://api.anthropic.com` |
 | `ANTHROPIC_AUTH_TOKEN` | — | Bearer token for `LLM_PROVIDER=anthropic`, sent as `Authorization: Bearer` instead of `x-api-key`; use it or `LLM_API_KEY`, not both |
 | `LLM_IDEAS_EVERY_N_SWEEPS` | `1` | First sweep, then every Nth sweep; delta alerts run every sweep |
+| `LLM_IDEAS_MAX_TOKENS` | `4096` | Output budget of trade ideas (128–16384) |
+| `LLM_IDEAS_TIMEOUT_MS` | `180000` | Ideas generation timeout (1000–360000 ms); the Cursor Agent CLI typically spends ~50 s before the first byte |
 | `TELEGRAM_OSINT_ENABLED` | `false` | Opt-in public preview source |
 | `ALERT_NOTIFY_CHANNELS` | — | `telegram` and/or `discord` (comma-separated): also send alert engine messages there (opt-in; their `/mute` applies) |
 | `ALERT_NOTIFY_MIN_SEVERITY` | `high` | Lowest severity that is sent out: `critical`, `high`, `watch`, `info` |

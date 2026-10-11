@@ -73,6 +73,16 @@ test('Launch Library rows: window, pad position, severity (government payload mo
   assert.equal(ok.observations.length, 1, 'the same launch id is one row');
 });
 
+test('Launch Library catalog last_updated older than 12 h but under 72 h still yields rows', () => {
+  const raw = launch({ last_updated: '2026-10-07T10:00:00Z' });
+  const ok = parseLaunches({ results: [raw] }, { results: [] }, NOW);
+  assert.equal(ok.status, 'ok');
+  assert.equal(ok.observations.length, 1);
+  const stale = parseLaunches({ results: [launch({ last_updated: '2026-10-04T08:00:00Z' })] }, { results: [] }, NOW);
+  assert.equal(stale.status, 'stale');
+  assert.equal(stale.observations.length, 0);
+});
+
 test('Launch Library briefing: two requests, a 15-minute cache, and the last good answer when the API throttles', async () => {
   let calls = 0, fail = false;
   const fetcher = async () => { calls++; if (fail) return { error: 'HTTP 429' }; return { results: [launch()] }; };

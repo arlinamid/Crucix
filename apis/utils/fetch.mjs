@@ -32,7 +32,8 @@ export async function readBoundedText(response, maxBytes = 10 * 1024 * 1024) {
 
 export async function safeFetch(url, opts = {}) {
   const { timeout = 15000, retries = 1, headers = {}, maxBytes = 10 * 1024 * 1024,
-    format = 'json', method = 'GET', body, retryDelay = 2000, maxRetryDelay = 30000, retryAfterHeader = 'retry-after' } = opts;
+    format = 'json', method = 'GET', body, retryDelay = 2000, maxRetryDelay = 30000, retryAfterHeader = 'retry-after',
+    dispatcher } = opts;
   let lastError;
   let lastStatus;
   let lastRetryAfterMs = null;
@@ -45,6 +46,7 @@ export async function safeFetch(url, opts = {}) {
       const response = await fetch(url, {
         signal: controller.signal, method, body,
         headers: { 'User-Agent': 'Crucix/2.2', ...headers },
+        ...(dispatcher ? { dispatcher } : {}),
       });
       lastStatus = response.status;
       if (!response.ok) {
@@ -63,7 +65,9 @@ export async function safeFetch(url, opts = {}) {
       try { return JSON.parse(text); }
       catch { return { error: 'Invalid JSON response', status: response.status }; }
     } catch (error) {
-      lastError = controller.signal.aborted ? new Error(`Request timed out after ${timeout}ms`) : error;
+      const cause = error?.cause?.code || (typeof error?.cause?.message === 'string' ? error.cause.message : '');
+      lastError = controller.signal.aborted ? new Error(`Request timed out after ${timeout}ms`)
+        : new Error(cause && !String(error.message).includes(cause) ? `${error.message} (${cause})` : error.message);
     } finally { clearTimeout(timer); }
     if (!retryable || attempt === retries) break;
     await new Promise(resolve => setTimeout(resolve, Math.min(maxRetryDelay, waitMs)));

@@ -32,7 +32,7 @@ export const POLICIES = Object.freeze({
   'FAA-Airports': { maxAgeMs: 3*HOUR, observationMaxAgeMs: 3*HOUR },
   Regulators: { maxAgeMs: 168*HOUR, observationMaxAgeMs: 336*HOUR },
   'Eurostat-HU': { maxAgeMs: 2160*HOUR, observationMaxAgeMs: 4320*HOUR },
-  'Launch-Library': { maxAgeMs: 12*HOUR, observationMaxAgeMs: 720*HOUR },
+  'Launch-Library': { maxAgeMs: 72*HOUR, observationMaxAgeMs: 720*HOUR },
   Maritime: { maxAgeMs: 25*60000, observationMaxAgeMs: 25*60000 },
 });
 
