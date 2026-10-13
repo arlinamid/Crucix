@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(ROOT, 'scripts', 'cli.mjs');
@@ -68,7 +68,8 @@ after(async () => {
 });
 
 function cli(args, { preload = null, env = {} } = {}) {
-  const nodeArgs = [...(preload ? ['--import', preload] : []), CLI, ...args];
+  // On Windows --import needs a file:// URL, a drive-letter path is read as a URL scheme.
+  const nodeArgs = [...(preload ? ['--import', pathToFileURL(preload).href] : []), CLI, ...args];
   const childEnv = { ...process.env, PORT: undefined, CRUCIX_HOME: join(workdir, 'home'), RUNS_DIR: runsDir, NO_COLOR: '1', CRUCIX_LANG: 'en', LANG: 'en_US.UTF-8', ...env };
   if (childEnv.PORT === undefined) delete childEnv.PORT;
   delete childEnv.CRUCIX_ENV_FILE;
