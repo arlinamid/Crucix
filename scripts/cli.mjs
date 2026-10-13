@@ -761,7 +761,8 @@ async function getCountryRiskData(opts) {
         iso3: code,
         name: countryInfo?.name || code,
         score,
-        eventsCount: fileData.events?.[code]?.length || 0,
+        // The store keeps events as { id: { c: [iso3…], m: 'l'|'m', … } }; 'l' = located in the country, 'm' = mentioned.
+        eventsCount: Object.values(fileData.events || {}).filter(e => e?.m === 'l' && e.c?.includes(code)).length,
         series: series.slice(-5),
       },
       isFromApi: false,
@@ -2103,7 +2104,9 @@ async function main() {
     let items = (liveData?.newsFeed || liveData?.news || []);
     if (!items.length) {
       loadWorldRssCache();
-      const cached = getWorldNews(opts.limit);
+      // The cache is grouped per feed, so slice only after sorting by publish time (undated items last).
+      const ts = c => { const t = Date.parse(c.date); return Number.isNaN(t) ? -Infinity : t; };
+      const cached = getWorldNews(Infinity).sort((a, b) => ts(b) - ts(a));
       if (cached && cached.length) {
         items = cached.map(c => ({
           source: c.source,

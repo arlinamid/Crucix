@@ -37,7 +37,12 @@ before(async () => {
   runsDir = join(workdir, 'runs');
   mkdirSync(runsDir, { recursive: true });
   write('intelligence/history.json', { version: 1, records: RECORDS });
-  write('intelligence/countries.json', { series: { UKR: [[1, 70], [2, 74]], HUN: [[1, 10], [2, 12]] }, events: { UKR: [1, 2, 3] } });
+  write('intelligence/countries.json', { series: { UKR: [[1, 70], [2, 74]], HUN: [[1, 10], [2, 12]] }, events: {
+    'event-1': { c: ['UKR'], m: 'l', k: 'conflict', o: 1, t: 2 },
+    'event-2': { c: ['UKR', 'POL'], m: 'l', k: 'news', o: 1, t: 2 },
+    'event-3': { c: ['UKR'], m: 'm', k: 'news', o: 1, t: 2 },
+    'event-4': { c: ['HUN'], m: 'l', k: 'news', o: 1, t: 2 },
+  } });
   write('alerts/alerts.json', { version: 1, engine: null, alerts: [
     { id: 'a-old', ruleId: 'r1', ruleName: 'Rule', severity: 'high', state: 'resolved', title: 'RESOLVED-ONE', firstSeenAt: Date.now() - 9 * 3600_000, lastSeenAt: Date.now() - 8 * 3600_000, resolvedAt: Date.now() - 8 * 3600_000 },
     { id: 'a-fire', ruleId: 'r2', ruleName: 'Rule', severity: 'critical', state: 'firing', title: 'FIRING-ONE', firstSeenAt: Date.now() - 2 * 3600_000, lastSeenAt: Date.now() - 600_000 },
@@ -156,7 +161,7 @@ test('e2e risk: an alpha-2 code is mapped to the alpha-3 the index uses (disk)',
   assert.equal(code, 0);
   assert.match(stdout, /Country Risk Profile: \[UKR\] Ukraine/);
   assert.match(stdout, /74\/100/);
-  assert.match(stdout, /Recorded events\s*: 3/);
+  assert.match(stdout, /Recorded events\s*: 2/);
   assert.doesNotMatch(stdout, /N\/A/);
 });
 
@@ -167,6 +172,26 @@ test('e2e risk: --country-risk hu and the API both receive the alpha-3 code', as
   const api = await cli(['--risk', 'ua', '--port', String(apiPort)]);
   assert.match(api.stdout, /\[UKR\] From API/);
   assert.deepEqual(requests, ['/api/countries/UKR']);
+});
+
+test('e2e risk: --country-risk counts the located events of the country from the id-keyed event store', async () => {
+  const ukr = await cli(['--country-risk', 'ua', '--no-server', '--json']);
+  assert.equal(JSON.parse(ukr.stdout).detail.eventsCount, 2); // event-1 and event-2; event-3 is only a mention
+  const hun = await cli(['--country-risk', 'hu', '--no-server', '--json']);
+  assert.equal(JSON.parse(hun.stdout).detail.eventsCount, 1);
+});
+
+test('e2e live (disk): the world-news fallback is newest first across feeds, undated items last', async () => {
+  const at = hours => new Date(Date.now() - hours * 3600_000).toUTCString();
+  write('world-rss-cache.json', { timestamp: hoursAgo(1), stats: {}, items: [
+    { title: 'old-feed-first', source: 'FeedA', url: 'https://a.example/1', date: at(30), country: 'BD' },
+    { title: 'undated', source: 'FeedA', url: 'https://a.example/2', country: 'BD' },
+    { title: 'newest', source: 'FeedB', url: 'https://b.example/1', date: at(1), country: 'HU' },
+    { title: 'middle', source: 'FeedC', url: 'https://c.example/1', date: at(5), country: 'DE' },
+  ] });
+  const { code, stdout } = await cli(['--live', '--no-server', '--limit', '4', '--json']);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(stdout).map(i => i.headline), ['newest', 'middle', 'old-feed-first', 'undated']);
 });
 
 test('e2e risk: an unknown code is a usage error', async () => {
