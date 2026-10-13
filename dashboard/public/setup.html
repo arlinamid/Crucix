@@ -333,6 +333,42 @@
       min-width: 240px;
     }
 
+    /* SECRET FIELDS: masked, with an animated eye to reveal */
+    .secret-wrap { position: relative; width: 100%; }
+    .secret-wrap .form-input { padding-right: 44px; }
+    .secret-eye {
+      position: absolute;
+      top: 50%;
+      right: 6px;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      border-radius: 4px;
+      color: var(--dim);
+      cursor: pointer;
+      transition: color 0.2s, background 0.2s;
+    }
+    .secret-eye:hover, .secret-eye:focus-visible { color: var(--accent); background: rgba(100, 240, 200, 0.08); outline: none; }
+    .secret-eye[aria-pressed="true"] { color: var(--accent); }
+    .secret-eye svg { width: 20px; height: 20px; overflow: visible; }
+    .secret-eye .lid, .secret-eye .pupil { transform-box: fill-box; transform-origin: center; }
+    .secret-eye .pupil { transition: transform 0.25s ease; }
+    .secret-eye .slash { stroke-dasharray: 26; stroke-dashoffset: 26; transition: stroke-dashoffset 0.3s ease; }
+    /* revealed: the eye is crossed out (click hides it again) */
+    .secret-eye[aria-pressed="true"] .slash { stroke-dashoffset: 0; }
+    .secret-eye[aria-pressed="true"] .pupil { transform: scale(0.55); }
+    .secret-eye.blink .lid { animation: eye-blink 0.35s ease; }
+    @keyframes eye-blink { 0%, 100% { transform: scaleY(1); } 45% { transform: scaleY(0.1); } }
+    @media (prefers-reduced-motion: reduce) {
+      .secret-eye .pupil, .secret-eye .slash { transition: none; }
+      .secret-eye.blink .lid { animation: none; }
+    }
+
     /* BOTTOM SAVE BAR */
     .footer-bar {
       position: fixed;
@@ -962,6 +998,7 @@
         btn.classList.toggle('active', btn.dataset.lang === lang);
       });
       document.getElementById('CRUCIX_LANG').value = lang;
+      refreshSecretLabels();
 
       const t = I18N[lang];
       document.getElementById('i18n-header-title').textContent = t.headerTitle;
@@ -1234,7 +1271,61 @@
       closeWindowNow();
     }
 
+    // API keys, tokens and passwords are masked; the eye next to each one reveals it on request.
+    const SECRET_FIELDS = ['TELEGRAM_BOT_TOKEN', 'DISCORD_WEBHOOK_URL', 'LLM_API_KEY', 'FIRMS_MAP_KEY', 'FRED_API_KEY', 'BLS_API_KEY',
+      'ACLED_PASSWORD', 'OPENSKY_CLIENT_SECRET', 'EIA_API_KEY', 'FMP_API_KEY', 'FINNHUB_API_KEY', 'AISSTREAM_API_KEY', 'CLOUDFLARE_API_TOKEN'];
+    const SECRET_LABELS = {
+      hu: { show: 'Érték megjelenítése', hide: 'Érték elrejtése' },
+      en: { show: 'Show value', hide: 'Hide value' },
+      fr: { show: 'Afficher la valeur', hide: 'Masquer la valeur' },
+    };
+    const EYE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<path class="lid" d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/>'
+      + '<circle class="pupil" cx="12" cy="12" r="3"/>'
+      + '<path class="slash" d="M3.5 3.5l17 17"/></svg>';
+
+    function refreshSecretLabels() {
+      const l = SECRET_LABELS[currentLang] || SECRET_LABELS.hu;
+      document.querySelectorAll('.secret-eye').forEach(btn => {
+        const label = btn.getAttribute('aria-pressed') === 'true' ? l.hide : l.show;
+        btn.setAttribute('aria-label', label);
+        btn.title = label;
+      });
+    }
+
+    function initSecretFields() {
+      for (const id of SECRET_FIELDS) {
+        const input = document.getElementById(id);
+        if (!input || input.closest('.secret-wrap')) continue;
+        input.type = 'password';
+        input.setAttribute('autocomplete', 'new-password');
+        input.setAttribute('spellcheck', 'false');
+        const wrap = document.createElement('div');
+        wrap.className = 'secret-wrap';
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'secret-eye';
+        btn.setAttribute('aria-pressed', 'false');
+        btn.setAttribute('aria-controls', id);
+        btn.innerHTML = EYE_SVG;
+        btn.addEventListener('click', () => {
+          const show = btn.getAttribute('aria-pressed') !== 'true';
+          btn.setAttribute('aria-pressed', String(show));
+          input.type = show ? 'text' : 'password';
+          btn.classList.remove('blink');
+          void btn.offsetWidth; // restart the blink animation
+          btn.classList.add('blink');
+          refreshSecretLabels();
+        });
+        wrap.appendChild(btn);
+      }
+      refreshSecretLabels();
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
+      initSecretFields();
       loadConfig();
     });
   </script>
