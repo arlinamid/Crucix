@@ -153,11 +153,9 @@ The following optional free API keys increase request limits and resolution:
 - **Cost:** Free. Without a key ~25 queries/day (v1); with a key 500/day (v2). Crucix caches 12 hours either way.
 - **Config:** `BLS_API_KEY=...`
 
-### 4. ACLED (Armed conflict events)
-- **Sign up:** [acleddata.com/register](https://acleddata.com/register/) — myACLED email + password; the account needs API access.
-- **Cost:** Free (OAuth2).
-- **Config:** `ACLED_EMAIL=...` and `ACLED_PASSWORD=...`
-- **Check:** `node scripts/acled-token.mjs` signs in and saves the tokens. If the data call answers `403 Access denied`, the account lacks API access: accept the Terms of Use in your myACLED profile, complete the required fields and ask access@acleddata.com to enable the API.
+### 4. ACLED (Armed conflict events) — optional, institutional accounts only
+- **Availability:** ACLED's API is not available to private persons: a personal myACLED account is on the Open tier (aggregated data and tools, no API) and the data call answers `403 Access denied`. ACLED also restricts personal-project use under its Terms and EULA. Crucix targets free sources and does not need it; without API access the source shows as disabled and is not retried for 24 hours.
+- **If your organisation has API access:** `ACLED_EMAIL=...` and `ACLED_PASSWORD=...`; `node scripts/acled-token.mjs` signs in and saves the tokens.
 
 ### 5. OpenSky (ADS-B flight hotspots)
 - **Sign up:** [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → create an API client → `clientId` / `clientSecret` from `credentials.json`

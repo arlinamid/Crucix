@@ -679,7 +679,7 @@
           </div>
         </div>
         <p class="section-desc" id="i18n-osint-desc">
-          A források zöme (USGS, RSS, kiberbiztonság, IODA) kulcs nélkül is működik. ACLED email+jelszót, OpenSky OAuth2 klienst kér; BLS kulccsal 500 lekérés/nap (nélküle ~25). Az alábbi mezők növelik a frissítést:
+          A források zöme (USGS, RSS, kiberbiztonság, IODA) kulcs nélkül is működik. OpenSky OAuth2 klienst kér; BLS kulccsal 500 lekérés/nap (nélküle ~25). Az alábbi mezők növelik a frissítést:
         </p>
 
         <div class="source-list">
@@ -722,21 +722,6 @@
             </a>
             <div class="source-input-wrap">
               <input type="text" id="BLS_API_KEY" name="BLS_API_KEY" class="form-input" placeholder="BLS_API_KEY" autocomplete="off">
-            </div>
-          </div>
-
-          <!-- ACLED -->
-          <div class="source-card">
-            <div class="source-info">
-              <div class="source-name">⚔️ ACLED (Fegyveres konfliktus események)</div>
-              <div class="source-sub">myACLED email + jelszó (OAuth2). A fióknak API hozzáféréssel kell rendelkeznie (403 Access denied esetén: Terms of Use elfogadása, profil kitöltése, access@acleddata.com)</div>
-            </div>
-            <a href="https://acleddata.com/register/" target="_blank" rel="noopener" class="click-btn">
-              <span>🔑</span> <strong>Regisztráció (Kattints ide)</strong>
-            </a>
-            <div class="source-input-wrap" style="display:flex;flex-direction:column;gap:0.5rem">
-              <input type="email" id="ACLED_EMAIL" name="ACLED_EMAIL" class="form-input" placeholder="ACLED_EMAIL" autocomplete="off">
-              <input type="password" id="ACLED_PASSWORD" name="ACLED_PASSWORD" class="form-input" placeholder="ACLED_PASSWORD" autocomplete="off">
             </div>
           </div>
 
@@ -920,7 +905,7 @@
         aiTitle: "Mesterséges Intelligencia (AI / LLM) Motor",
         aiDesc: "Az AI vezetői jelentéseket, szöveges elemzéseket és piaci kereskedési ötleteket generál a 71 adatforrás alapján.",
         osintTitle: "Ingyenes Geopolitikai & OSINT API Kulcsok",
-        osintDesc: "A források zöme (USGS, RSS, kiberbiztonság, IODA) kulcs nélkül is működik. ACLED email+jelszót, OpenSky OAuth2 klienst kér; BLS kulccsal 500 lekérés/nap (nélküle ~25). Az alábbi mezők növelik a frissítést:",
+        osintDesc: "A források zöme (USGS, RSS, kiberbiztonság, IODA) kulcs nélkül is működik. OpenSky OAuth2 klienst kér; BLS kulccsal 500 lekérés/nap (nélküle ~25). Az alábbi mezők növelik a frissítést:",
         srvTitle: "Dashboard & Hálózat",
         openDash: "Irány a Vezérlőpult",
         saveBtn: "💾 Beállítások Mentése",
@@ -947,7 +932,7 @@
         aiTitle: "Artificial Intelligence (AI / LLM) Engine",
         aiDesc: "Generates cited executive briefings, automated trade ideas, and multi-domain syntheses.",
         osintTitle: "Free Geopolitical & OSINT API Keys",
-        osintDesc: "Most sources (USGS, RSS, cyber, IODA) work without keys. ACLED needs email+password, OpenSky an OAuth2 client; BLS key raises the daily cap from ~25 to 500. These fields boost freshness:",
+        osintDesc: "Most sources (USGS, RSS, cyber, IODA) work without keys. OpenSky takes an OAuth2 client; BLS key raises the daily cap from ~25 to 500. These fields boost freshness:",
         srvTitle: "Dashboard & Network",
         openDash: "Open Dashboard",
         saveBtn: "💾 Save Configuration",
@@ -974,7 +959,7 @@
         aiTitle: "Moteur d'Intelligence Artificielle (IA / LLM)",
         aiDesc: "Génère des synthèses exécutives et des idées de trading automatiques.",
         osintTitle: "Clés API OSINT Gratuites",
-        osintDesc: "La plupart des sources fonctionnent sans clé. ACLED demande email+mot de passe, OpenSky un client OAuth2 ; la clé BLS passe ~25 à 500 requêtes/jour. Ces champs améliorent la fraîcheur :",
+        osintDesc: "La plupart des sources fonctionnent sans clé. OpenSky demande un client OAuth2 ; la clé BLS passe ~25 à 500 requêtes/jour. Ces champs améliorent la fraîcheur :",
         srvTitle: "Tableau de Bord & Réseau",
         openDash: "Ouvrir le Tableau de bord",
         saveBtn: "💾 Enregistrer la Configuration",
@@ -1273,7 +1258,7 @@
 
     // API keys, tokens and passwords are masked; the eye next to each one reveals it on request.
     const SECRET_FIELDS = ['TELEGRAM_BOT_TOKEN', 'DISCORD_WEBHOOK_URL', 'LLM_API_KEY', 'FIRMS_MAP_KEY', 'FRED_API_KEY', 'BLS_API_KEY',
-      'ACLED_PASSWORD', 'OPENSKY_CLIENT_SECRET', 'EIA_API_KEY', 'FMP_API_KEY', 'FINNHUB_API_KEY', 'AISSTREAM_API_KEY', 'CLOUDFLARE_API_TOKEN'];
+      'OPENSKY_CLIENT_SECRET', 'EIA_API_KEY', 'FMP_API_KEY', 'FINNHUB_API_KEY', 'AISSTREAM_API_KEY', 'CLOUDFLARE_API_TOKEN'];
     const SECRET_LABELS = {
       hu: { show: 'Érték megjelenítése', hide: 'Érték elrejtése' },
       en: { show: 'Show value', hide: 'Hide value' },

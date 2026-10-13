@@ -157,11 +157,9 @@ Az alábbi ingyenes regisztrációkkal növelheted az adatfrissítés sebesség�
 - **Ár:** Ingyenes. Kulcs nélkül ~25 lekérés/nap (v1); kulccsal 500/nap (v2). A Crucix 12 órát cache-el.
 - **Konfiguráció:** `BLS_API_KEY=...`
 
-### 4. ACLED (Fegyveres konfliktus események)
-- **Hol kérhető:** [acleddata.com/register](https://acleddata.com/register/) — myACLED email + jelszó; a fióknak API hozzáférés kell.
-- **Ár:** Ingyenes (OAuth2).
-- **Konfiguráció:** `ACLED_EMAIL=...` és `ACLED_PASSWORD=...`
-- **Ellenőrzés:** a `node scripts/acled-token.mjs` bejelentkezik és elmenti a tokeneket. Ha az adatlekérés `403 Access denied`-ot ad, a fióknak nincs API-hozzáférése: fogadd el a Terms of Use-t a myACLED-profilban, töltsd ki a kötelező mezőket, és kérd az access@acleddata.com címen az API engedélyezését.
+### 4. ACLED (Fegyveres konfliktus események) — opcionális, csak intézményi fiókkal
+- **Elérhetőség:** az ACLED API-ja magánszemélynek nem érhető el: a személyes myACLED-fiók az Open szinten van (összesített adatok és eszközök, API nélkül), az adatlekérés `403 Access denied`-ot ad. Az ACLED a személyes projektben való használatot a Terms és az EULA alapján is korlátozza. A Crucix ingyenes forrásokat céloz, és nincs rá szüksége; API-hozzáférés nélkül a forrás letiltottként jelenik meg, és 24 óráig nem próbálkozik újra.
+- **Ha a szervezetednek van API-hozzáférése:** `ACLED_EMAIL=...` és `ACLED_PASSWORD=...`; a `node scripts/acled-token.mjs` bejelentkezik és elmenti a tokeneket.
 
 ### 5. OpenSky (ADS-B repülési hotspotok)
 - **Hol kérhető:** [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → új API client → `clientId` / `clientSecret` a `credentials.json`-ból

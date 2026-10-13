@@ -21,6 +21,8 @@ const TOKEN_URL = 'https://acleddata.com/oauth/token';
 const API_BASE  = 'https://acleddata.com/api/acled/read';
 const AUTH_CACHE = 'acled-auth';
 const BRIEFING_CACHE = 'acled';
+const DENIED_CACHE = 'acled-denied';
+const DENIED_MS = 24 * 60 * 60 * 1000;
 
 /** @typedef {'auth_blocked'|'permission_denied'|'invalid_grant'|'rate_limited'|'upstream_unavailable'|'no_credentials'} AcledFailureCode */
 
@@ -85,7 +87,20 @@ export function resetState({ disk = true } = {}) {
   if (disk) {
     clearQuota(BRIEFING_CACHE);
     clearQuota(AUTH_CACHE);
+    clearQuota(DENIED_CACHE);
   }
+}
+
+// ACLED's API needs an institutional affiliation; a private person's myACLED account is on the Open tier (no API), so
+// the data call answers 403 for good. The source then reports itself disabled and does not ask again for a day.
+function deniedPayload(now, detail) {
+  return {
+    source: 'ACLED',
+    timestamp: new Date(now).toISOString(),
+    status: 'disabled',
+    code: 'permission_denied',
+    message: `permission_denied: this ACLED account has no API access (the API is for institutional accounts; the Open tier has none). Optional source, skipped.${detail ? ` [${detail}]` : ''}`,
+  };
 }
 
 function isChallengeHtml(text) {
@@ -493,6 +508,9 @@ export async function briefing({ now = Date.now() } = {}) {
     };
   }
 
+  const denied = readQuota(DENIED_CACHE);
+  if (Number(denied?.until) > now) return deniedPayload(now);
+
   const start = daysAgo(7);
   const end = daysAgo(0);
 
@@ -502,6 +520,10 @@ export async function briefing({ now = Date.now() } = {}) {
     limit: 2000,
   });
 
+  if (data?.code === 'permission_denied') {
+    writeQuota(DENIED_CACHE, { until: now + DENIED_MS });
+    return deniedPayload(now, String(data.error || '').split('\n')[0]);
+  }
   if (data?.error) {
     return failurePayload(now, data.error, data.code || 'upstream_unavailable');
   }

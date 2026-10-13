@@ -207,6 +207,11 @@ test('ACLED refresh token avoids password grant and permission_denied stays dist
   assert.match(data.error || data.message, /Consent must be accepted|permission_denied/);
   assert.equal(calls.filter(c => c.url.includes('/oauth/token')).length, 1);
   assert.ok(calls.some(c => c.url.includes('/api/acled/read')));
+  assert.equal(data.status, 'disabled', 'a permanent 403 reports the optional source as disabled, not failed');
+  const before = calls.length;
+  const again = await acled({ now: NOW + 3600_000 });
+  assert.equal(again.status, 'disabled');
+  assert.equal(calls.length, before, 'no new request while the denial is remembered (24 h)');
 });
 
 test('CelesTrak caches a good briefing for two hours and never pulls Starlink', async t => {
