@@ -2,7 +2,7 @@
 // Crucix Intelligence CLI — query intelligence, markets, alerts, events, and news
 // Works with or without the web server running (direct disk fallback).
 // Supports 191+ countries world news feeds catalog (539 verified outlets)
-// and all 71 OSINT adapters, markets, energy, metals, thermal, earthquakes, chokepoints, cyber.
+// and all 73 OSINT adapters, markets, energy, metals, thermal, earthquakes, chokepoints, cyber.
 // Usage: crucix [options] (or: node scripts/cli.mjs [options] / npm run cli -- [options])
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, realpathSync } from 'node:fs';
@@ -12,10 +12,12 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import config from '../crucix.config.mjs';
 import { WORLD_FEEDS, getFeedsByCountry, searchWorldFeeds } from '../apis/utils/news-feeds.mjs';
 import { parseFeed } from '../apis/utils/rss.mjs';
+import { safeFetch } from '../apis/utils/fetch.mjs';
+import { rssAgent } from '../apis/utils/rss-pool.mjs';
 import { loadWorldRssCache, getWorldNewsByCountry, getWorldNews } from '../lib/world-rss-runner.mjs';
 import { fullBriefing } from '../apis/briefing.mjs';
 import { synthesize } from '../dashboard/inject.mjs';
-import { countryByIso3 } from '../lib/intelligence/countries.mjs';
+import { countryByIso2, countryByIso3 } from '../lib/intelligence/countries.mjs';
 import { saveSnapshot } from '../lib/snapshots.mjs';
 import { runSetupWizard } from '../lib/setup-wizard.mjs';
 import { getEnvSearchPaths } from '../apis/utils/env.mjs';
@@ -56,6 +58,26 @@ function parseDurationMs(str) {
   }
   return null;
 }
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const validDate = value => DATE_RE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().startsWith(value);
+
+/** A country code as the news catalog keys it (ISO 3166-1 alpha-2); alpha-3 is accepted too. null when it is neither. */
+export function toIso2(code) {
+  const value = String(code || '').trim().toUpperCase();
+  if (/^[A-Z]{2}$/.test(value)) return value;
+  return /^[A-Z]{3}$/.test(value) ? countryByIso3(value)?.iso2 ?? null : null;
+}
+
+/** A country code as the risk index keys it (ISO 3166-1 alpha-3); alpha-2 is accepted too. null when it is neither. */
+export function toIso3(code) {
+  const value = String(code || '').trim().toUpperCase();
+  if (/^[A-Z]{3}$/.test(value)) return value;
+  return /^[A-Z]{2}$/.test(value) ? countryByIso2(value)?.iso3 ?? null : null;
+}
+
+// Bare words that work like their --flag, so `crucix status` does what `crucix --status` does.
+const WORD_COMMANDS = { status: 'health', sweep: 'sweep', brief: 'brief', alerts: 'alerts', risk: 'risk', history: 'history', help: 'help' };
 
 function parseArgs(argv = process.argv.slice(2)) {
   const args = argv;
@@ -114,9 +136,39 @@ function parseArgs(argv = process.argv.slice(2)) {
     noSetup: false,
     server: false,
     headless: false,
+
+    // Usage errors found while parsing; main() prints them and exits with 2 instead of guessing.
+    errors: [],
   };
 
-  for (let i = 0; i < args.length; i++) {
+  const fail = message => opts.errors.push(message);
+  let i = 0;
+  // The value of an option: the next argument (consumed), unless it is missing or is itself an option (left for the loop).
+  const valueOf = flag => {
+    const next = args[i + 1];
+    if (next === undefined || (next.startsWith('-') && next !== '-')) {
+      fail(`${flag} needs a value`);
+      return undefined;
+    }
+    i++;
+    return next;
+  };
+  const positiveInt = (flag, raw, max = Number.MAX_SAFE_INTEGER) => {
+    if (raw === undefined) return undefined;
+    const num = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(num) || num < 1 || num > max) {
+      fail(`${flag} needs a whole number ${max === Number.MAX_SAFE_INTEGER ? 'of 1 or more' : `between 1 and ${max}`}, got "${raw}"`);
+      return undefined;
+    }
+    return num;
+  };
+  const setCountry = (flag, raw) => {
+    const iso2 = toIso2(raw);
+    if (!iso2) fail(`${flag} needs a 2- or 3-letter country code (HU, DE, UKR), got "${raw}"`);
+    return iso2;
+  };
+
+  for (; i < args.length; i++) {
     const arg = args[i];
     if (arg === '-h' || arg === '--help') {
       opts.help = true;
@@ -124,6 +176,8 @@ function parseArgs(argv = process.argv.slice(2)) {
       opts.version = true;
     } else if (arg === 'setup' || arg === 'init' || arg === 'config' || arg === '--setup' || arg === '--config' || arg === 'wizard') {
       opts.setup = true;
+    } else if (arg === '--cli') {
+      // read from process.argv by the setup wizard
     } else if (arg === 'install' || arg === '--install-profile') {
       opts.install = true;
     } else if (arg === '--no-setup') {
@@ -141,44 +195,48 @@ function parseArgs(argv = process.argv.slice(2)) {
     } else if (arg === '--headless' || arg === '--no-open' || arg === '--no-browser') {
       opts.headless = true;
     } else if (arg === '--port' || arg === '-p') {
-      const p = parseInt(args[++i], 10);
-      if (!isNaN(p) && p > 0) process.env.PORT = String(p);
+      const p = positiveInt(arg, valueOf(arg), 65535);
+      if (p !== undefined) process.env.PORT = String(p);
     } else if (arg === '-L' || arg === '--lang') {
-      opts.lang = (args[++i] || 'en').toLowerCase().slice(0, 2);
+      const value = valueOf(arg);
+      if (value !== undefined) opts.lang = value.toLowerCase().slice(0, 2);
     } else if (arg.startsWith('--lang=')) {
       opts.lang = arg.slice(7).toLowerCase().slice(0, 2);
     } else if (arg === '-H' || arg === '--history') {
       opts.history = true;
     } else if (arg === '-c' || arg === '--category' || arg === '-k' || arg === '--kind') {
-      opts.category = args[++i];
+      opts.category = valueOf(arg) ?? opts.category;
     } else if (arg === '--country' || arg === '--co') {
-      opts.country = (args[++i] || '').toUpperCase();
+      opts.country = setCountry(arg, valueOf(arg)) ?? opts.country;
     } else if (arg === '-q' || arg === '--search' || (arg === '-s' && args[i + 1] && !args[i + 1].startsWith('-'))) {
-      opts.search = args[++i];
+      opts.search = valueOf(arg) ?? opts.search;
     } else if (arg === '--source') {
-      opts.source = args[++i];
+      opts.source = valueOf(arg) ?? opts.source;
     } else if (arg === '-l' || arg === '--limit') {
-      const num = parseInt(args[++i], 10);
-      if (!isNaN(num) && num > 0) opts.limit = num;
+      opts.limit = positiveInt(arg, valueOf(arg)) ?? opts.limit;
     } else if (arg === '--since' || arg === '--window') {
-      const val = args[++i];
-      opts.since = val;
-      const ms = parseDurationMs(val);
-      if (ms) {
-        opts.sinceMs = ms;
-        opts.from = new Date(Date.now() - ms).toISOString().slice(0, 10);
+      const val = valueOf(arg);
+      if (val !== undefined) {
+        const ms = parseDurationMs(val);
+        if (!ms) {
+          fail(`${arg} needs a duration such as 90m, 6h, 7d or 2w, got "${val}"`);
+        } else {
+          opts.since = val;
+          opts.sinceMs = ms;
+          opts.from = new Date(Date.now() - ms).toISOString().slice(0, 10);
+        }
       }
     } else if (arg === '--days' || arg === '-d') {
-      const num = parseInt(args[++i], 10);
-      if (!isNaN(num) && num > 0) {
+      const num = positiveInt(arg, valueOf(arg));
+      if (num !== undefined) {
         opts.since = `${num}d`;
         opts.sinceMs = num * 86400 * 1000;
         opts.from = new Date(Date.now() - opts.sinceMs).toISOString().slice(0, 10);
       }
-    } else if (arg === '--from') {
-      opts.from = args[++i];
-    } else if (arg === '--to') {
-      opts.to = args[++i];
+    } else if (arg === '--from' || arg === '--to') {
+      const val = valueOf(arg);
+      if (val !== undefined && !validDate(val)) fail(`${arg} needs a date as YYYY-MM-DD, got "${val}"`);
+      else if (val !== undefined) opts[arg === '--from' ? 'from' : 'to'] = val;
     } else if (arg === '--categories' || arg === '--kinds') {
       opts.listCategories = true;
     } else if (arg === '--countries' || arg === '--world-countries') {
@@ -186,10 +244,10 @@ function parseArgs(argv = process.argv.slice(2)) {
     } else if (arg === '--feeds') {
       opts.listFeeds = true;
       if (args[i + 1] && !args[i + 1].startsWith('-')) {
-        opts.country = args[++i].toUpperCase();
+        opts.country = setCountry(arg, args[++i]) ?? opts.country;
       }
     } else if (arg === '--search-feeds') {
-      opts.searchFeeds = args[++i];
+      opts.searchFeeds = valueOf(arg) ?? opts.searchFeeds;
     } else if (arg === '--live') {
       opts.live = true;
     } else if (arg === '--json') {
@@ -198,14 +256,10 @@ function parseArgs(argv = process.argv.slice(2)) {
       opts.noServer = true;
     } else if (arg === '--sweep' || arg === '--run-sweep') {
       opts.sweep = true;
-    } else if (arg === '--serve' || arg === '--start-server') {
-      opts.server = true;
-      opts.headless = true;
     } else if (arg === '--collector' || arg === '--daemon' || arg === '--watch') {
       opts.collector = true;
     } else if (arg === '-i' || arg === '--interval') {
-      const num = parseInt(args[++i], 10);
-      if (!isNaN(num) && num > 0) opts.interval = num;
+      opts.interval = positiveInt(arg, valueOf(arg)) ?? opts.interval;
     } else if (arg === '-b' || arg === '--brief' || arg === '--briefing') {
       opts.brief = true;
     } else if (arg === '-A' || arg === '--alerts') {
@@ -224,7 +278,10 @@ function parseArgs(argv = process.argv.slice(2)) {
     } else if (arg === '--risk' || arg === '--country-risk') {
       opts.risk = true;
       if (args[i + 1] && !args[i + 1].startsWith('-')) {
-        opts.countryRisk = args[++i].toUpperCase();
+        const code = args[++i];
+        const iso3 = toIso3(code);
+        if (iso3) opts.countryRisk = iso3;
+        else fail(`${arg} needs a 2- or 3-letter country code (HU, HUN), got "${code}"`);
       }
     } else if (arg === '--earthquakes' || arg === '--quakes' || arg === '--eq') {
       opts.earthquakes = true;
@@ -247,21 +304,38 @@ function parseArgs(argv = process.argv.slice(2)) {
     } else if (arg === '--sources') {
       opts.sources = true;
     } else if (arg === '--source-data') {
-      opts.sourceData = args[++i];
+      opts.sourceData = valueOf(arg) ?? opts.sourceData;
     } else if (arg === '--sweeps') {
       opts.sweeps = true;
     } else if (arg === '--delta') {
       opts.delta = true;
     } else if (arg === '-a' || arg === '--all') {
       opts.all = true;
-    } else if (!arg.startsWith('-') && !opts.category && !opts.country) {
-      if (/^[a-zA-Z]{2,3}$/.test(arg)) {
-        opts.country = arg.toUpperCase();
+    } else if (arg.startsWith('-')) {
+      fail(`unknown option ${arg}`);
+    } else if (WORD_COMMANDS[arg.toLowerCase()] && !opts.category && !opts.country) {
+      const word = WORD_COMMANDS[arg.toLowerCase()];
+      if (word === 'risk') {
+        opts.risk = true;
+        if (args[i + 1] && !args[i + 1].startsWith('-')) {
+          const code = args[++i];
+          const iso3 = toIso3(code);
+          if (iso3) opts.countryRisk = iso3;
+          else fail(`risk needs a 2- or 3-letter country code (HU, HUN), got "${code}"`);
+        }
       } else {
-        opts.category = arg;
+        opts[word] = true;
       }
+    } else if (!opts.country && /^[a-zA-Z]{2,3}$/.test(arg) && toIso2(arg)) {
+      opts.country = toIso2(arg);
+    } else if (!opts.category) {
+      opts.category = arg;
+    } else {
+      fail(`unexpected argument "${arg}"`);
     }
   }
+
+  if (opts.from && opts.to && opts.from > opts.to) fail(`--from ${opts.from} is after --to ${opts.to}`);
 
   return opts;
 }
@@ -314,7 +388,7 @@ Intelligencia & Összefoglalók:
   -b, --brief                      Vezetői intelligencia összefoglaló (piaci irány, VIX, olaj, arany, OSINT)
   -a, --all                        Teljes átfogó jelentés minden kulcsterületről a terminálban
   -A, --alerts                     Aktív és legutóbbi riasztások listázása (--all-alerts: feloldottak is)
-  --status, --health               Rendszer és a 71 OSINT adatforrás állapota (OK, Stale, Failed)
+  --status, --health               Rendszer és a 73 OSINT adatforrás állapota (OK, Stale, Failed)
   --sources                        Minden elérhető OSINT adatforrás állapotának listázása
   --source-data <forrásnév>        Egy konkrét adatforrás (pl. USGS, YFinance, FIRMS) adatainak mutatása
   --delta                          A legutóbbi sweep változásai (új jelek, eszkalációk)
@@ -425,7 +499,7 @@ Intelligence & Briefings:
   -b, --brief                      Executive intelligence briefing (market direction, VIX, oil, gold, OSINT)
   -a, --all                        Comprehensive report across all key intelligence areas in terminal
   -A, --alerts                     List active and recent alerts (--all-alerts for resolved as well)
-  --status, --health               System health and status of all 71 OSINT data sources (OK, Stale, Failed)
+  --status, --health               System health and status of all 73 OSINT data sources (OK, Stale, Failed)
   --sources                        List all available OSINT data sources and their health
   --source-data <source>           Show raw/parsed data for a specific source (e.g. USGS, YFinance, FIRMS)
   --delta                          Recent sweep changes (new signals, escalations)
@@ -516,9 +590,15 @@ function printHelp(lang = 'en') {
   }
 }
 
+// --port is applied to process.env.PORT while the arguments are parsed, after config.port was read, so the port is resolved per call.
+function currentPort() {
+  const fromEnv = Number(process.env.PORT);
+  return Number.isInteger(fromEnv) && fromEnv > 0 && fromEnv <= 65535 ? fromEnv : port;
+}
+
 function fetchHttp(path, timeoutMs = 2500) {
   return new Promise((resolve, reject) => {
-    const req = http.get(`http://${host}:${port}${path}`, { timeout: timeoutMs }, (res) => {
+    const req = http.get(`http://${host}:${currentPort()}${path}`, { timeout: timeoutMs }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -690,6 +770,26 @@ async function getCountryRiskData(opts) {
   return { list: scored, isFromApi: false };
 }
 
+function recordTimeMs(record) {
+  const t = Date.parse(record.lastSeenAt || record.publishedAt || record.firstSeenAt || record.collectedAt);
+  return Number.isNaN(t) ? null : t;
+}
+
+/** Keeps the records inside --since, or --from/--to (the whole last day inclusive). */
+function filterByWindow(records, { sinceMs = null, from = null, to = null } = {}) {
+  const fromMs = sinceMs ? Date.now() - sinceMs : (from ? Date.parse(from) : null);
+  const toMs = to ? Date.parse(to) + 86400 * 1000 - 1 : null;
+  if (fromMs === null && toMs === null) return records;
+  return records.filter(r => {
+    const t = recordTimeMs(r);
+    return t !== null && (fromMs === null || t >= fromMs) && (toMs === null || t <= toMs);
+  });
+}
+
+function newestFirst(records) {
+  return [...records].sort((a, b) => (recordTimeMs(b) ?? 0) - (recordTimeMs(a) ?? 0));
+}
+
 function loadFromDisk() {
   const data = readJsonSafe(historyFile);
   if (!data || !Array.isArray(data.records)) return [];
@@ -701,24 +801,28 @@ function loadLiveFromDisk() {
 }
 
 async function fetchCountryLive(countryCode, limit = 10) {
-  const feeds = getFeedsByCountry(countryCode);
+  const feeds = getFeedsByCountry(toIso2(countryCode) || countryCode);
   if (!feeds.length) return [];
 
-  const promises = feeds.map(feed =>
-    parseFeed(feed.url, { timeoutMs: 7000 })
-      .then(items => items.map(item => ({ ...item, source: feed.source, country: countryCode, lang: feed.lang })))
-      .catch(() => [])
-  );
-
-  const results = await Promise.allSettled(promises);
-  const allItems = [];
-  for (const res of results) {
-    if (res.status === 'fulfilled' && Array.isArray(res.value)) {
-      allItems.push(...res.value);
+  const promises = feeds.map(async feed => {
+    try {
+      const res = await safeFetch(feed.url, { timeout: 7000, retries: 0, format: 'text', maxBytes: 1024 * 1024, dispatcher: rssAgent });
+      if (res.error) return [];
+      return parseFeed(res.rawText).map(item => ({
+        title: item.title,
+        url: item.link || undefined,
+        date: item.date,
+        source: feed.source,
+        country: feed.country,
+        lang: feed.lang,
+      }));
+    } catch {
+      return [];
     }
-  }
+  });
 
-  allItems.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  const allItems = (await Promise.all(promises)).flat();
+  allItems.sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
   return allItems.slice(0, limit);
 }
 
@@ -1496,6 +1600,13 @@ async function main() {
   const lang = getCliLanguage(opts);
   opts.lang = lang;
 
+  if (opts.errors.length) {
+    for (const message of opts.errors) console.error(`❌ ${message}`);
+    console.error(lang === 'hu' ? `Súgó: ${getCliCmd()} --help` : `Usage: ${getCliCmd()} --help`);
+    process.exitCode = 2;
+    return;
+  }
+
   if (opts.version) {
     console.log(versionLine());
     return;
@@ -1581,7 +1692,7 @@ async function main() {
   if (opts.collector) {
     const lock = holdInstanceLock(runsDir);
     if (lock.error) {
-      console.error(alreadyRunningMessage(lock, { port, lang }));
+      console.error(alreadyRunningMessage(lock, { port: currentPort(), lang }));
       process.exit(1);
     }
     const intervalMinutes = opts.interval || 15;
@@ -1597,7 +1708,13 @@ async function main() {
       console.log('🛑 To stop:        Press Ctrl+C\n');
     }
 
+    let collecting = false;
     const runCollection = async () => {
+      if (collecting) {
+        console.log(lang === 'hu' ? 'Az előző sweep még fut, ezt a kört kihagyom.' : 'Previous sweep still running, skipping this round.');
+        return;
+      }
+      collecting = true;
       const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
       console.log(lang === 'hu' ? `[${nowStr}] 🚀 Ütemezett sweep futtatása...` : `[${nowStr}] 🚀 Running scheduled sweep...`);
       try {
@@ -1611,6 +1728,8 @@ async function main() {
         }
       } catch (err) {
         console.error(lang === 'hu' ? `[${nowStr}] ❌ Hiba a sweep során: ${err.message}\n` : `[${nowStr}] ❌ Error during sweep: ${err.message}\n`);
+      } finally {
+        collecting = false;
       }
     };
 
@@ -1893,10 +2012,11 @@ async function main() {
     }
 
     if (items.length === 0 || opts.live) {
+      // Progress goes to stderr so that --json output stays parseable.
       if (lang === 'hu') {
-        console.log(`\n📡 Élő hírek lekérése a(z) [${opts.country}] ország forrásaiból (közvetlen hálózati letöltés)...`);
+        console.error(`\n📡 Élő hírek lekérése a(z) [${opts.country}] ország forrásaiból (közvetlen hálózati letöltés)...`);
       } else {
-        console.log(`\n📡 Fetching live news for [${opts.country}] sources (direct network fetch)...`);
+        console.error(`\n📡 Fetching live news for [${opts.country}] sources (direct network fetch)...`);
       }
       items = await fetchCountryLive(opts.country, opts.limit);
       fromCache = false;
@@ -1920,11 +2040,15 @@ async function main() {
       console.log('');
       return;
     } else {
-      if (lang === 'hu') {
-        console.log(`⚠️ Nem sikerült hírforrást találni ehhez a kódhoz: ${opts.country}. Ellenőrzöm az archívumot...`);
+      // The event archive has no reliable country field, so falling through to it would list unrelated events.
+      if (opts.json) {
+        console.log('[]');
       } else {
-        console.log(`⚠️ Could not find news for code: ${opts.country}. Checking archive...`);
+        console.log(lang === 'hu'
+          ? `⚠️ Nem sikerült hírt találni ehhez a kódhoz: ${opts.country}. Ellenőrizd a forrásokat: ${getCliCmd()} --feeds ${opts.country}`
+          : `⚠️ Could not find news for code: ${opts.country}. Check its sources: ${getCliCmd()} --feeds ${opts.country}`);
       }
+      return;
     }
   }
 
@@ -2018,6 +2142,8 @@ async function main() {
           }
           return;
         }
+      } else {
+        records = loadFromDisk();
       }
     } catch {
       records = loadFromDisk();
@@ -2070,30 +2196,11 @@ async function main() {
         (r.summary || '').toLowerCase().includes(qLow)
       );
     }
-    if (opts.sinceMs) {
-      const cutoff = Date.now() - opts.sinceMs;
-      records = records.filter(r => {
-        const timeVal = r.lastSeenAt || r.publishedAt || r.firstSeenAt || r.collectedAt;
-        const t = Date.parse(timeVal);
-        return !isNaN(t) && t >= cutoff;
-      });
-    } else if (opts.from) {
-      const fromMs = Date.parse(opts.from);
-      records = records.filter(r => {
-        const timeVal = r.lastSeenAt || r.publishedAt || r.firstSeenAt || r.collectedAt;
-        const t = Date.parse(timeVal);
-        return !isNaN(t) && t >= fromMs;
-      });
-    }
-    if (opts.to) {
-      const toMs = Date.parse(opts.to) + 86400 * 1000;
-      records = records.filter(r => {
-        const timeVal = r.lastSeenAt || r.publishedAt || r.firstSeenAt || r.collectedAt;
-        const t = Date.parse(timeVal);
-        return !isNaN(t) && t <= toMs;
-      });
-    }
-    records = records.slice(0, opts.limit);
+    records = filterByWindow(records, opts);
+    records = newestFirst(records).slice(0, opts.limit);
+  } else if (opts.sinceMs) {
+    // The API filters by day; the exact window (--since 6h) is applied here.
+    records = newestFirst(filterByWindow(records, { sinceMs: opts.sinceMs }));
   }
 
   if (opts.json) {
@@ -2156,7 +2263,11 @@ function entryUrl(path) {
 }
 const entryHref = entryUrl(process.argv[1]);
 if (entryHref && import.meta.url === entryHref) {
-  main();
+  main().catch(error => {
+    console.error(`❌ ${error?.message || error}`);
+    if (process.env.DEBUG && error?.stack) console.error(error.stack);
+    process.exit(1);
+  });
 }
 
 export {

@@ -1,7 +1,7 @@
 {
   "name": "crucix",
   "version": "2.39.5",
-  "description": "Local intelligence engine - 52 OSINT adapters, live dashboard, bounded requests, optional local or cloud AI.",
+  "description": "Local intelligence engine - 73 OSINT adapters, live dashboard, bounded requests, optional local or cloud AI.",
   "type": "module",
   "bin": {
     "crucix": "scripts/cli.mjs"

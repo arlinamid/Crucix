@@ -4,6 +4,8 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   parseArgs,
+  toIso2,
+  toIso3,
   getCliLanguage,
   isExecutable,
   getCliCmd,
@@ -19,6 +21,7 @@ import {
   getSynthesizedData,
   getAlertsData,
   getCountryRiskData,
+  fetchCountryLive,
   resolveRunsDir,
 } from '../scripts/cli.mjs';
 import { loadWorldRssCache, getWorldNewsByCountry } from '../lib/world-rss-runner.mjs';
@@ -106,7 +109,8 @@ test('cli parseArgs: recognizes data flags', () => {
   assert.equal(parseArgs(['--alerts']).alerts, true);
   assert.equal(parseArgs(['--all-alerts']).allAlerts, true);
   assert.equal(parseArgs(['--risk']).risk, true);
-  assert.equal(parseArgs(['--risk', 'UA']).countryRisk, 'UA');
+  assert.equal(parseArgs(['--risk', 'UKR']).countryRisk, 'UKR');
+  assert.equal(parseArgs(['--risk', 'UA']).countryRisk, 'UKR', 'alpha-2 is accepted and mapped to the alpha-3 the risk index uses');
   assert.equal(parseArgs(['--country-risk', 'PAN']).countryRisk, 'PAN');
   assert.equal(parseArgs(['--earthquakes']).earthquakes, true);
   assert.equal(parseArgs(['--thermal']).thermal, true);
@@ -291,4 +295,96 @@ test('cli resolveRunsDir: respects custom dir or defaults to project/user runs',
   const normal = resolveRunsDir();
   assert.ok(typeof normal === 'string' && normal.length > 0, 'Runs directory is resolved to a valid path');
   assert.ok(normal.endsWith('runs'), 'Runs directory ends with runs');
+});
+
+test('cli parseArgs: an option never swallows the next option', () => {
+  for (const flag of ['--country', '-c', '-q', '--search', '--source', '--lang', '-L', '--limit', '--since', '--from', '--to', '--source-data', '--search-feeds']) {
+    const opts = parseArgs([flag, '--json']);
+    assert.equal(opts.json, true, `${flag} must leave --json alone`);
+    assert.match(opts.errors.join('\n'), new RegExp(`${flag.replace(/-/g, '\\-')} needs a value`));
+  }
+});
+
+test('cli parseArgs: rejects unknown options and bad values instead of ignoring them', () => {
+  assert.match(parseArgs(['--foo']).errors[0], /unknown option --foo/);
+  assert.match(parseArgs(['--limit', 'abc']).errors[0], /whole number/);
+  assert.match(parseArgs(['--limit', '0']).errors[0], /whole number/);
+  assert.match(parseArgs(['--days', 'abc']).errors[0], /whole number/);
+  assert.match(parseArgs(['--since', '5x']).errors[0], /duration/);
+  assert.match(parseArgs(['--from', 'notadate']).errors[0], /YYYY-MM-DD/);
+  assert.match(parseArgs(['--to', '2026-02-30']).errors[0], /YYYY-MM-DD/);
+  assert.match(parseArgs(['--from', '2026-12-01', '--to', '2026-01-01']).errors[0], /after --to/);
+  assert.match(parseArgs(['--interval', '0']).errors[0], /whole number/);
+  assert.match(parseArgs(['--country', 'H']).errors[0], /country code/);
+  assert.match(parseArgs(['--risk', 'ZZZZ']).errors[0], /country code/);
+  assert.deepEqual(parseArgs(['--limit', '5', '--since', '6h', '--from', '2026-01-01', '--to', '2026-02-01']).errors, []);
+  assert.deepEqual(parseArgs([]).errors, []);
+});
+
+test('cli parseArgs: --port is validated and applied to the environment', () => {
+  const saved = process.env.PORT;
+  try {
+    assert.match(parseArgs(['--port', '99999']).errors[0], /between 1 and 65535/);
+    assert.match(parseArgs(['-p', 'abc']).errors[0], /between 1 and 65535/);
+    assert.deepEqual(parseArgs(['-p', '4555']).errors, []);
+    assert.equal(process.env.PORT, '4555');
+  } finally {
+    if (saved === undefined) delete process.env.PORT; else process.env.PORT = saved;
+  }
+});
+
+test('cli parseArgs: country codes are normalized (alpha-3 to alpha-2 for news, alpha-2 to alpha-3 for risk)', () => {
+  assert.equal(toIso2('hu'), 'HU');
+  assert.equal(toIso2('ukr'), 'UA');
+  assert.equal(toIso2('zzz'), null);
+  assert.equal(toIso2('H'), null);
+  assert.equal(toIso3('ua'), 'UKR');
+  assert.equal(toIso3('HUN'), 'HUN');
+  assert.equal(toIso3('1'), null);
+  assert.equal(parseArgs(['--country', 'ukr']).country, 'UA');
+  assert.equal(parseArgs(['hu']).country, 'HU');
+  assert.equal(parseArgs(['UKR']).country, 'UA');
+  assert.equal(parseArgs(['--feeds', 'deu']).country, 'DE');
+});
+
+test('cli parseArgs: positional words are subcommands, categories or countries; an extra one is an error', () => {
+  assert.equal(parseArgs(['status']).health, true);
+  assert.equal(parseArgs(['sweep']).sweep, true);
+  assert.equal(parseArgs(['brief']).brief, true);
+  assert.equal(parseArgs(['alerts']).alerts, true);
+  assert.equal(parseArgs(['help']).help, true);
+  const risk = parseArgs(['risk', 'ua']);
+  assert.equal(risk.risk, true);
+  assert.equal(risk.countryRisk, 'UKR');
+  const both = parseArgs(['news', 'hu']);
+  assert.equal(both.category, 'news');
+  assert.equal(both.country, 'HU');
+  assert.equal(parseArgs(['war']).category, 'war', 'a 3-letter word that is no country is a category');
+  assert.equal(parseArgs(['cyber']).category, 'cyber');
+  assert.match(parseArgs(['news', 'cyber']).errors[0], /unexpected argument "cyber"/);
+  assert.deepEqual(parseArgs(['setup', '--cli']).errors, [], '--cli belongs to the setup wizard');
+});
+
+test('cli fetchCountryLive: reads each feed over HTTP, parses the XML and tolerates failing feeds', async () => {
+  const original = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async url => {
+    calls.push(String(url));
+    if (calls.length === 2) return new Response('boom', { status: 500 });
+    const hours = calls.length;
+    const date = new Date(Date.now() - hours * 3600_000).toUTCString();
+    return new Response(`<rss version="2.0"><channel><item><title>Headline ${hours}</title><link>https://example.test/${hours}</link><pubDate>${date}</pubDate></item></channel></rss>`, { status: 200 });
+  };
+  try {
+    const items = await fetchCountryLive('hu', 50);
+    assert.ok(calls.length >= 2, 'one request per Hungarian feed');
+    assert.equal(items.length, calls.length - 1, 'the failing feed is skipped, the others kept');
+    assert.ok(items.every(item => item.title && item.url?.startsWith('https://example.test/') && item.source && item.country === 'HU'));
+    const times = items.map(item => Date.parse(item.date));
+    assert.deepEqual(times, [...times].sort((a, b) => b - a), 'newest first');
+    assert.equal((await fetchCountryLive('hu', 1)).length, 1, 'the limit applies');
+    assert.deepEqual(await fetchCountryLive('zz'), [], 'no feeds for the country');
+  } finally {
+    globalThis.fetch = original;
+  }
 });
