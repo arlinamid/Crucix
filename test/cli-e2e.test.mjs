@@ -3,16 +3,11 @@
 // Nothing here touches the network or the operator's profile.
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const CLI = join(ROOT, 'scripts', 'cli.mjs');
-const STUB_FETCH = join(ROOT, 'test', 'helpers', 'stub-feed-fetch.mjs');
+import { dirname, join } from 'node:path';
+import { runCli, STUB_FETCH } from './helpers/run-cli.mjs';
 
 const hoursAgo = hours => new Date(Date.now() - hours * 3600_000).toISOString();
 const dayOf = iso => iso.slice(0, 10);
@@ -43,7 +38,15 @@ before(async () => {
   mkdirSync(runsDir, { recursive: true });
   write('intelligence/history.json', { version: 1, records: RECORDS });
   write('intelligence/countries.json', { series: { UKR: [[1, 70], [2, 74]], HUN: [[1, 10], [2, 12]] }, events: { UKR: [1, 2, 3] } });
-  write('alerts/alerts.json', { alerts: [], engine: null });
+  write('alerts/alerts.json', { version: 1, engine: null, alerts: [
+    { id: 'a-old', ruleId: 'r1', ruleName: 'Rule', severity: 'high', state: 'resolved', title: 'RESOLVED-ONE', firstSeenAt: Date.now() - 9 * 3600_000, lastSeenAt: Date.now() - 8 * 3600_000, resolvedAt: Date.now() - 8 * 3600_000 },
+    { id: 'a-fire', ruleId: 'r2', ruleName: 'Rule', severity: 'critical', state: 'firing', title: 'FIRING-ONE', firstSeenAt: Date.now() - 2 * 3600_000, lastSeenAt: Date.now() - 600_000 },
+    { id: 'a-ack', ruleId: 'r3', ruleName: 'Rule', severity: 'watch', state: 'acked', title: 'ACKED-ONE', firstSeenAt: Date.now() - 3 * 3600_000, lastSeenAt: Date.now() - 1800_000 },
+  ] });
+  write('memory/hot.json', { alertedSignals: {}, runs: [
+    { timestamp: hoursAgo(1), data: {}, delta: { summary: { direction: 'risk-off', totalChanges: 7, criticalChanges: 2, signalBreakdown: { new: 3, escalated: 2, deescalated: 1 } } } },
+    { timestamp: hoursAgo(2), data: {}, delta: { summary: { direction: 'neutral', totalChanges: 99, criticalChanges: 0 } } },
+  ] });
 
   requests = [];
   apiBehavior = {};
@@ -51,7 +54,7 @@ before(async () => {
     requests.push(req.url);
     const url = new URL(req.url, 'http://127.0.0.1');
     const reply = (status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
-    if (url.pathname === '/api/alerts') return reply(200, { alerts: [{ id: 'a1', title: 'FAKE-API-ALERT', severity: 'high', status: 'active', createdAt: hoursAgo(1) }] });
+    if (url.pathname === '/api/alerts') return reply(200, { alerts: [{ id: 'a1', title: 'FAKE-API-ALERT', severity: 'high', state: 'firing', firstSeenAt: Date.now() - 3600_000, lastSeenAt: Date.now() }] });
     if (url.pathname === '/api/countries') return reply(200, { countries: [{ iso3: 'POL', name: 'Poland', score: 33, change24h: 1 }] });
     if (url.pathname.startsWith('/api/countries/')) return reply(200, { iso3: url.pathname.split('/').pop(), name: 'From API', score: 61, components: [] });
     if (url.pathname === '/api/history') return reply(200, apiBehavior.history ?? { items: [], stats: { byKind: {}, totalRecords: 0 } });
@@ -67,18 +70,7 @@ after(async () => {
   rmSync(workdir, { recursive: true, force: true });
 });
 
-function cli(args, { preload = null, env = {} } = {}) {
-  // On Windows --import needs a file:// URL, a drive-letter path is read as a URL scheme.
-  const nodeArgs = [...(preload ? ['--import', pathToFileURL(preload).href] : []), CLI, ...args];
-  const childEnv = { ...process.env, PORT: undefined, CRUCIX_HOME: join(workdir, 'home'), RUNS_DIR: runsDir, NO_COLOR: '1', CRUCIX_LANG: 'en', LANG: 'en_US.UTF-8', ...env };
-  if (childEnv.PORT === undefined) delete childEnv.PORT;
-  delete childEnv.CRUCIX_ENV_FILE;
-  return new Promise(done => {
-    execFile(process.execPath, nodeArgs, { env: childEnv, cwd: workdir, timeout: 30_000 }, (error, stdout, stderr) => {
-      done({ code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, stdout, stderr });
-    });
-  });
-}
+const cli = (args, options = {}) => runCli(args, { workdir, runsDir, ...options });
 
 // --- usage errors -------------------------------------------------------------------------------------------------
 
@@ -142,7 +134,9 @@ test('e2e --port: client commands talk to the server on that port', async () => 
   const { code, stdout } = await cli(['--alerts', '--port', String(apiPort)]);
   assert.equal(code, 0);
   assert.match(stdout, /\[API\]/);
-  assert.match(stdout, /FAKE-API-ALERT/);
+  assert.match(stdout, /Active: 1, Total: 1/);
+  assert.match(stdout, /\[HIGH\].*FAKE-API-ALERT.*\(firing\)/);
+  assert.doesNotMatch(stdout, /No active alerts/);
   assert.deepEqual(requests, ['/api/alerts']);
 });
 
@@ -311,4 +305,29 @@ test('e2e errors: an unexpected exception prints one line and exits 1, not a sta
   assert.equal(code, 1);
   assert.match(stderr, /❌ /);
   assert.doesNotMatch(stderr, /\n\s+at .*\(file:\/\//, 'no stack trace without DEBUG');
+});
+
+// --- stored alerts and delta (disk) ---------------------------------------------------------------------------------
+
+test('e2e alerts (disk): every state but resolved counts as active, open alerts first', async () => {
+  const { code, stdout } = await cli(['-A', '--no-server']);
+  assert.equal(code, 0);
+  assert.match(stdout, /Active: 2, Total: 3/);
+  assert.doesNotMatch(stdout, /No active alerts/);
+  assert.match(stdout, /FIRING-ONE/);
+  assert.match(stdout, /ACKED-ONE/);
+  assert.doesNotMatch(stdout, /RESOLVED-ONE/);
+  const all = await cli(['--all-alerts', '--no-server']);
+  assert.match(all.stdout, /RESOLVED-ONE/);
+  assert.ok(all.stdout.indexOf('FIRING-ONE') < all.stdout.indexOf('RESOLVED-ONE'), 'newest activity first');
+  const json = JSON.parse((await cli(['-A', '--no-server', '--json'])).stdout);
+  assert.deepEqual(json.active.map(a => a.id), ['a-fire', 'a-ack']);
+});
+
+test('e2e delta (disk): shows the newest run, which the memory stores first', async () => {
+  const { code, stdout } = await cli(['--delta', '--no-server']);
+  assert.equal(code, 0);
+  assert.match(stdout, /RISK-OFF/);
+  assert.match(stdout, /Total Changes:\s+7/);
+  assert.doesNotMatch(stdout, /99/);
 });

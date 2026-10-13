@@ -19,6 +19,8 @@ import { fullBriefing } from '../apis/briefing.mjs';
 import { synthesize } from '../dashboard/inject.mjs';
 import { countryByIso2, countryByIso3 } from '../lib/intelligence/countries.mjs';
 import { saveSnapshot } from '../lib/snapshots.mjs';
+import { createSweepPipeline } from '../lib/sweep-pipeline.mjs';
+import { currentLanguage } from '../lib/i18n.mjs';
 import { runSetupWizard } from '../lib/setup-wizard.mjs';
 import { getEnvSearchPaths } from '../apis/utils/env.mjs';
 import { installUserProfile } from '../lib/profile-install.mjs';
@@ -338,6 +340,19 @@ function parseArgs(argv = process.argv.slice(2)) {
   if (opts.from && opts.to && opts.from > opts.to) fail(`--from ${opts.from} is after --to ${opts.to}`);
 
   return opts;
+}
+
+let sweepPipeline = null;
+
+/** Runs the derived stage (history, risk, alerts, delta, archive) on a fresh sweep and returns a one-line summary. */
+async function runDerivedStage(rawData, lang) {
+  sweepPipeline ??= createSweepPipeline({ runsDir, config, language: currentLanguage });
+  const { steps } = await sweepPipeline.run(rawData);
+  const failed = Object.entries(steps).filter(([, step]) => !step.ok).map(([name, step]) => `${name}: ${step.error}`);
+  const done = Object.entries(steps).filter(([, step]) => step.ok && !step.skipped).map(([name]) => name);
+  return failed.length
+    ? (lang === 'hu' ? `⚠️ Feldolgozási lépés hibás: ${failed.join('; ')}` : `⚠️ Processing step failed: ${failed.join('; ')}`)
+    : (lang === 'hu' ? `🧮 Feldolgozva: ${done.join(', ')}` : `🧮 Processed: ${done.join(', ')}`);
 }
 
 function getCliLanguage(opts = {}) {
@@ -1114,7 +1129,10 @@ function showAlerts(alertsData, opts = {}) {
     });
   }
 
-  const activeList = allList.filter(a => a.state === 'active');
+  // The engine's states are firing, acked, snoozed and resolved: every state but resolved is open (lib/alerts/lifecycle.mjs).
+  const lastTouched = a => Number(a.lastSeenAt || a.resolvedAt || a.firstSeenAt) || 0;
+  allList = [...allList].sort((a, b) => lastTouched(b) - lastTouched(a));
+  const activeList = allList.filter(a => a.state !== 'resolved');
   const items = (opts.allAlerts ? allList : (activeList.length > 0 ? activeList : allList)).slice(0, opts.limit);
 
   if (opts.json) {
@@ -1559,7 +1577,8 @@ function showSweeps(opts = {}) {
 function showDelta(opts = {}) {
   const lang = opts.lang || 'en';
   const hot = readJsonSafe(hotMemoryFile);
-  const lastRun = hot?.runs?.[hot.runs.length - 1];
+  // MemoryManager.addRun puts the newest run first.
+  const lastRun = hot?.runs?.[0];
   const delta = lastRun?.delta;
 
   if (opts.json) {
@@ -1721,10 +1740,11 @@ async function main() {
         const rawData = await fullBriefing();
         if (!existsSync(runsDir)) mkdirSync(runsDir, { recursive: true });
         saveSnapshot(runsDir, rawData);
+        const derived = await runDerivedStage(rawData, lang);
         if (lang === 'hu') {
-          console.log(`[${nowStr}] ✅ Adatgyűjtés kész: ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} mp | Források: ${rawData.crucix.sourcesOk}/${rawData.crucix.sourcesQueried} OK | Mentve: ${latestFile}\n`);
+          console.log(`[${nowStr}] ✅ Adatgyűjtés kész: ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} mp | Források: ${rawData.crucix.sourcesOk}/${rawData.crucix.sourcesQueried} OK | Mentve: ${latestFile}\n   ${derived}\n`);
         } else {
-          console.log(`[${nowStr}] ✅ Data collection complete: ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} s | Sources: ${rawData.crucix.sourcesOk}/${rawData.crucix.sourcesQueried} OK | Saved: ${latestFile}\n`);
+          console.log(`[${nowStr}] ✅ Data collection complete: ${(rawData.crucix.totalDurationMs / 1000).toFixed(1)} s | Sources: ${rawData.crucix.sourcesOk}/${rawData.crucix.sourcesQueried} OK | Saved: ${latestFile}\n   ${derived}\n`);
         }
       } catch (err) {
         console.error(lang === 'hu' ? `[${nowStr}] ❌ Hiba a sweep során: ${err.message}\n` : `[${nowStr}] ❌ Error during sweep: ${err.message}\n`);
@@ -1740,14 +1760,27 @@ async function main() {
 
   // 0c. Standalone sweep execution without server
   if (opts.sweep) {
+    // The dashboard or a collector owns the same runs/ files; a second writer would race it. Its own sweep fills them.
+    const lock = holdInstanceLock(runsDir);
+    if (lock.error) {
+      console.error(alreadyRunningMessage(lock, { port: currentPort(), lang }));
+      process.exit(1);
+    }
+    // With --json stdout carries the data only: the progress lines of the sweep itself (also those printed by the adapters
+    // and the dashboard code) go to stderr.
+    const stdoutLog = console.log;
+    if (opts.json) console.log = console.error;
     console.log(lang === 'hu' ? '\n🚀 Egyszeri intelligencia sweep futtatása háttérszerver nélkül...' : '\n🚀 Running one-time intelligence sweep without server...');
     const rawData = await fullBriefing();
+    let derived = '';
     try {
       if (!existsSync(runsDir)) mkdirSync(runsDir, { recursive: true });
       saveSnapshot(runsDir, rawData);
+      derived = await runDerivedStage(rawData, lang);
     } catch (e) {
       console.error(lang === 'hu' ? `⚠️ Nem sikerült elmenteni a pillanatképet (${latestFile}): ${e.message}` : `⚠️ Failed to save snapshot (${latestFile}): ${e.message}`);
     }
+    console.log = stdoutLog;
 
     if (opts.json) {
       console.log(JSON.stringify(rawData, null, 2));
@@ -1761,6 +1794,7 @@ async function main() {
       if (rawData.crucix.sourcesFailed > 0) console.log(`❌ Sikertelen források:  ${rawData.crucix.sourcesFailed}`);
       if (rawData.crucix.sourcesStale > 0)  console.log(`⏳ Elavult források:    ${rawData.crucix.sourcesStale}`);
       console.log(`💾 Mentve:               ${latestFile}`);
+      if (derived) console.log(derived);
       console.log(`💡 Most már lekérdezheted: ${c} -b  (vagy -m, --risk, -a)\n`);
     } else {
       console.log(`\n=== Crucix Sweep Completed Successfully ===`);
@@ -1769,6 +1803,7 @@ async function main() {
       if (rawData.crucix.sourcesFailed > 0) console.log(`❌ Failed sources:       ${rawData.crucix.sourcesFailed}`);
       if (rawData.crucix.sourcesStale > 0)  console.log(`⏳ Stale sources:        ${rawData.crucix.sourcesStale}`);
       console.log(`💾 Saved to:             ${latestFile}`);
+      if (derived) console.log(derived);
       console.log(`💡 You can now query:    ${c} -b  (or -m, --risk, -a)\n`);
     }
     return;
