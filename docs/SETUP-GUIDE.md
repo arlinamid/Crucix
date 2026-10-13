@@ -157,6 +157,7 @@ The following optional free API keys increase request limits and resolution:
 - **Sign up:** [acleddata.com/register](https://acleddata.com/register/) — myACLED email + password; the account needs API access.
 - **Cost:** Free (OAuth2).
 - **Config:** `ACLED_EMAIL=...` and `ACLED_PASSWORD=...`
+- **Check:** `node scripts/acled-token.mjs` signs in and saves the tokens. If the data call answers `403 Access denied`, the account lacks API access: accept the Terms of Use in your myACLED profile, complete the required fields and ask access@acleddata.com to enable the API.
 
 ### 5. OpenSky (ADS-B flight hotspots)
 - **Sign up:** [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → create an API client → `clientId` / `clientSecret` from `credentials.json`

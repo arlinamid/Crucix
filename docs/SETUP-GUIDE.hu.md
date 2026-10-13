@@ -161,6 +161,7 @@ Az alábbi ingyenes regisztrációkkal növelheted az adatfrissítés sebesség�
 - **Hol kérhető:** [acleddata.com/register](https://acleddata.com/register/) — myACLED email + jelszó; a fióknak API hozzáférés kell.
 - **Ár:** Ingyenes (OAuth2).
 - **Konfiguráció:** `ACLED_EMAIL=...` és `ACLED_PASSWORD=...`
+- **Ellenőrzés:** a `node scripts/acled-token.mjs` bejelentkezik és elmenti a tokeneket. Ha az adatlekérés `403 Access denied`-ot ad, a fióknak nincs API-hozzáférése: fogadd el a Terms of Use-t a myACLED-profilban, töltsd ki a kötelező mezőket, és kérd az access@acleddata.com címen az API engedélyezését.
 
 ### 5. OpenSky (ADS-B repülési hotspotok)
 - **Hol kérhető:** [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → új API client → `clientId` / `clientSecret` a `credentials.json`-ból
