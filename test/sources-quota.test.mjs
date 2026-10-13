@@ -80,9 +80,16 @@ test('EPA 403 is not retried for six hours', async t => {
 test('ACLED OAuth sends scope=authenticated and does not also cookie-login after a Cloudflare challenge', async t => {
   resetAcled();
   t.after(() => resetAcled());
-  const saved = { ACLED_EMAIL: process.env.ACLED_EMAIL, ACLED_PASSWORD: process.env.ACLED_PASSWORD };
+  const saved = {
+    ACLED_EMAIL: process.env.ACLED_EMAIL,
+    ACLED_PASSWORD: process.env.ACLED_PASSWORD,
+    ACLED_ACCESS_TOKEN: process.env.ACLED_ACCESS_TOKEN,
+    ACLED_REFRESH_TOKEN: process.env.ACLED_REFRESH_TOKEN,
+  };
   process.env.ACLED_EMAIL = 'user@example.com';
   process.env.ACLED_PASSWORD = 'secret';
+  delete process.env.ACLED_ACCESS_TOKEN;
+  delete process.env.ACLED_REFRESH_TOKEN;
   t.after(() => {
     for (const [key, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[key];
@@ -94,14 +101,112 @@ test('ACLED OAuth sends scope=authenticated and does not also cookie-login after
     calls.push({ url: String(url), body: String(init.body || '') });
     return new Response('<html><title>Just a moment...</title></html>', {
       status: 403,
-      headers: { 'content-type': 'text/html' },
+      headers: { 'content-type': 'text/html', 'cf-mitigated': 'challenge', 'cf-ray': 'test-ray' },
     });
   });
   const data = await acled({ now: NOW });
   assert.match(data.error, /Cloudflare challenge/);
+  assert.equal(data.code, 'auth_blocked');
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /oauth\/token/);
   assert.equal(new URLSearchParams(calls[0].body).get('scope'), 'authenticated');
+
+  const again = await acled({ now: NOW + 60 * 1000 });
+  assert.equal(again.code, 'auth_blocked');
+  assert.equal(calls.length, 1, 'auth_blocked cooldown skips another OAuth attempt');
+});
+
+test('ACLED classifies JSON invalid_grant separately from Cloudflare HTML 403', async t => {
+  resetAcled();
+  t.after(() => resetAcled());
+  const saved = {
+    ACLED_EMAIL: process.env.ACLED_EMAIL,
+    ACLED_PASSWORD: process.env.ACLED_PASSWORD,
+    ACLED_ACCESS_TOKEN: process.env.ACLED_ACCESS_TOKEN,
+  };
+  process.env.ACLED_EMAIL = 'user@example.com';
+  process.env.ACLED_PASSWORD = 'wrong';
+  delete process.env.ACLED_ACCESS_TOKEN;
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  useFetch(t, async (url) => {
+    if (String(url).includes('/oauth/token')) {
+      return new Response(JSON.stringify({
+        error: 'invalid_grant',
+        error_description: 'The user credentials were incorrect.',
+      }), { status: 400, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({ current_user: { uid: '1' } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json', 'set-cookie': 'SSESS=abc; Path=/' },
+    });
+  });
+  // Cookie fallback may succeed in this fixture; assert OAuth path alone via classify import.
+  const { classifyHttpFailure } = await import('../apis/sources/acled.mjs');
+  const headers = new Headers({ 'content-type': 'application/json' });
+  const fail = classifyHttpFailure(400, headers, JSON.stringify({
+    error: 'invalid_grant',
+    error_description: 'The user credentials were incorrect.',
+  }), { phase: 'auth' });
+  assert.equal(fail.code, 'invalid_grant');
+  const cf = classifyHttpFailure(403, new Headers({
+    'content-type': 'text/html',
+    'cf-mitigated': 'challenge',
+    'cf-ray': 'abc',
+  }), '<html>Just a moment...</html>', { phase: 'auth' });
+  assert.equal(cf.code, 'auth_blocked');
+  assert.match(cf.error, /cf-ray abc/);
+});
+
+test('ACLED refresh token avoids password grant and permission_denied stays distinct', async t => {
+  resetAcled();
+  t.after(() => resetAcled());
+  const saved = {
+    ACLED_EMAIL: process.env.ACLED_EMAIL,
+    ACLED_PASSWORD: process.env.ACLED_PASSWORD,
+    ACLED_ACCESS_TOKEN: process.env.ACLED_ACCESS_TOKEN,
+    ACLED_REFRESH_TOKEN: process.env.ACLED_REFRESH_TOKEN,
+  };
+  delete process.env.ACLED_EMAIL;
+  delete process.env.ACLED_PASSWORD;
+  delete process.env.ACLED_ACCESS_TOKEN;
+  process.env.ACLED_REFRESH_TOKEN = 'refresh-me';
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  const calls = [];
+  useFetch(t, async (url, init = {}) => {
+    const href = String(url);
+    calls.push({ url: href, body: String(init.body || '') });
+    if (href.includes('/oauth/token')) {
+      const body = new URLSearchParams(String(init.body || ''));
+      assert.equal(body.get('grant_type'), 'refresh_token');
+      return new Response(JSON.stringify({
+        access_token: 'access-1',
+        refresh_token: 'refresh-2',
+        expires_in: 3600,
+        token_type: 'Bearer',
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response(JSON.stringify({
+      status: 403,
+      message: 'Consent must be accepted',
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+  process.env.ACLED_EMAIL = 'user@example.com';
+  process.env.ACLED_PASSWORD = 'secret';
+  const data = await acled({ now: NOW });
+  assert.equal(data.code, 'permission_denied');
+  assert.match(data.error || data.message, /Consent must be accepted|permission_denied/);
+  assert.equal(calls.filter(c => c.url.includes('/oauth/token')).length, 1);
+  assert.ok(calls.some(c => c.url.includes('/api/acled/read')));
 });
 
 test('CelesTrak caches a good briefing for two hours and never pulls Starlink', async t => {
