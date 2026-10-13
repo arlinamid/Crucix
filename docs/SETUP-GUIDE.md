@@ -148,17 +148,32 @@ The following optional free API keys increase request limits and resolution:
 - **Cost:** Free.
 - **Config:** `FRED_API_KEY=abcdef123456...`
 
-### 3. EIA (Energy Information Administration — Crude, Gas & Electricity)
+### 3. BLS (Bureau of Labor Statistics — CPI, unemployment)
+- **Sign up:** [data.bls.gov/registrationEngine](https://data.bls.gov/registrationEngine/)
+- **Cost:** Free. Without a key ~25 queries/day (v1); with a key 500/day (v2). Crucix caches 12 hours either way.
+- **Config:** `BLS_API_KEY=...`
+
+### 4. ACLED (Armed conflict events)
+- **Sign up:** [acleddata.com/register](https://acleddata.com/register/) — myACLED email + password; the account needs API access.
+- **Cost:** Free (OAuth2).
+- **Config:** `ACLED_EMAIL=...` and `ACLED_PASSWORD=...`
+
+### 5. OpenSky (ADS-B flight hotspots)
+- **Sign up:** [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → create an API client → `clientId` / `clientSecret` from `credentials.json`
+- **Cost:** Free. Anonymous 400 credits/day; OAuth2 client 4000/day (refresh every 15 min).
+- **Config:** `OPENSKY_CLIENT_ID=...` and `OPENSKY_CLIENT_SECRET=...`
+
+### 6. EIA (Energy Information Administration — Crude, Gas & Electricity)
 - **Sign up:** [api.eia.gov/register](https://api.eia.gov/register)
 - **Cost:** Free.
 - **Config:** `EIA_API_KEY=fedcba654321...`
 
-### 4. AISStream (Live Maritime Vessel & Chokepoint Tracking)
+### 7. AISStream (Live Maritime Vessel & Chokepoint Tracking)
 - **Sign up:** [aisstream.io/account](https://aisstream.io/account) (Sign in with GitHub)
 - **Cost:** Free.
 - **Config:** `AISSTREAM_API_KEY=...`
 
-### 5. Cloudflare Radar (Global Outages & Traffic Anomalies)
+### 8. Cloudflare Radar (Global Outages & Traffic Anomalies)
 - **Sign up:** [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) (Account Analytics Read token)
 - **Cost:** Free.
 - **Config:** `CLOUDFLARE_API_TOKEN=...`

@@ -89,7 +89,8 @@ These unlock the most valuable economic, satellite and market data. Each takes a
 
 | Key | Source | How to Get |
 |-----|--------|------------|
-| `ACLED_EMAIL` + `ACLED_PASSWORD` | Armed conflict event data | [acleddata.com/register](https://acleddata.com/register/) — free, OAuth2 |
+| `ACLED_EMAIL` + `ACLED_PASSWORD` | Armed conflict event data (OAuth2 password grant + `scope=authenticated`) | [acleddata.com/register](https://acleddata.com/register/) — free; account needs API access and accepted terms |
+| `ACLED_ACCESS_TOKEN` / `ACLED_REFRESH_TOKEN` | Optional bootstrap when `/oauth/token` is Cloudflare-blocked; refresh lasts ~14 days | Obtain via Postman/browser OAuth against ACLED docs; Crucix refreshes and caches tokens in `~/.crucix/cache/acled-auth.json` |
 | `AISSTREAM_API_KEY` | Maritime: live AIS vessel counts at 11 chokepoints. The dashboard server keeps one WebSocket open (one-shot briefings do not); a key allows 3 connections, the service has no SLA and no written licence (aisstream issue #290) | [aisstream.io/account](https://aisstream.io/account) — free, sign in with GitHub |
 | `OPENSKY_CLIENT_ID` + `OPENSKY_CLIENT_SECRET` | OpenSky flight hotspots: 4,000 instead of 400 credits/day, refresh every 15 min instead of 2 h | [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → "Create a new API client" → `clientId` / `clientSecret` from `credentials.json` — free, OAuth2 |
 | `BLS_API_KEY` | BLS v2 (500 queries/day). Without it v1 is ~25/day; Crucix caches 12 hours either way | [data.bls.gov/registrationEngine](https://data.bls.gov/registrationEngine/) — free |

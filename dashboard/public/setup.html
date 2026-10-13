@@ -643,7 +643,7 @@
           </div>
         </div>
         <p class="section-desc" id="i18n-osint-desc">
-          A források zöme (USGS földrengések, 539 nemzetközi RSS hírforrás, kiberbiztonság, IODA) kulcs NÉLKÜL is azonnal működik. Az alábbi ingyenes regisztrációkkal növelheted az adatfrissítés sebességét:
+          A források zöme (USGS, RSS, kiberbiztonság, IODA) kulcs nélkül is működik. ACLED email+jelszót, OpenSky OAuth2 klienst kér; BLS kulccsal 500 lekérés/nap (nélküle ~25). Az alábbi mezők növelik a frissítést:
         </p>
 
         <div class="source-list">
@@ -672,6 +672,50 @@
             </a>
             <div class="source-input-wrap">
               <input type="text" id="FRED_API_KEY" name="FRED_API_KEY" class="form-input" placeholder="FRED_API_KEY" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- BLS -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">📉 BLS (Munkaügyi Statisztika: CPI, munkanélküliség)</div>
+              <div class="source-sub">Kulcs nélkül ~25 lekérés/nap (v1); kulccsal 500/nap (v2). A Crucix 12 órát cache-el</div>
+            </div>
+            <a href="https://data.bls.gov/registrationEngine/" target="_blank" rel="noopener" class="click-btn">
+              <span>🔑</span> <strong>Ingyenes kulcs (Kattints ide)</strong>
+            </a>
+            <div class="source-input-wrap">
+              <input type="text" id="BLS_API_KEY" name="BLS_API_KEY" class="form-input" placeholder="BLS_API_KEY" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- ACLED -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">⚔️ ACLED (Fegyveres konfliktus események)</div>
+              <div class="source-sub">myACLED email + jelszó (OAuth2). A fióknak API hozzáféréssel kell rendelkeznie</div>
+            </div>
+            <a href="https://acleddata.com/register/" target="_blank" rel="noopener" class="click-btn">
+              <span>🔑</span> <strong>Regisztráció (Kattints ide)</strong>
+            </a>
+            <div class="source-input-wrap" style="display:flex;flex-direction:column;gap:0.5rem">
+              <input type="email" id="ACLED_EMAIL" name="ACLED_EMAIL" class="form-input" placeholder="ACLED_EMAIL" autocomplete="off">
+              <input type="password" id="ACLED_PASSWORD" name="ACLED_PASSWORD" class="form-input" placeholder="ACLED_PASSWORD" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- OPENSKY -->
+          <div class="source-card">
+            <div class="source-info">
+              <div class="source-name">✈️ OpenSky (ADS-B repülési hotspotok)</div>
+              <div class="source-sub">Anonim: 400 credit/nap; OAuth2 klienssel: 4000/nap, frissítés 15 percenként</div>
+            </div>
+            <a href="https://opensky-network.org/my-opensky/account" target="_blank" rel="noopener" class="click-btn">
+              <span>🔑</span> <strong>API client létrehozása</strong>
+            </a>
+            <div class="source-input-wrap" style="display:flex;flex-direction:column;gap:0.5rem">
+              <input type="text" id="OPENSKY_CLIENT_ID" name="OPENSKY_CLIENT_ID" class="form-input" placeholder="OPENSKY_CLIENT_ID (credentials.json → clientId)" autocomplete="off">
+              <input type="password" id="OPENSKY_CLIENT_SECRET" name="OPENSKY_CLIENT_SECRET" class="form-input" placeholder="OPENSKY_CLIENT_SECRET (clientSecret)" autocomplete="off">
             </div>
           </div>
 
@@ -840,7 +884,7 @@
         aiTitle: "Mesterséges Intelligencia (AI / LLM) Motor",
         aiDesc: "Az AI vezetői jelentéseket, szöveges elemzéseket és piaci kereskedési ötleteket generál a 71 adatforrás alapján.",
         osintTitle: "Ingyenes Geopolitikai & OSINT API Kulcsok",
-        osintDesc: "A források zöme (USGS földrengések, 539 nemzetközi RSS hírforrás, kiberbiztonság, IODA) kulcs NÉLKÜL is azonnal működik. Az alábbi ingyenes regisztrációkkal növelheted az adatfrissítés sebességét:",
+        osintDesc: "A források zöme (USGS, RSS, kiberbiztonság, IODA) kulcs nélkül is működik. ACLED email+jelszót, OpenSky OAuth2 klienst kér; BLS kulccsal 500 lekérés/nap (nélküle ~25). Az alábbi mezők növelik a frissítést:",
         srvTitle: "Dashboard & Hálózat",
         openDash: "Irány a Vezérlőpult",
         saveBtn: "💾 Beállítások Mentése",
@@ -867,7 +911,7 @@
         aiTitle: "Artificial Intelligence (AI / LLM) Engine",
         aiDesc: "Generates cited executive briefings, automated trade ideas, and multi-domain syntheses.",
         osintTitle: "Free Geopolitical & OSINT API Keys",
-        osintDesc: "Most sources (USGS quakes, 539 world RSS feeds, cyber threats, IODA) work out of the box with zero keys. These free sign-ups enhance resolution and rate limits:",
+        osintDesc: "Most sources (USGS, RSS, cyber, IODA) work without keys. ACLED needs email+password, OpenSky an OAuth2 client; BLS key raises the daily cap from ~25 to 500. These fields boost freshness:",
         srvTitle: "Dashboard & Network",
         openDash: "Open Dashboard",
         saveBtn: "💾 Save Configuration",
@@ -894,7 +938,7 @@
         aiTitle: "Moteur d'Intelligence Artificielle (IA / LLM)",
         aiDesc: "Génère des synthèses exécutives et des idées de trading automatiques.",
         osintTitle: "Clés API OSINT Gratuites",
-        osintDesc: "La plupart des sources fonctionnent sans aucune clé. Ces inscriptions gratuites améliorent la fréquence d'actualisation :",
+        osintDesc: "La plupart des sources fonctionnent sans clé. ACLED demande email+mot de passe, OpenSky un client OAuth2 ; la clé BLS passe ~25 à 500 requêtes/jour. Ces champs améliorent la fraîcheur :",
         srvTitle: "Tableau de Bord & Réseau",
         openDash: "Ouvrir le Tableau de bord",
         saveBtn: "💾 Enregistrer la Configuration",

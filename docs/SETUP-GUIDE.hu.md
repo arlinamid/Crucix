@@ -152,17 +152,32 @@ Az alábbi ingyenes regisztrációkkal növelheted az adatfrissítés sebesség�
 - **Ár:** Ingyenes regisztráció után azonnal elérhető.
 - **Konfiguráció:** `FRED_API_KEY=abcdef123456...`
 
-### 3. EIA (Energy Information Administration — Olaj, gáz és energiastatisztikák)
+### 3. BLS (Bureau of Labor Statistics — CPI, munkanélküliség)
+- **Hol kérhető:** [data.bls.gov/registrationEngine](https://data.bls.gov/registrationEngine/)
+- **Ár:** Ingyenes. Kulcs nélkül ~25 lekérés/nap (v1); kulccsal 500/nap (v2). A Crucix 12 órát cache-el.
+- **Konfiguráció:** `BLS_API_KEY=...`
+
+### 4. ACLED (Fegyveres konfliktus események)
+- **Hol kérhető:** [acleddata.com/register](https://acleddata.com/register/) — myACLED email + jelszó; a fióknak API hozzáférés kell.
+- **Ár:** Ingyenes (OAuth2).
+- **Konfiguráció:** `ACLED_EMAIL=...` és `ACLED_PASSWORD=...`
+
+### 5. OpenSky (ADS-B repülési hotspotok)
+- **Hol kérhető:** [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → új API client → `clientId` / `clientSecret` a `credentials.json`-ból
+- **Ár:** Ingyenes. Anonim 400 credit/nap; OAuth2 klienssel 4000/nap (frissítés 15 percenként).
+- **Konfiguráció:** `OPENSKY_CLIENT_ID=...` és `OPENSKY_CLIENT_SECRET=...`
+
+### 6. EIA (Energy Information Administration — Olaj, gáz és energiastatisztikák)
 - **Hol kérhető:** [api.eia.gov/register](https://api.eia.gov/register)
 - **Ár:** Ingyenes.
 - **Konfiguráció:** `EIA_API_KEY=fedcba654321...`
 
-### 4. AISStream (Élő globális tengeri hajóforgalom és fojtópontok)
+### 7. AISStream (Élő globális tengeri hajóforgalom és fojtópontok)
 - **Hol kérhető:** [aisstream.io/account](https://aisstream.io/account) (Belépés GitHub fiókkal)
 - **Ár:** Ingyenes.
 - **Konfiguráció:** `AISSTREAM_API_KEY=...`
 
-### 5. Cloudflare Radar (Globális internetkimaradások és hálózati forgalom)
+### 8. Cloudflare Radar (Globális internetkimaradások és hálózati forgalom)
 - **Hol kérhető:** [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) (Account Analytics Read jogosultsággal)
 - **Ár:** Ingyenes.
 - **Konfiguráció:** `CLOUDFLARE_API_TOKEN=...`
