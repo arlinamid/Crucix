@@ -7,11 +7,13 @@ import config from '../crucix.config.mjs';
 import { createSweepPipeline } from '../lib/sweep-pipeline.mjs';
 
 const quiet = { log() {}, warn() {}, error() {} };
+// The real synthesize() fetches the news feeds; these tests stay offline.
+const snapshotOf = raw => ({ meta: { timestamp: raw.crucix.timestamp, sourcesOk: 0, sourcesQueried: 0 }, news: [], newsFeed: [], health: [] });
 
 test('sweep pipeline: a sweep that cannot be synthesized reports it and writes nothing, without throwing', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'crucix-pipeline-'));
   try {
-    const pipeline = createSweepPipeline({ runsDir: dir, config, logger: quiet });
+    const pipeline = createSweepPipeline({ runsDir: dir, config, logger: quiet, synthesize: snapshotOf });
     const result = await pipeline.run(null);
     assert.equal(result.snapshot, null);
     assert.equal(result.steps.synthesize.ok, false);
@@ -25,7 +27,7 @@ test('sweep pipeline: a sweep that cannot be synthesized reports it and writes n
 test('sweep pipeline: a failing step does not stop the next ones and RISK_ENABLED=false skips the risk step', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'crucix-pipeline-'));
   try {
-    const pipeline = createSweepPipeline({ runsDir: dir, config: { ...config, risk: { ...config.risk, enabled: false } }, logger: quiet });
+    const pipeline = createSweepPipeline({ runsDir: dir, config: { ...config, risk: { ...config.risk, enabled: false } }, logger: quiet, synthesize: snapshotOf });
     pipeline.history.add = () => { throw new Error('disk full\nsecond line'); };
     const raw = { crucix: { timestamp: new Date().toISOString(), totalDurationMs: 1, sourcesQueried: 0, sourcesOk: 0, sourcesFailed: 0, version: 'test' }, sources: {}, timing: {} };
     const { snapshot, steps } = await pipeline.run(raw);
