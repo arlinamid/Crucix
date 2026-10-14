@@ -6,7 +6,9 @@ import { join } from 'node:path';
 import { createDictionaries, extractEntities, slugOf, tokensOf } from '../lib/intelligence/extract.mjs';
 import { chokepointAt } from '../lib/intelligence/chokepoints.mjs';
 import { GraphStore } from '../lib/intelligence/graph.mjs';
-import { graphRecordsOf, linkEvents } from '../lib/intelligence/linkers.mjs';
+import { graphRecordsOf, linkEvents, LINK_RULES_VERSION } from '../lib/intelligence/linkers.mjs';
+import { EntityStore } from '../lib/intelligence/entities.mjs';
+import { runRiskStep } from '../lib/intelligence/risk-step.mjs';
 import { METRICS } from '../lib/alerts/metrics.mjs';
 
 const NOW = Date.parse('2026-10-14T12:00:00Z');
@@ -132,4 +134,60 @@ test('GraphStore: an event without any entity is not kept, hostile input is igno
   const records = ['event-01', 'event-02', 'event-03'].map(item => ({ id: item, kind: 'news', entities: [{ id: 'country:HUN', rel: 'mentions', s: 0.5, label: 'HUN' }] }));
   small.ingest(records, { now: NOW });
   assert.equal(small.events.size, 2);
+}));
+
+test('hazards: phenomena in the main languages, inflected forms, kinds; ambiguous words stay out', async () => {
+  const { hazardsOf, isHazardWord } = await import('../lib/intelligence/hazards.mjs');
+  const of = title => [...hazardsOf(tokensOf(title))].sort();
+  assert.deepEqual(of('Barbados embassy remains closed after Panama earthquake'), ['quake']);
+  assert.deepEqual(of('Panamá no tuvo muertos con un terremoto de 7,7'), ['quake']);
+  assert.deepEqual(of('Földrengésben megsérült a templom'), ['quake'], 'a Hungarian case of a long word');
+  assert.deepEqual(of('Death toll rises as Hurricane Simon unleashes floods'), ['cyclone', 'flood']);
+  assert.deepEqual(of('Gunfire at the home of a key witness'), [], '"fire" alone is not a wildfire');
+  assert.deepEqual(of('A storm of criticism over the budget'), [], '"storm" alone is not a cyclone');
+  assert.deepEqual([...hazardsOf(['m47', 'panama'], 'earthquake')], ['quake'], 'an earthquake record is a quake whatever its title says');
+  assert.equal(isHazardWord('terremoto'), true);
+  assert.equal(isHazardWord('panama'), false);
+});
+
+test('linkers: a report and an observation of the same phenomenon in the same country co-occur; another phenomenon or country does not', t => withGraph(t, graph => {
+  const quake = observation('earthquake', 'M4.7 PANAMA', 7.5, -80.5);
+  const aftershock = observation('earthquake', 'M4.5 PANAMA', 7.6, -80.4, { host: 'emsc2.example' });
+  const news1 = news('Barbados embassy remains closed after Panama earthquake', { host: 'bb.example' });
+  const news2 = news('Panamá no tuvo muertos con un terremoto de 7,7', { host: 'ec.example' });
+  const other = news('Panama deregisters three sanctioned tankers', { host: 'np.example' });
+  const elsewhere = news('Earthquake shakes Chile', { host: 'cl.example' });
+  const edges = build(graph, [quake, aftershock, news1, news2, other, elsewhere]);
+  const linked = (p, q) => edges.some(edge => [edge.a, edge.b].includes(p.id) && [edge.a, edge.b].includes(q.id));
+  assert.ok(linked(quake, news1) && linked(quake, news2), 'an English and a Spanish report of the quake');
+  assert.ok(!linked(quake, other), 'the same country, another subject');
+  assert.ok(!linked(quake, elsewhere), 'the same phenomenon, another country');
+  assert.equal(edges.find(edge => [edge.a, edge.b].includes(quake.id) && [edge.a, edge.b].includes(news1.id)).s, 0.6);
+}));
+
+test('linkers: where one phenomenon is observed all over a country, a report needs a distinctive shared word', t => withGraph(t, graph => {
+  const states = [['Texas', 31, -97], ['Montana', 47, -110], ['Florida', 28, -82], ['Ohio', 40, -83], ['Oregon', 44, -121], ['Maine', 45, -69]];
+  const warnings = states.map(([state, lat, lon]) => observation('weather', `Flash Flood Warning for ${state}, United States`, lat, lon, { host: 'noaa.example' }));
+  const generic = news('Floods hit the United States', { host: 'g.example' });
+  const texas = news('Texas floods force evacuations in the United States', { host: 'tx.example' });
+  const edges = build(graph, [...warnings, generic, texas]);
+  const touches = event => edges.filter(edge => edge.type === 'co-occurs' && [edge.a, edge.b].includes(event.id));
+  assert.equal(touches(generic).length, 0, 'six warnings across the country: "floods" and the country are not enough');
+  assert.deepEqual(touches(texas).map(edge => [edge.a, edge.b].find(id => id !== texas.id)), [warnings[0].id], 'the state name picks the Texas warning');
+  assert.equal(touches(texas)[0].s, 0.7);
+}));
+
+test('the risk step links a graph made by older rules again, once', t => withGraph(t, (graph, dir) => {
+  const quake = observation('earthquake', 'M4.7 PANAMA', 7.5, -80.5);
+  const report = news('Barbados embassy remains closed after Panama earthquake', { host: 'bb.example' });
+  graph.ingest(graphRecordsOf([quake, report]), { now: NOW });
+  graph.rules = 1;
+  assert.equal(graph.edges.size, 0);
+  const store = new EntityStore(dir, { now: () => NOW });
+  runRiskStep({ store, graph, snapshot: { events: [] }, raw: null, now: NOW, log: { warn() {}, error() {} } });
+  assert.equal(graph.edges.size, 1, 'the stored pair is linked by the new rule');
+  assert.equal(graph.rules, LINK_RULES_VERSION);
+  const reloaded = new GraphStore(dir, { now: () => NOW });
+  reloaded.load();
+  assert.equal(reloaded.rules, LINK_RULES_VERSION, 'the version is saved with the graph');
 }));
