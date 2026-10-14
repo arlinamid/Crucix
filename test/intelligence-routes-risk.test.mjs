@@ -117,8 +117,8 @@ test('the read-only routes over real HTTP: list, profile and predictions shapes;
 
   const profile = await (await fetch(`${url}/api/countries/JPN`)).json();
   assert.equal(profile.name, 'Japan');
-  assert.deepEqual(profile.components.map(item => item.key), ['events', 'persistence', 'diversity', 'attention', 'forecast', 'baseline', 'advisory', 'corroboration']);
-  assert.deepEqual(profile.components.find(item => item.key === 'attention'), { key: 'attention', value: null, weight: 0.08, available: false });
+  assert.deepEqual(profile.components.map(item => item.key), ['events', 'persistence', 'diversity', 'attention', 'forecast', 'baseline', 'advisory', 'corroboration', 'conflict']);
+  assert.deepEqual(profile.components.find(item => item.key === 'attention'), { key: 'attention', value: null, weight: 0.07, available: false });
   assert.equal(profile.series.recent.length, 1);
   assert.deepEqual([profile.forecast.run, profile.forecast.monthUsed, profile.forecast.months.length, profile.forecast.attribution], ['fatalities003_2026_08_t01', viewsMonthId(NOW), 3, 'Conflict forecasts: VIEWS']);
   assert.deepEqual([profile.baseline.score, profile.baseline.release], [2.4, 'INFORM Risk Mid 2026']);

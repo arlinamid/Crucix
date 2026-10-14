@@ -209,7 +209,7 @@ test('threatOf maps a level onto the 2-5 threat scale and falls back to 1', () =
 
 const LIVE_KEYS = ['hormuz_transits', 'bab_el_mandeb_transits', 'suez_transits', 'malacca_transits', 'bosporus_transits', 'panama_transits', 'gibraltar_transits', 'dover_transits',
   'hu_power_price', 'grid_frequency_hz', 'mil_aircraft_total'];
-const KEYS = ['vix', 'hy_spread', 't10y2y', 'wti', 'brent', 'natgas', 'gold', 'silver', 'y10', 'usd_index', 'mortgage', 'fed_funds', 'unemployment', 'btc', 'eth', 'eurhuf', ...LIVE_KEYS, 'urgent_posts', 'who_alerts', 'conflict_events', 'conflict_fatalities', 'sources_ok', 'sources_failed', 'sources_stale', 'risk_max_score', 'risk_countries_high'];
+const KEYS = ['vix', 'hy_spread', 't10y2y', 'wti', 'brent', 'natgas', 'gold', 'silver', 'y10', 'usd_index', 'mortgage', 'fed_funds', 'unemployment', 'btc', 'eth', 'eurhuf', ...LIVE_KEYS, 'urgent_posts', 'who_alerts', 'conflict_events', 'conflict_fatalities', 'sources_ok', 'sources_failed', 'sources_stale', 'risk_max_score', 'risk_countries_high', 'risk_conflict_escalating'];
 
 function snapshot() {
   return {
@@ -231,7 +231,7 @@ function snapshot() {
   };
 }
 
-test('METRICS describes the 36 metrics and METRIC_KEYS lists them in order', () => {
+test('METRICS describes the 37 metrics and METRIC_KEYS lists them in order', () => {
   assert.deepEqual(metrics.METRIC_KEYS, KEYS);
   assert.deepEqual(metrics.METRICS.map(metric => metric.key), KEYS);
   for (const metric of metrics.METRICS) {
@@ -241,7 +241,7 @@ test('METRICS describes the 36 metrics and METRIC_KEYS lists them in order', () 
     assert.ok(['number', 'count'].includes(metric.kind), metric.key);
     assert.equal(typeof metric.read, 'function', metric.key);
   }
-  assert.deepEqual(metrics.METRICS.filter(metric => metric.kind === 'count').map(metric => metric.key), ['urgent_posts', 'who_alerts', 'conflict_events', 'conflict_fatalities', 'sources_ok', 'sources_failed', 'sources_stale', 'risk_countries_high']);
+  assert.deepEqual(metrics.METRICS.filter(metric => metric.kind === 'count').map(metric => metric.key), ['urgent_posts', 'who_alerts', 'conflict_events', 'conflict_fatalities', 'sources_ok', 'sources_failed', 'sources_stale', 'risk_countries_high', 'risk_conflict_escalating']);
   assert.equal(new Set(KEYS).size, KEYS.length);
 });
 
@@ -251,7 +251,7 @@ test('the registry is frozen so callers cannot reshape it', () => {
   assert.ok(Object.isFrozen(metrics.METRIC_KEYS));
 });
 
-test('metricValues reads all 36 keys from a snapshot', () => {
+test('metricValues reads all 37 keys from a snapshot', () => {
   assert.deepEqual(metrics.metricValues(snapshot()), {
     vix: 15.95, hy_spread: 3.12, t10y2y: 0.46, wti: 89.17, brent: 99.22, natgas: 2.93, gold: 4213.5, silver: 61.45,
     y10: 5.29, usd_index: 120.33, mortgage: 7.28, fed_funds: 3.88, unemployment: 4.1,
@@ -260,7 +260,7 @@ test('metricValues reads all 36 keys from a snapshot', () => {
     hu_power_price: 172.6, grid_frequency_hz: 50.0307, mil_aircraft_total: 71,
     urgent_posts: 3, who_alerts: 1, conflict_events: 12, conflict_fatalities: 34,
     sources_ok: 32, sources_failed: 2, sources_stale: 1,
-    risk_max_score: null, risk_countries_high: null,
+    risk_max_score: null, risk_countries_high: null, risk_conflict_escalating: null,
   });
 });
 

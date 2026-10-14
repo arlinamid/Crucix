@@ -553,7 +553,8 @@
         "sources_failed": "Sources failed",
         "sources_stale": "Sources stale",
         "risk_max_score": "Highest country risk score",
-        "risk_countries_high": "Countries with a risk score of 70 or more"
+        "risk_countries_high": "Countries with a risk score of 70 or more",
+        "risk_conflict_escalating": "Countries with an escalating armed-conflict signal"
       },
       "current": "current",
       "operator": "Operator",
@@ -1261,7 +1262,14 @@
     "thermalSpike": "Spike",
     "thermalPersistent": "Persistent",
     "thermalElevated": "Elevated",
-    "thermalRow": "{count} detections, {frp} MW, usually {usual} a day · burning {hours} h"
+    "thermalRow": "{count} detections, {frp} MW, usually {usual} a day · burning {hours} h",
+    "conflictTitle": "Armed conflict",
+    "conflictHelp": "Distinct conflict stories in the reports of the last 24 hours (airstrikes, shelling, clashes, missiles …; a story carried by several outlets counts once), against the country’s own previous six days. Read from news titles, not an incident count.",
+    "conflictNotReady": "Escalation needs 7 days of observation ({days} so far); until then the list shows the intensity only.",
+    "conflictNone": "No conflict story in the last 24 hours.",
+    "conflictRow": "{stories} stories, usually {usual} · {sources} sources",
+    "conflictEscalating": "Escalating",
+    "conflictCasualties": "casualties reported"
   },
   "country": {
     "title": "Country sheet",
@@ -1326,6 +1334,7 @@
     "paletteHintNone": "Country sheet",
     "c_advisory": "Travel advisory (U.S.)",
     "c_corroboration": "Corroboration (story threads)",
+    "c_conflict": "Armed conflict (reports)",
     "advisory": "Travel advisory (U.S. State Department)",
     "advisoryNone": "No U.S. travel advisory for this country.",
     "advisoryLevel": "Level {level} of 4",
@@ -1368,6 +1377,8 @@
     "status_emerging": "Emerging",
     "status_active": "Active",
     "status_fading": "Fading",
+    "status_escalating": "Escalating",
+    "conflict": "Armed conflict",
     "meta": "{members} records · {sources} sources",
     "observations": "{count} observations",
     "sheet": "Story thread",

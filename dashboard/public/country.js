@@ -13,11 +13,11 @@
   // Close button and the backdrop close it too, and the focus goes back to where it was before the dialog opened.
   const ISO3=/^[A-Z]{3}$/,EVENT_ID=/^event-[0-9a-f]{32}$/,THREAD=/^thread-[a-f0-9]{16}$/;
   const ISO_TIME=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
-  const LEVELS=['critical','high','watch','info'],COMPONENTS=['events','persistence','diversity','attention','forecast','baseline','advisory','corroboration'];
+  const LEVELS=['critical','high','watch','info'],COMPONENTS=['events','persistence','diversity','attention','forecast','baseline','advisory','corroboration','conflict'];
   const COPY={title:'Country sheet',close:'Close',loading:'Loading the country sheet…',error:'Could not load the country sheet. Close and reopen it to try again.',notFound:'This country is not in the gazetteer.',
     noScore:'No risk score: no recorded event in the last 7 days and no forecast or baseline for this country.',score:'Risk score',outOf:'{score} of 100',change:'24 h change',coverage:'Coverage',
     updated:'Scored {time} · model v{version}',components:'Components',component:'Component',weight:'Weight',value:'Value (0–100)',status:'Data',available:'Available',missing:'Missing (left out)',
-    c_events:'Events (24 h)',c_persistence:'Persistence (7 days)',c_diversity:'Diversity of event types',c_attention:'News attention',c_forecast:'Conflict forecast (VIEWS)',c_baseline:'Baseline risk (INFORM)',c_advisory:'Travel advisory (U.S.)',c_corroboration:'Corroboration (story threads)',
+    c_events:'Events (24 h)',c_persistence:'Persistence (7 days)',c_diversity:'Diversity of event types',c_attention:'News attention',c_forecast:'Conflict forecast (VIEWS)',c_baseline:'Baseline risk (INFORM)',c_advisory:'Travel advisory (U.S.)',c_corroboration:'Corroboration (story threads)',c_conflict:'Armed conflict (reports)',
     trend:'Trend',trendDaily:'Daily score, last {count} days: {values}',trendRecent:'Score in the last 48 hours: {values}',trendNone:'Not enough history for a trend yet.',
     convergence:'Convergence',convergenceOn:'{count} event types at high or above within 24 hours: {kinds}.',convergenceOff:'No convergence: fewer than 3 event types at high or above within 24 hours.',
     forecast:'Conflict forecast (VIEWS)',forecastNone:'No VIEWS forecast for this country.',month:'Month',probability:'Chance of ≥ 25 battle deaths',fatalities:'Expected battle deaths',monthUsed:'used in the score',run:'Run {run}',

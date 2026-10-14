@@ -553,7 +553,8 @@
         "sources_failed": "Hibás források",
         "sources_stale": "Elavult források",
         "risk_max_score": "Legmagasabb országkockázati pontszám",
-        "risk_countries_high": "Legalább 70-es kockázati pontszámú országok"
+        "risk_countries_high": "Legalább 70-es kockázati pontszámú országok",
+        "risk_conflict_escalating": "Eszkalálódó fegyveres konfliktusjelű országok"
       },
       "current": "jelenleg",
       "operator": "Feltétel",
@@ -1261,7 +1262,14 @@
     "thermalSpike": "Kiugrás",
     "thermalPersistent": "Tartós",
     "thermalElevated": "Emelkedett",
-    "thermalRow": "{count} észlelés, {frp} MW, szokásosan napi {usual} · {hours} órája ég"
+    "thermalRow": "{count} észlelés, {frp} MW, szokásosan napi {usual} · {hours} órája ég",
+    "conflictTitle": "Fegyveres konfliktus",
+    "conflictHelp": "Különböző konfliktustörténetek az elmúlt 24 óra híreiben (légicsapás, tüzérség, összecsapás, rakéta …; a több forrás által hozott történet egyszer számít), az ország saját előző hat napjához mérve. Hírcímekből olvasott jel, nem incidensszám.",
+    "conflictNotReady": "Az eszkalációhoz 7 nap megfigyelés kell (eddig {days}); addig a lista csak az intenzitást mutatja.",
+    "conflictNone": "Az elmúlt 24 órában nincs konfliktustörténet.",
+    "conflictRow": "{stories} történet, általában {usual} · {sources} forrás",
+    "conflictEscalating": "Eszkalálódik",
+    "conflictCasualties": "áldozatokról szóló hírek"
   },
   "country": {
     "title": "Országlap",
@@ -1326,6 +1334,7 @@
     "paletteHintNone": "Országlap",
     "c_advisory": "Utazási figyelmeztetés (USA)",
     "c_corroboration": "Megerősítettség (történetszálak)",
+    "c_conflict": "Fegyveres konfliktus (hírek)",
     "advisory": "Utazási figyelmeztetés (USA külügyminisztérium)",
     "advisoryNone": "Ehhez az országhoz nincs amerikai utazási figyelmeztetés.",
     "advisoryLevel": "{level}. szint a 4-ből",
@@ -1368,6 +1377,8 @@
     "status_emerging": "Kialakuló",
     "status_active": "Aktív",
     "status_fading": "Lecsengő",
+    "status_escalating": "Eszkalálódó",
+    "conflict": "Fegyveres konfliktus",
     "meta": "{members} rekord · {sources} forrás",
     "observations": "{count} megfigyelés",
     "sheet": "Történetszál",

@@ -36,6 +36,9 @@
     timelineTitle:'Threat timeline',timelineHelp:'Located events by UTC day for the last seven days and threat level (today is a partial day). The trend compares critical plus high events of the last three complete days with the three before.',
     timelineNotReady:'Collecting history: {days} of 3 days needed for a trend.',timelineTrend_worsening:'Trend: worsening',timelineTrend_easing:'Trend: easing',timelineTrend_steady:'Trend: steady',
     timelineRow:'{total} events · {critical} critical · {high} high · {watch} watch',
+    conflictTitle:'Armed conflict',conflictHelp:'Distinct conflict stories in the reports of the last 24 hours (airstrikes, shelling, clashes, missiles …; a story carried by several outlets counts once), against the country’s own previous six days. Read from news titles, not an incident count.',
+    conflictNotReady:'Escalation needs 7 days of observation ({days} so far); until then the list shows the intensity only.',conflictNone:'No conflict story in the last 24 hours.',
+    conflictRow:'{stories} stories, usually {usual} · {sources} sources',conflictEscalating:'Escalating',conflictCasualties:'casualties reported',
     thermalTitle:'Thermal escalation',thermalHelp:'Satellite heat detections above 10 MW (NASA FIRMS, strongest 300 per region) grouped within 20 km and compared with the same 0.5° cell’s own previous days. Heat, not a cause: a prompt to look.',
     thermalNotReady:'Collecting a baseline: {days} of about 5 days of detections needed.',thermalNone:'No heat cluster stands out against its cell’s usual activity.',thermalSpike:'Spike',thermalPersistent:'Persistent',thermalElevated:'Elevated',
     thermalRow:'{count} detections, {frp} MW, usually {usual} a day · burning {hours} h',
@@ -97,6 +100,15 @@
         site:typeof item.site==='string'?item.site.slice(0,80):''}));
     return {ready:value.ready===true,observedDays:Number.isSafeInteger(value.observedDays)?value.observedDays:0,items};
   }
+  // Armed conflict in the reports (2.42; absent in older sweeps and without the graph): every field checked and cut.
+  function readConflict(value){
+    if(!isObject(value))return null;
+    const num=entry=>typeof entry==='number'&&Number.isFinite(entry);
+    const items=(Array.isArray(value.top)?value.top:[]).filter(item=>isObject(item)&&typeof item.iso3==='string'&&ISO3.test(item.iso3)&&Number.isSafeInteger(item.stories)&&item.stories>0&&num(item.value))
+      .slice(0,8).map(item=>({iso3:item.iso3,name:shownName(item),stories:item.stories,usual:num(item.usual)?item.usual:0,sources:Number.isSafeInteger(item.sources)?item.sources:0,
+        casualties:item.casualties===true,escalation:num(item.escalation)?item.escalation:null,value:item.value}));
+    return {ready:value.ready===true,observedDays:Number.isSafeInteger(value.observedDays)?value.observedDays:0,items};
+  }
   // The seven-day threat timeline of the summary (2.36; absent in older sweeps): every field checked and cut.
   const TL_LEVELS=['critical','high','watch','info'],TL_TRENDS=['worsening','easing','steady'];
   function readTimeline(value){
@@ -115,7 +127,7 @@
     if(!isObject(risk))return null;
     const top=Array.isArray(risk.top)?risk.top.filter(item=>isObject(item)&&typeof item.iso3==='string'&&ISO3.test(item.iso3)&&typeof item.score==='number'&&Number.isFinite(item.score)).slice(0,TOP).map(row):[];
     const counts=isObject(risk.counts)?risk.counts:{},count=value=>Number.isSafeInteger(value)&&value>=0?value:null;
-    return {version:Number.isSafeInteger(risk.version)?risk.version:null,top,scored:count(counts.scored),high:count(counts.high),calibration:isObject(risk.calibration)?risk.calibration:null,spikes:readSpikes(risk.spikes),anomalies:readAnomalies(risk.anomalies),thermal:readThermal(risk.thermal),timeline:readTimeline(risk.timeline)};
+    return {version:Number.isSafeInteger(risk.version)?risk.version:null,top,scored:count(counts.scored),high:count(counts.high),calibration:isObject(risk.calibration)?risk.calibration:null,spikes:readSpikes(risk.spikes),anomalies:readAnomalies(risk.anomalies),conflict:readConflict(risk.conflict),thermal:readThermal(risk.thermal),timeline:readTimeline(risk.timeline)};
   }
 
   // ===== Markup =====
@@ -157,6 +169,19 @@
     }).join('');
     return `<section class="rk-track rk-signals" aria-labelledby="countryRiskAnomalies"><h4 id="countryRiskAnomalies">${esc(say('anomaliesTitle'))}</h4><p class="rk-help">${esc(say('anomaliesHelp'))}</p>${rows?`<ul class="rk-list">${rows}</ul>`:`<p class="rk-calm" data-risk-state="none">${esc(say('anomaliesNone'))}</p>`}</section>`;
   }
+  // Armed conflict: distinct conflict stories of the last 24 hours per country, against its own previous six days (escalation after 7 days).
+  function conflict(value,off){
+    if(value===null)return '';
+    const rows=value.items.map(item=>{
+      const escalating=item.escalation!==null&&item.escalation>=50;
+      const level=escalating?'critical':item.value>=60?'high':'moderate';
+      const text=say('conflictRow',{stories:item.stories,usual:number(item.usual,1),sources:item.sources})+(item.casualties?' · '+say('conflictCasualties'):'');
+      const inner=`<span class="rk-name">${esc(item.name)}</span><span class="rk-an" data-level="${level}">${escalating?`<i aria-hidden="true">▲</i> ${esc(say('conflictEscalating'))}: `:''}${esc(text)}</span>`;
+      return `<li class="rk-item">${dialogs()||off?`<button type="button" class="rk-row" data-risk-country="${item.iso3}"${off?' aria-disabled="true" aria-describedby="countryRiskReplay"':''}>${inner}</button>`:`<div class="rk-row">${inner}</div>`}</li>`;
+    }).join('');
+    const note=value.ready?'':`<p class="rk-calm" data-risk-state="notReady">${esc(say('conflictNotReady',{days:value.observedDays}))}</p>`;
+    return `<section class="rk-track rk-signals" aria-labelledby="countryRiskConflict"><h4 id="countryRiskConflict">${esc(say('conflictTitle'))}</h4><p class="rk-help">${esc(say('conflictHelp'))}</p>${note}${rows?`<ul class="rk-list">${rows}</ul>`:`<p class="rk-calm" data-risk-state="none">${esc(say('conflictNone'))}</p>`}</section>`;
+  }
   // Trending terms: words in many more headlines than usual in the last two hours, from at least two sources.
   function spikes(value){
     if(value===null)return '';
@@ -197,7 +222,7 @@
     else{
       const summary=data.scored!==null&&data.high!==null?`<p class="rk-sum">${esc(say('summary',{scored:data.scored,high:data.high}))}</p>`:'';
       const list=data.top.length?`<ol class="rk-list" aria-label="${esc(say('rankLabel'))}">${data.top.map((item,index)=>rowHtml(item,index,replay)).join('')}</ol>`:`<p class="rk-calm" data-risk-state="empty">${esc(say('empty'))}</p>`;
-      main=`<p class="rk-intro">${esc(say('intro'))}</p>${summary}${list}${anomalies(data.anomalies,replay)}${timeline(data.timeline)}${spikes(data.spikes)}${thermal(data.thermal)}${track(data.calibration)}`;
+      main=`<p class="rk-intro">${esc(say('intro'))}</p>${summary}${list}${conflict(data.conflict,replay)}${anomalies(data.anomalies,replay)}${timeline(data.timeline)}${spikes(data.spikes)}${thermal(data.thermal)}${track(data.calibration)}`;
     }
     return `<div class="g-panel risk-panel" id="countryRiskPanel" role="region" aria-labelledby="countryRiskTitle"${replay?' data-replay="true"':''}>${head}${note}${main}</div>`;
   }

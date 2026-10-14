@@ -553,7 +553,8 @@
         "sources_failed": "Sources en échec",
         "sources_stale": "Sources périmées",
         "risk_max_score": "Score de risque pays le plus élevé",
-        "risk_countries_high": "Pays avec un score de risque d’au moins 70"
+        "risk_countries_high": "Pays avec un score de risque d’au moins 70",
+        "risk_conflict_escalating": "Pays avec un signal de conflit armé en escalade"
       },
       "current": "actuel",
       "operator": "Opérateur",
@@ -1261,7 +1262,14 @@
     "thermalSpike": "Pic",
     "thermalPersistent": "Persistant",
     "thermalElevated": "Élevé",
-    "thermalRow": "{count} détections, {frp} MW, habituellement {usual} par jour · brûle depuis {hours} h"
+    "thermalRow": "{count} détections, {frp} MW, habituellement {usual} par jour · brûle depuis {hours} h",
+    "conflictTitle": "Conflit armé",
+    "conflictHelp": "Histoires de conflit distinctes dans les articles des dernières 24 heures (frappes aériennes, bombardements, affrontements, missiles … ; une histoire reprise par plusieurs sources compte une fois), comparées aux six jours précédents du pays. Lu dans les titres, pas un décompte d’incidents.",
+    "conflictNotReady": "L’escalade demande 7 jours d’observation ({days} pour l’instant) ; d’ici là la liste montre seulement l’intensité.",
+    "conflictNone": "Aucune histoire de conflit ces dernières 24 heures.",
+    "conflictRow": "{stories} histoires, d’habitude {usual} · {sources} sources",
+    "conflictEscalating": "En escalade",
+    "conflictCasualties": "victimes signalées"
   },
   "country": {
     "title": "Fiche pays",
@@ -1326,6 +1334,7 @@
     "paletteHintNone": "Fiche pays",
     "c_advisory": "Avis aux voyageurs (É.-U.)",
     "c_corroboration": "Corroboration (fils d’actualité)",
+    "c_conflict": "Conflit armé (articles)",
     "advisory": "Avis aux voyageurs (département d’État américain)",
     "advisoryNone": "Aucun avis américain aux voyageurs pour ce pays.",
     "advisoryLevel": "Niveau {level} sur 4",
@@ -1368,6 +1377,8 @@
     "status_emerging": "Émergent",
     "status_active": "Actif",
     "status_fading": "En déclin",
+    "status_escalating": "En escalade",
+    "conflict": "Conflit armé",
     "meta": "{members} enregistrements · {sources} sources",
     "observations": "{count} observations",
     "sheet": "Fil d’actualité",

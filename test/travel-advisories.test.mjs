@@ -63,8 +63,8 @@ test('travel advisories: an old feed is stale, a reshaped one an error, and the 
   assert.equal((await briefing(opts(20 * DAY))).status, 'error');
 });
 
-test('risk v3: the advisory component maps level 1-4 to 0/25/60/100, is missing without an entry, and enters the weights', () => {
-  assert.equal(RISK_MODEL_VERSION, 3);
+test('risk v4: the advisory component maps level 1-4 to 0/25/60/100, is missing without an entry, and enters the weights', () => {
+  assert.equal(RISK_MODEL_VERSION, 4);
   const dir = mkdtempSync(join(tmpdir(), 'crucix-adv-'));
   try {
     const store = new EntityStore(dir, { now: () => NOW });
@@ -73,9 +73,9 @@ test('risk v3: the advisory component maps level 1-4 to 0/25/60/100, is missing 
     const value = iso3 => scores.find(row => row.iso3 === iso3)?.components.advisory.value;
     assert.deepEqual(['HUN', 'MEX', 'SAU', 'UKR'].map(value), [0, 25, 60, 100]);
     assert.equal(value('JPN'), null, 'an invalid level is a missing component, not a value');
-    assert.equal(scores.find(row => row.iso3 === 'UKR').components.advisory.weight, 0.12);
-    assert.equal(scores.find(row => row.iso3 === 'UKR').coverage, 0.63, 'events, persistence and diversity are always present (0.51) plus the advisory');
-    assert.equal(scores.find(row => row.iso3 === 'UKR').score, Math.round(12 / 0.63));
+    assert.equal(scores.find(row => row.iso3 === 'UKR').components.advisory.weight, 0.11);
+    assert.equal(scores.find(row => row.iso3 === 'UKR').coverage, 0.58, 'events, persistence and diversity are always present (0.47) plus the advisory');
+    assert.equal(scores.find(row => row.iso3 === 'UKR').score, Math.round(11 / 0.58));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

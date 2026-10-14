@@ -13,7 +13,8 @@ button.th-row:focus-visible{outline:2px solid var(--accent,#64f0c8);outline-offs
 .th-tags{display:flex;flex-wrap:wrap;gap:4px}
 .th-tag{padding:0 6px;border:1px solid var(--border,rgba(255,255,255,.12));border-radius:9px;font-family:var(--mono,monospace);font-size:9px;color:var(--dim,#8aa0a8)}
 .th-status{align-self:flex-start;font-family:var(--mono,monospace);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim,#8aa0a8)}
-.th-status[data-status="emerging"]{color:var(--warn,#ffb84c)}.th-status[data-status="active"]{color:var(--accent,#64f0c8)}
+.th-status[data-status="emerging"]{color:var(--warn,#ffb84c)}.th-status[data-status="escalating"]{color:var(--danger,#ff5f63);font-weight:700}.th-status[data-status="active"]{color:var(--accent,#64f0c8)}
+.th-conflict{color:var(--danger,#ff5f63)}
 .th-type{font-family:var(--mono,monospace);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim,#8aa0a8)}
 @media(max-width:700px){button.th-row{min-height:44px;padding:8px 4px 8px 8px}}
 @media(forced-colors:active){button.th-row:focus-visible{outline-color:Highlight}.th-row{border-left-color:CanvasText}}

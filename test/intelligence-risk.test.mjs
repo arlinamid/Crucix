@@ -111,10 +111,10 @@ test('risk: missing components renormalise, convergence needs three kinds at hig
   const scores = scoreCountries({ store, now: NOW });
   const japan = scores.find(row => row.iso3 === 'JPN');
   const hungary = scores.find(row => row.iso3 === 'HUN');
-  for (const name of ['attention', 'forecast', 'baseline', 'advisory', 'corroboration']) assert.equal(japan.components[name].value, null, `${name} is missing, not zero`);
-  assert.equal(japan.coverage, 0.51);
+  for (const name of ['attention', 'forecast', 'baseline', 'advisory', 'corroboration', 'conflict']) assert.equal(japan.components[name].value, null, `${name} is missing, not zero`);
+  assert.equal(japan.coverage, 0.47);
   const { events, persistence, diversity } = japan.components;
-  assert.equal(japan.score, Math.round((events.value * 0.27 + persistence.value * 0.12 + diversity.value * 0.12) / 0.51));
+  assert.equal(japan.score, Math.round((events.value * 0.25 + persistence.value * 0.11 + diversity.value * 0.11) / 0.47));
   assert.deepEqual(japan.convergence, { active: true, kinds: ['conflict', 'earthquake', 'weather'] }, 'the 30-hour-old outage is outside 24 hours');
   assert.deepEqual(hungary.convergence, { active: false, kinds: ['earthquake', 'weather'] }, 'watch-level and non-physical kinds do not count');
   assert.equal(japan.change24h, null);
@@ -122,7 +122,7 @@ test('risk: missing components renormalise, convergence needs three kinds at hig
 
   const full = scoreCountries({ store, forecasts: { JPN: [{ month_id: 562, main_dich: 0.5 }] }, baselines: { JPN: 4 }, now: NOW });
   const japanFull = full.find(row => row.iso3 === 'JPN');
-  assert.equal(japanFull.coverage, 0.72);
+  assert.equal(japanFull.coverage, 0.66);
   assert.equal(japanFull.components.forecast.value, 50);
   assert.equal(japanFull.components.baseline.value, 40);
 
