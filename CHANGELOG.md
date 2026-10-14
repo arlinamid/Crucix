@@ -1,5 +1,6 @@
 # Changelog / Változásnapló
 
+- [2.42.0 — Fegyveres konfliktus és eszkaláció / Armed conflict and escalation](docs/releases/v2.42.0.md) — 2026-10-14
 - [2.41.0 — Entitásgráf és történetszálak / Entity graph and story threads](docs/releases/v2.41.0.md) — 2026-10-14
 - [2.40.0 — CLI sweep/collector, ACLED-javítás és maszkolt kulcsok / CLI sweep and collector, ACLED fix and masked keys](docs/releases/v2.40.0.md) — 2026-10-13
 - [2.39.5 — Linux lock-teszt és Release artifact checkout / Linux lock test and Release artifact checkout](docs/releases/v2.39.5.md) — 2026-10-11
