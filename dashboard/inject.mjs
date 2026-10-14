@@ -339,6 +339,25 @@ export function airAlertsOf(alerts) {
     }));
 }
 
+const NOTABLE_KINDS = new Set(['squawk', 'military', 'high', 'nocallsign']);
+const MAX_AIR_NOTABLE = 500;
+const MAX_AIR_FLOWS = 80;
+const clip = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+// Aircraft with a marker of their own (apis/sources/opensky.mjs notable).
+export function airNotableOf(rows) {
+  return (Array.isArray(rows) ? rows : []).filter(row => row && finite(row.lat) && finite(row.lon) && NOTABLE_KINDS.has(row.kind)).slice(0, MAX_AIR_NOTABLE)
+    .map(row => ({ icao24: clip(row.icao24, 6), callsign: clip(row.callsign, 8), country: clip(row.country, 60), lat: row.lat, lon: row.lon,
+      altitude: finite(row.altitude) ? row.altitude : null, speed: finite(row.speed) ? row.speed : null, track: finite(row.track) ? row.track : null,
+      squawk: clip(row.squawk, 4), kind: row.kind }));
+}
+// The route arcs: the busiest origin -> destination airport pairs; an airport is [code, lat, lon, iso2].
+const airportRow = a => Array.isArray(a) && /^[A-Z0-9]{3,4}$/.test(a[0]) && finite(a[1]) && finite(a[2]) && Math.abs(a[1]) <= 90 && Math.abs(a[2]) <= 180
+  ? [a[0], a[1], a[2], typeof a[3] === 'string' && /^[A-Z]{2}$/.test(a[3]) ? a[3] : null] : null;
+export function airFlowsOf(rows) {
+  return (Array.isArray(rows) ? rows : []).map(row => ({ from: airportRow(row?.from), to: airportRow(row?.to), count: row?.count }))
+    .filter(row => row.from && row.to && Number.isSafeInteger(row.count) && row.count > 0).slice(0, MAX_AIR_FLOWS);
+}
+
 export function loadOpenSkyFallback(currentTimestamp, runsDir = config.runsDir || join(ROOT, 'runs'), ttlMs = 3600000) {
   if (!existsSync(runsDir)) return null;
 
@@ -360,8 +379,8 @@ export function loadOpenSkyFallback(currentTimestamp, runsDir = config.runsDir |
 
       const hotspots = prior.sources?.OpenSky?.hotspots || [];
       if (!prior.sources?.OpenSky?.error && sumAirHotspots(hotspots) > 0) {
-        const { grid, alerts, airborne } = prior.sources.OpenSky;
-        candidates.push({ file, timestamp: priorTimestamp, hotspots, grid, alerts, airborne, ageMs: currentMs - priorMs });
+        const { grid, alerts, airborne, notable, flows } = prior.sources.OpenSky;
+        candidates.push({ file, timestamp: priorTimestamp, hotspots, grid, alerts, airborne, notable, flows, ageMs: currentMs - priorMs });
       }
     } catch {
       // Ignore unreadable historical runs and continue searching backward.
@@ -529,6 +548,8 @@ export async function synthesize(data, options = {}) {
   const airRound = airFallback || data.sources.OpenSky || {};
   const airGrid = airGridOf(airRound.grid);
   const airAlerts = airAlertsOf(airRound.alerts);
+  const airNotable = airNotableOf(airRound.notable);
+  const airFlows = airFlowsOf(airRound.flows);
   const thermal = (data.sources.FIRMS?.hotspots || []).map(h => ({
     region: h.region, det: h.totalDetections || 0, night: h.nightDetections || 0,
     hc: h.highConfidence || 0,
@@ -859,13 +880,15 @@ export async function synthesize(data, options = {}) {
   const topicNews = options.news ? [] : topicHeadlines();
 
   const V2 = {
-    meta: data.crucix, air, airGrid, airAlerts, thermal, tSignals, chokepoints, aisVessels, nuke, nukeSignals, liveSources, cyclones,
+    meta: data.crucix, air, airGrid, airAlerts, airNotable, airFlows, thermal, tSignals, chokepoints, aisVessels, nuke, nukeSignals, liveSources, cyclones,
     airMeta: {
       fallback: Boolean(airFallback),
       liveTotal: sumAirHotspots(liveAirHotspots),
       gridDegrees: 2,
       // Every airborne aircraft OpenSky saw worldwide (null for a pre-2.45 round of ten boxes).
       airborne: finite(airRound.airborne) ? airRound.airborne : null,
+      // Airline flights with a known route of all airline flights (the arcs are drawn from these).
+      ...(airRound.routes && finite(airRound.routes.known) && finite(airRound.routes.airline) ? { routes: { known: airRound.routes.known, airline: airRound.routes.airline } } : {}),
       timestamp: airFallback?.timestamp || data.sources.OpenSky?.timestamp || data.crucix?.timestamp || null,
       source: airFallback ? 'OpenSky fallback' : 'OpenSky',
       ...(airFallback ? { fallbackFile: airFallback.file } : {}),

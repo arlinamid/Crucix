@@ -28,6 +28,7 @@
 <script src="live-sources.js"></script>
 <script src="pivots.js"></script>
 <script src="infrastructure.js"></script>
+<script src="air-layer.js"></script>
 <script src="credits.js"></script>
 <script src="record-inspector.js"></script>
 <script src="alerts-core.js"></script>
@@ -36,6 +37,7 @@
 <script src="palette-core.js"></script>
 <script src="palette.js"></script>
 <link rel="stylesheet" href="live-sources.css">
+<link rel="stylesheet" href="air-layer.css">
 <link rel="stylesheet" href="record-inspector.css">
 <link rel="stylesheet" href="alerts.css">
 <link rel="stylesheet" href="replay.css">
@@ -170,6 +172,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .map-ctrl-btn:hover{color:var(--accent);border-color:var(--border-bright);background:rgba(100,240,200,0.06)}
 .map-ctrl-btn.map-toggle{font-size:14px}
 .map-ctrl-btn.off{opacity:0.4}
+#flatMapSvg .corridors-layer path{vector-effect:non-scaling-stroke}
 /* Map popup */
 .credits-panel{position:absolute;top:8px;right:52px;z-index:25;width:min(440px,calc(100% - 70px));max-height:calc(100% - 16px);overflow:auto;padding:12px 14px;background:rgba(6,10,14,0.96);border:1px solid rgba(100,240,200,0.25);box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:var(--mono);font-size:10px;color:var(--dim);line-height:1.5}
 .credits-panel[hidden]{display:none}
@@ -512,6 +515,7 @@ body.low-perf .ticker-wrap::-webkit-scrollbar-thumb{background:rgba(100,240,200,
             <button class="map-ctrl-btn" onclick="mapZoom(1.5)" title="Zoom in" data-tip="popup.zoomIn">+</button>
             <button class="map-ctrl-btn" onclick="mapZoom(0.67)" title="Zoom out" data-tip="popup.zoomOut">&minus;</button>
             <button class="map-ctrl-btn map-toggle" id="flightToggle" onclick="toggleFlights()" title="Toggle flight routes" data-tip="popup.toggleFlights">&#9992;</button>
+            <button class="map-ctrl-btn map-toggle off" id="airAllToggle" onclick="toggleAirAll()" title="Every aircraft instead of groups" data-tip="popup.airAll" aria-pressed="false">&#8943;</button>
             <button class="map-ctrl-btn" id="creditsToggle" onclick="toggleCredits()" title="Data credits" aria-haspopup="dialog" aria-expanded="false">&copy;</button>
             <button class="map-ctrl-btn map-toggle off" id="basemapToggle" onclick="toggleBasemap()" title="Daily satellite image on the globe" aria-pressed="false">&#9788;</button>
           </div>
@@ -1242,7 +1246,7 @@ function buildSensorGridPanel(){
   // Air: airborne aircraft worldwide (or in the chosen region's cells); a pre-2.45 sweep only has the ten theatre boxes.
   const airCells=airInScope(airGrid());
   const totalAir=airGrid().length?airCells.reduce((s,c)=>s+c.count,0):D.air.reduce((s,a)=>s+a.total,0);
-  const airSub=airGrid().length?tFill('air.gridSub','{cells} cells · {alerts} squawk alerts',{cells:airCells.length,alerts:airInScope(airAlerts()).length}):`${D.air.length} ${t('layers.theaters','theaters')}`;
+  const airSub=airGrid().length?tFill('air.notableSub','{notable} notable · {alerts} squawk alerts',{notable:airInScope(airNotable()).filter(a=>a.kind!=='nocallsign').length,alerts:airInScope(airAlerts()).length}):`${D.air.length} ${t('layers.theaters','theaters')}`;
   const totalThermal=D.thermal.reduce((s,t)=>s+t.det,0);
   const totalNight=D.thermal.reduce((s,t)=>s+t.night,0);
   // Under a lens the news count is of the lens's topics (newsInLens), like the map.
@@ -1847,7 +1851,7 @@ function initGlobe(){
     .pointRadius(d => d.size || 0.3)
     .pointColor(d => d.color)
     .pointLabel(d => `<b>${esc(d.popHead)}</b><br><span style="opacity:0.7">${esc(d.popMeta)}</span>`)
-    .onPointClick((pt, ev) => { if(pt.cluster)CrucixIntelligence.openCluster(pt.cluster);else showPopup(ev, pt.popHead, pt.popText, pt.popMeta, pt.lat, pt.lng, pt.alt, pt.noEvent); })
+    .onPointClick((pt, ev) => { if(pt.airGroup)openAirGroup(pt.airGroup,ev);else if(pt.cluster)CrucixIntelligence.openCluster(pt.cluster);else showPopup(ev, pt.popHead, pt.popText, pt.popMeta, pt.lat, pt.lng, pt.alt, pt.noEvent); })
     .onPointHover(pt => { document.getElementById('globeViz').style.cursor = pt ? 'pointer' : 'grab'; })
     // Arcs layer (flight corridors)
     .arcColor(d => d.color)
@@ -1857,11 +1861,6 @@ function initGlobe(){
     .arcDashAnimateTime(2000)
     .arcAltitudeAutoScale(0.3)
     .arcLabel(d => esc(d.label))
-    // Hexbin layer (the global air density grid, airHexData): height and colour by the aircraft in the hex
-    .hexBinPointLat(d=>d.lat).hexBinPointLng(d=>d.lon).hexBinPointWeight(d=>d.count).hexBinResolution(2).hexMargin(0.18)
-    .hexAltitude(d=>airHexAltitude(d.sumWeight)).hexTopColor(d=>airHexColor(d.sumWeight,1)).hexSideColor(d=>airHexColor(d.sumWeight,0.45))
-    .hexLabel(d=>airHexLabel(d)).hexTransitionDuration(0)
-    .onHexClick((hex,ev)=>{const c=airHexCell(hex);showPopup(ev,airCellHead(c),airCellText(c),tFill('layers.airActivity','Air Activity'),c.lat,c.lon,airHexAltitude(hex.sumWeight))})
     // Paths layer (static pipelines, see infrastructure.js)
     .pathPoints('pts').pathPointLat(pt=>pt[0]).pathPointLng(pt=>pt[1]).pathPointAlt(0.004).pathColor(d=>d.color).pathStroke(d=>d.stroke||0.25)
     .pathLabel(d=>'<b>'+esc(d.popHead)+'</b><br><span style="opacity:0.7">'+esc(d.popMeta)+'</span>').pathTransitionDuration(0)
@@ -2042,36 +2041,39 @@ function tFill(path,fallback,values={}){
 // A WHO / ReliefWeb severity word for a popup, like the health panels show it.
 function severityWord(value){return t('intelligence.severity_'+(value||'monitor'),value||'monitor').toUpperCase()}
 
-// === Global air traffic (dashboard/inject.mjs airGrid, airAlerts: one OpenSky state vector per round) ===
-// The grid: airborne aircraft per 2° cell (lat/lon is the cell centre), the busiest 1,500 cells. A sweep from before 2.45 has none.
+// === Global air traffic (dashboard/inject.mjs airGrid, airNotable, airFlows; GET /api/air; air-layer.js) ===
+// Grouped by default: the 2° density cells merged into groups with their aircraft count (a click opens the group's mini map with every
+// aircraft in it); the notable aircraft (emergency squawk, military-pattern callsign, very high, no callsign) as plane markers; the
+// busiest origin -> destination airport pairs as arcs. The ⋯ switch shows every aircraft as a dot instead of the groups.
 const airGrid=()=>Array.isArray(D.airGrid)?D.airGrid:[];
 const airAlerts=()=>Array.isArray(D.airAlerts)?D.airAlerts:[];
-const airPeak=()=>airGrid().reduce((max,c)=>Math.max(max,c.count),1);
-// Colour and height on a log scale, so a busy European cell does not flatten the rest of the world.
-const airShare=count=>Math.min(1,Math.log1p(Math.max(0,count))/Math.log1p(airPeak()));
-function airHexColor(count,alpha){const k=airShare(count);return `rgba(${Math.round(60+160*k)},${Math.round(200+40*k)},${Math.round(190-40*k)},${((0.25+0.6*k)*alpha).toFixed(3)})`}
-// Kept under the other markers (their altitude is 0.01 and up), so a busy hex never hides a fire or a conflict point.
-const airHexAltitude=count=>0.001+0.007*airShare(count);
-// A globe hex merges the cells inside it: their sum, the busiest countries over them.
-function airHexCell(hex){
-  const cells=hex.points||[],countries={};let noCallsign=0,highAlt=0;
-  for(const c of cells){noCallsign+=c.noCallsign||0;highAlt+=c.highAlt||0;for(const [name,n] of c.top||[])countries[name]=(countries[name]||0)+n}
-  return {lat:hex.center?.lat??cells[0]?.lat,lon:hex.center?.lng??cells[0]?.lon,count:hex.sumWeight||0,noCallsign,highAlt,top:Object.entries(countries).sort((a,b)=>b[1]-a[1]).slice(0,3),approx:true};
-}
+const airNotable=()=>Array.isArray(D.airNotable)?D.airNotable:[];
+const airFlows=()=>Array.isArray(D.airFlows)?D.airFlows:[];
+let airAllMode=readPreference('crucix_air_all')==='true';
+// The aircraft list (GET /api/air) exists on the live server only: not in a saved page, the offline shell or a replayed sweep.
+const airListAvailable=()=>location.protocol!=='file:'&&!window.__CRUCIX_OFFLINE_SHELL__&&!window.CrucixReplay?.active?.();
+function syncAirAllButton(){const button=document.getElementById('airAllToggle');if(button){button.classList.toggle('off',!airAllMode);button.setAttribute('aria-pressed',String(airAllMode))}}
+syncAirAllButton();
+const AIR_KIND_COLOR={squawk:'rgba(255,72,72,0.95)',military:'rgba(255,184,76,0.95)',high:'rgba(224,176,255,0.9)',nocallsign:'rgba(255,224,130,0.85)'};
 const coord=(v,pos,neg)=>Math.abs(Math.round(v))+'°'+(v>=0?pos:neg);
-function airCellHead(c){return tFill('air.cellHead','Air traffic · {lat} {lon}',{lat:coord(c.lat,'N','S'),lon:coord(c.lon,'E','W')})}
-function airCellText(c){
-  return `${tFill('popup.aircraft','{count} aircraft',{count:c.count})}<br>${tFill('popup.noCallsign','No callsign')}: ${c.noCallsign}<br>${tFill('popup.highAlt','High alt')}: ${c.highAlt}`
-    +(c.top.length?`<br>${tFill('popup.top','Top')}: ${c.top.map(r=>esc(r[0])+' ('+r[1]+')').join(', ')}`:'')
-    +`<br><br>${esc(t('air.cellNote','Airborne aircraft with a position, by registration country (OpenSky).'))}`;
+const airPlace=g=>coord(g.lat,'N','S')+' '+coord(g.lon,'E','W');
+// A notable aircraft's popup (air-layer.js describe; the popup renders text).
+function airPopup(ev,a,lat,lng){const d=CrucixAir.describe(a,t);showPopup(ev,d.head,d.lines.map(esc).join('<br>'),tFill('layers.airActivity','Air Activity'),lat,lng)}
+// A group's mini map: the aircraft inside it from GET /api/air (live server only), else the group's summary as a popup.
+function openAirGroup(group,ev){
+  closePopup();
+  const container=document.getElementById('mapContainer'),rect=container.getBoundingClientRect();
+  const x=(ev?.clientX??rect.left+rect.width/2)-rect.left,y=(ev?.clientY??rect.top+rect.height/2)-rect.top;
+  const title=tFill('air.groupHead','Air traffic · {place}',{place:airPlace(group)});
+  const kinds=Object.entries(group.kinds||{}).map(([kind,n])=>t('air.kindShort_'+kind,kind)+' '+n).join(' · ');
+  const summary=tFill('popup.aircraft','{count} aircraft',{count:group.count.toLocaleString()})+(group.top.length?' · '+group.top.map(r=>r[0]).join(', '):'')+(kinds?' · '+kinds:'');
+  const panel=CrucixAir.openMiniMap({container,x,y,title,subtitle:summary,bounds:group.bounds,rows:null,world:window.__CRUCIX_WORLD_GEOMETRY__||null,t});
+  if(!airListAvailable()){panel.fill([]);panel.querySelector('.air-mini-info').textContent=t('air.listUnavailable','The aircraft list comes from the live server; this view has the group summary only.');return}
+  CrucixAir.aircraft(fetchJsonNoStore,D.airMeta?.timestamp||'').then(list=>{if(panel.isConnected)panel.fill(CrucixAir.rowsIn(list.rows,group.bounds))})
+    .catch(()=>{if(panel.isConnected){panel.fill([]);panel.querySelector('.air-mini-info').textContent=t('air.listUnavailable','The aircraft list comes from the live server; this view has the group summary only.')}});
 }
-function airHexLabel(hex){const c=airHexCell(hex);return `<b>${esc(airCellHead(c))}</b><br><span style="opacity:0.7">${esc(tFill('popup.aircraft','{count} aircraft',{count:c.count}))}</span>`}
-// Squawk 7500/7600/7700: what the transponder says, not a confirmed event.
-function airAlertHead(a){return tFill('air.squawkHead','Squawk {code}',{code:a.squawk})+(a.callsign?' · '+a.callsign:'')}
-function airAlertText(a){
-  return `${esc(t('air.squawk_'+a.kind,a.kind))}<br>${esc(a.country||'')}${a.altitude!=null?`<br>${tFill('air.altitude','Altitude: {m} m',{m:a.altitude.toLocaleString()})}`:''}<br>ICAO24: ${esc(a.icao24)}`
-    +`<br><br>${esc(t('air.squawkNote','A transponder code, not a confirmed event: test codes and mistyped squawks happen.'))}`;
-}
+// The groups for a cell size in degrees (a multiple of the 2° grid), narrowed to nothing in the every-aircraft mode.
+const airGroups=deg=>airAllMode?[]:CrucixAir.clusters(airGrid(),airNotable(),deg);
 // The cells (or squawks) inside the chosen region's map bounds (flatRegionBounds), all of them for the world or a single country.
 function airInScope(rows){
   try{
@@ -2080,21 +2082,73 @@ function airInScope(rows){
     return rows.filter(c=>c.lon>=b[0][0]&&c.lon<=b[1][0]&&c.lat>=b[0][1]&&c.lat<=b[1][1]);
   }catch{return rows}
 }
+const airFlowLabel=f=>tFill('air.flow','{from} → {to}: {count} flights in the air',{from:f.from[0],to:f.to[0],count:f.count});
+// Every aircraft on a canvas over the active map (air-layer.js canvas): globe positions from getScreenCoords, the far side hidden.
+let airCanvas=null,airCanvasFrame=0,airCanvasKey=null;
+function airProject(lat,lon){
+  if(isFlat){
+    if(!flatProjection||!flatSvg)return null;
+    const p=flatProjection([lon,lat]);if(!p)return null;
+    const tr=d3.zoomTransform(flatSvg.node()),svg=flatSvg.node().getBoundingClientRect(),box=document.getElementById('mapContainer').getBoundingClientRect();
+    const scale=Math.min(svg.width/flatW,svg.height/flatH),ox=svg.left-box.left+(svg.width-flatW*scale)/2,oy=svg.top-box.top+(svg.height-flatH*scale)/2;
+    return [ox+tr.applyX(p[0])*scale,oy+tr.applyY(p[1])*scale];
+  }
+  if(!globe)return null;
+  const pov=airPov,r=Math.PI/180;
+  const cos=Math.sin(lat*r)*Math.sin(pov.lat*r)+Math.cos(lat*r)*Math.cos(pov.lat*r)*Math.cos((lon-pov.lng)*r);
+  if(cos<1/(1+pov.altitude)+0.02)return null;
+  const p=globe.getScreenCoords(lat,lon,0.004);return p&&Number.isFinite(p.x)?[p.x,p.y]:null;
+}
+let airPov={lat:0,lng:0,altitude:2.5};
+function airCanvasTick(){
+  airCanvasFrame=0;
+  if(!airCanvas)return;
+  if(!isFlat&&globe)airPov=globe.pointOfView();
+  airCanvas.draw();
+  if(!isFlat)airCanvasFrame=requestAnimationFrame(()=>{airCanvasFrame=requestAnimationFrame(airCanvasTick)}); // the globe turns: every 2nd frame
+}
+function syncAirCanvas(){
+  const want=airAllMode&&isMarkerTypeVisible('air');
+  if(!want){if(airCanvas){airCanvas.destroy();airCanvas=null}if(airCanvasFrame)cancelAnimationFrame(airCanvasFrame);airCanvasFrame=0;return}
+  if(!airCanvas){airCanvas=CrucixAir.canvas(document.getElementById('mapContainer'),airProject);airCanvasKey=null}
+  // A new OpenSky round (another airMeta.timestamp) loads the new list.
+  const key=D.airMeta?.timestamp||'';
+  if(airCanvasKey!==key&&airListAvailable()){airCanvasKey=key;CrucixAir.aircraft(fetchJsonNoStore,key).then(list=>airCanvas?.setRows(list.rows)).catch(()=>{airCanvasKey=null})}
+  if(!airCanvasFrame)airCanvasFrame=requestAnimationFrame(airCanvasTick);
+}
+function toggleAirAll(){
+  airAllMode=!airAllMode;writePreference('crucix_air_all',String(airAllMode));
+  syncAirAllButton();
+  CrucixAir.closeMiniMap();plotMarkers();if(flatG){flatG.selectAll('.markers,.corridors-layer').remove();plotFlatMarkers()}
+  syncAirCanvas();
+}
+// A click on the map in the every-aircraft mode picks the nearest dot.
+document.addEventListener('click',ev=>{
+  if(!airCanvas||!ev.target.closest?.('#mapContainer')||ev.target.closest('.map-popup,.air-mini,.map-controls,button'))return;
+  const box=document.getElementById('mapContainer').getBoundingClientRect(),a=airCanvas.pick(ev.clientX-box.left,ev.clientY-box.top);
+  if(a)setTimeout(()=>airPopup(ev,a),0);
+});
 
 function plotMarkers(){
   if(!globe) return;
   const points = [];
   const labels = [];
 
-  // === Air: the density hexes (busiest cells; fewer in low-performance mode) and the emergency squawks (red) ===
+  // === Air: groups with their aircraft count, the notable aircraft, every aircraft on a canvas in the ⋯ mode ===
   const airOn=isMarkerTypeVisible('air');
-  globe.hexBinPointsData(airOn?airGrid().slice(0,lowPerfMode?300:900):[]);
-  if(airOn) airAlerts().forEach(a=>{
-    points.push({
-      lat:a.lat, lng:a.lon, size:0.45, alt:0.03, color:'rgba(255,72,72,0.95)', type:'air', priority:1,
-      popHead: airAlertHead(a), popMeta: tFill('layers.airActivity','Air Activity'), popText: airAlertText(a)
-    });
-  });
+  if(airOn){
+    for(const g of airGroups(6)){
+      const size=g.count<10?0.12:0.18+Math.log10(1+g.count)*0.22; // fewer than 10 aircraft: a small dot without a number
+      points.push({lat:g.lat,lng:g.lon,size,alt:0.012,color:g.kinds.squawk?'rgba(255,72,72,0.85)':g.kinds.military?'rgba(255,184,76,0.85)':'rgba(100,240,200,0.75)',
+        type:'air',priority:g.count>=150?1:2,airGroup:g,popHead:tFill('air.groupHead','Air traffic · {place}',{place:airPlace(g)}),popMeta:tFill('popup.aircraft','{count} aircraft',{count:g.count.toLocaleString()})});
+      if(g.count>=10)labels.push({type:'air',lat:g.lat,lng:g.lon+size*1.6,text:CrucixAir.short(g.count),size:0.95,color:'rgba(220,255,245,0.95)'});
+    }
+    for(const a of airNotable()){
+      if(a.kind==='nocallsign'&&!airAllMode)continue; // grouped view: only the strong ones as their own markers
+      points.push({lat:a.lat,lng:a.lon,size:a.kind==='squawk'?0.5:0.32,alt:0.03,color:AIR_KIND_COLOR[a.kind],type:'air',priority:a.kind==='squawk'||a.kind==='military'?1:2,
+        aircraft:a,popHead:a.callsign||a.icao24,popMeta:t('air.kind_'+a.kind,a.kind),popText:CrucixAir.describe(a,t).lines.map(esc).join('<br>')});
+    }
+  }
 
   // === Thermal/fire (red; spike / persistent / elevated clusters recoloured) ===
   D.thermal.forEach(t=>{
@@ -2276,9 +2330,14 @@ function plotMarkers(){
   });
   globe.ringsData(isMarkerTypeVisible('conflict')&&!reducedMotion?conflictRings:[]);
 
-  // The decorative corridors between the old ten boxes are gone: the hexes above show where aircraft actually are.
-  const arcs = [];
+  // === Route arcs: the busiest origin -> destination airport pairs of the airborne airline flights (adsb.im routes) ===
+  const flowMax=Math.max(1,...airFlows().map(f=>f.count));
+  const arcs = isMarkerTypeVisible('air') ? airFlows().map(f=>({
+    startLat:f.from[1], startLng:f.from[2], endLat:f.to[1], endLng:f.to[2],
+    color:['rgba(100,240,200,0.55)','rgba(68,204,255,0.25)'], stroke:0.25+1.1*Math.sqrt(f.count/flowMax), label:airFlowLabel(f)
+  })) : [];
   globe.arcsData(arcs);
+  syncAirCanvas();
 
   // Zoom-aware marker sizing: scale markers and labels with camera altitude
   const onGlobeZoom = () => {
@@ -2487,6 +2546,13 @@ function toggleMapMode(){
   }
 }
 
+// The pins of the flat map (a <g data-layer> at translate(x, y): markers, labels, planes, groups, sites) keep about their screen size as
+// the map zooms: scaled by k^-0.85, they grow only a little (k^0.15) instead of k times, so a zoomed-in map is not a wall of symbols.
+function scaleFlatPins(k){
+  if(!flatG)return;
+  const s=Math.pow(Math.max(1,k),-0.85),tail=s>0.999?'':' scale('+s.toFixed(4)+')';
+  flatG.selectAll('g[data-layer][transform^="translate"]').attr('transform',function(){const base=this.dataset.pin||(this.dataset.pin=this.getAttribute('transform'));return base+tail});
+}
 function initFlatMap(){
   const container = document.getElementById('mapContainer');
   flatW = container.clientWidth; flatH = container.clientHeight || 560;
@@ -2496,11 +2562,12 @@ function initFlatMap(){
   flatG = flatSvg.append('g');
   flatZoom = d3.zoom().scaleExtent([1,12]).on('zoom',(event)=>{
     flatG.attr('transform',event.transform);
-    const k=event.transform.k;
-    flatG.selectAll('.marker-circle').attr('r',function(){return +this.dataset.baseR/Math.sqrt(k)});
-    flatG.selectAll('.marker-label').style('font-size',Math.max(7,9/Math.sqrt(k))+'px')
-      .style('display','block');
+    scaleFlatPins(event.transform.k);
   });
+  // The air groups get finer as the map zooms in (2°–8°): redrawn when a zoom gesture ends, if the step changed.
+  let airZoomStep=null;
+  flatZoom.on('zoom.air',()=>{if(airCanvas&&isFlat)airCanvas.draw()});
+  flatZoom.on('end.air',event=>{const k=event.transform.k,step=k>=6?2:k>=3?4:k>=1.6?6:8;if(step!==airZoomStep){airZoomStep=step;if(isMarkerTypeVisible('air')){flatG.selectAll('.markers,.corridors-layer').remove();plotFlatMarkers()}}});
   flatSvg.call(flatZoom);
   drawFlatMap();
 }
@@ -2562,19 +2629,36 @@ function plotFlatMarkers(){
     g.append('circle').attr('class','marker-circle').attr('r',r).attr('data-base-r',r).attr('fill',fill).attr('stroke',stroke).attr('stroke-width',0.8);
     return g;
   };
-  // Air: the 2° density cells under every other marker (corridors-layer, drawn first), the emergency squawks as red markers
+  // Air: route arcs (under everything), groups with their aircraft count (finer as the map zooms in), the notable aircraft as planes
   if(isMarkerTypeVisible('air')){
     const cG=flatG.insert('g','.markers').attr('class','corridors-layer').attr('data-layer','air');
-    const half=(D.airMeta?.gridDegrees||2)/2;
-    airGrid().forEach(c=>{
-      const a=proj([c.lon-half,c.lat+half]),b=proj([c.lon+half,c.lat-half]);
-      if(!a||!b||![...a,...b].every(Number.isFinite))return;
-      cG.append('rect').attr('x',Math.min(a[0],b[0])).attr('y',Math.min(a[1],b[1])).attr('width',Math.abs(b[0]-a[0])).attr('height',Math.abs(b[1]-a[1]))
-        .attr('fill',airHexColor(c.count,0.85)).style('cursor','pointer')
-        .on('click',ev=>{ev.stopPropagation();showPopup(ev,airCellHead(c),airCellText(c),tFill('layers.airActivity','Air Activity'))})
-        .append('title').text(airCellHead(c)+' · '+tFill('popup.aircraft','{count} aircraft',{count:c.count}));
-    });
-    airAlerts().forEach(a=>addPt(a.lat,a.lon,4.5,'rgba(255,72,72,0.95)','rgba(255,72,72,0.4)',ev=>showPopup(ev,airAlertHead(a),airAlertText(a),tFill('layers.airActivity','Air Activity')),1));
+    const flowMax=Math.max(1,...airFlows().map(f=>f.count));
+    for(const f of airFlows()){
+      const interp=d3.geoInterpolate([f.from[2],f.from[1]],[f.to[2],f.to[1]]),coords=[];for(let k=0;k<=40;k++)coords.push(interp(k/40));
+      cG.append('path').datum({type:'Feature',geometry:{type:'LineString',coordinates:coords}}).attr('d',flatPath).attr('fill','none')
+        .attr('stroke','rgba(100,240,200,0.32)').attr('stroke-width',0.5+2*Math.sqrt(f.count/flowMax)).style('cursor','pointer')
+        .on('click',ev=>{ev.stopPropagation();showPopup(ev,f.from[0]+' → '+f.to[0],airFlowLabel(f),t('air.routesMeta','Routes: adsb.im route data'))})
+        .append('title').text(airFlowLabel(f));
+    }
+    const k=flatSvg?d3.zoomTransform(flatSvg.node()).k:1,deg=k>=6?2:k>=3?4:k>=1.6?6:8;
+    for(const g of airGroups(deg)){
+      const small=g.count<10&&!g.notable,r=small?2.2:4+Math.log10(1+g.count)*4.2; // fewer than 10 aircraft: a small dot without a number
+      const node=addPt(g.lat,g.lon,r,g.kinds.squawk?'rgba(255,72,72,0.35)':g.kinds.military?'rgba(255,184,76,0.3)':'rgba(100,240,200,0.22)',
+        g.kinds.squawk?'rgba(255,72,72,0.9)':g.kinds.military?'rgba(255,184,76,0.9)':'rgba(100,240,200,0.75)',ev=>openAirGroup(g,ev),g.count>=150?1:2);
+      if(node&&!small){node.classed('air-group',true);node.append('text').attr('class','marker-label').attr('text-anchor','middle').attr('y',3).attr('fill','#dffcf3')
+        .attr('font-size','9px').attr('font-family','var(--mono)').style('pointer-events','none').text(CrucixAir.short(g.count));
+        node.append('title').text(tFill('air.groupHead','Air traffic · {place}',{place:airPlace(g)})+' · '+tFill('popup.aircraft','{count} aircraft',{count:g.count.toLocaleString()}));}
+    }
+    for(const a of airNotable()){
+      if(a.kind==='nocallsign'&&!airAllMode)continue;
+      if(!hasCoordinates(a.lat,a.lon))continue;
+      const p=proj([a.lon,a.lat]);if(!p||!p.every(Number.isFinite))continue;
+      const node=mg.append('g').attr('transform',`translate(${p[0]},${p[1]})`).attr('data-priority',a.kind==='squawk'||a.kind==='military'?1:2).attr('data-layer','air').style('cursor','pointer')
+        .on('click',ev=>{ev.stopPropagation();airPopup(ev,a)});
+      node.append('path').attr('d',CrucixAir.PLANE).attr('transform',`rotate(${Number.isFinite(a.track)?Math.round(a.track):0}) scale(0.8)`)
+        .attr('fill',AIR_KIND_COLOR[a.kind]).attr('stroke','rgba(0,0,0,0.7)').attr('stroke-width',0.6);
+      node.append('title').text((a.callsign||a.icao24)+' · '+t('air.kind_'+a.kind,a.kind));
+    }
   }
   // Thermal
   flatMarkerType='thermal';
@@ -2656,11 +2740,13 @@ function plotFlatMarkers(){
   });
   flatMarkerType='earthquake';
   D.earthquakes.forEach(q=>addPt(q.lat,q.lon,3+Math.min(Number(q.magnitude)||0,8)*0.5,'rgba(255,112,67,0.85)','rgba(255,112,67,0.4)',ev=>showPopup(ev,'M '+(q.magnitude??'?')+' · '+(q.place||t('map.earthquake','Earthquake')),earthquakeDescription(q),t('earthquakes.scope','USGS significant · last 24h')+' · '+getAge(q.time),q.lat,q.lon),1));
+  syncAirCanvas();
   const infraFlat=infraData();
   if(infraFlat)plotFlatInfrastructure(infraFlat);
   plotFlatCyclones();
   const sitesFlat=sitesData();
   if(sitesFlat)plotFlatSites(sitesFlat);
+  if(flatSvg)scaleFlatPins(d3.zoomTransform(flatSvg.node()).k);
 }
 
 // Update setRegion for flat mode

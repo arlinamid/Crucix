@@ -1,0 +1,17 @@
+/* The air layer's mini map (air-layer.js openMiniMap) and its all-aircraft canvas. */
+.air-mini{position:absolute;z-index:25;background:rgba(6,10,14,0.96);border:1px solid rgba(100,240,200,0.3);box-shadow:0 8px 32px rgba(0,0,0,0.55);backdrop-filter:blur(12px);font-family:var(--mono);color:var(--text)}
+.air-mini-head{display:flex;align-items:baseline;gap:8px;padding:8px 34px 6px 10px;border-bottom:1px solid var(--border);font-size:11px;letter-spacing:.04em}
+.air-mini-head b{color:var(--accent);font-weight:600}
+.air-mini-head span{color:var(--dim)}
+.air-mini-close{position:absolute;top:4px;right:6px;width:24px;height:24px;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer;font-size:15px;line-height:1}
+.air-mini-close:hover,.air-mini-close:focus-visible{color:var(--accent);border-color:var(--border-bright)}
+.air-mini-svg{display:block;background:radial-gradient(ellipse at center,rgba(4,14,22,1),rgba(2,6,10,1));cursor:grab}
+.air-mini-land{fill:rgba(120,170,160,0.16);stroke:rgba(140,230,210,0.5);stroke-width:.6}
+.air-mini-grid{fill:none;stroke:rgba(100,240,200,0.06);stroke-width:.5}
+.air-mini-label{font-size:8px;fill:var(--dim);pointer-events:none}
+.air-picked path{stroke:#fff;stroke-width:1.4}
+.air-mini-route{fill:none;stroke:#44ccff;stroke-width:1.4;stroke-dasharray:4 3}
+.air-mini-info{padding:8px 10px;font-size:11px;line-height:1.55;color:var(--text);max-height:150px;overflow:auto}
+.air-mini-info b{color:var(--accent)}
+.air-canvas{position:absolute;inset:0;pointer-events:none;z-index:5}
+@media (prefers-reduced-motion:reduce){.air-mini{backdrop-filter:none}}

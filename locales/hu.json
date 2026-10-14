@@ -1671,9 +1671,6 @@
   },
   "popup": {
     "aircraft": "{count} légi jármű",
-    "noCallsign": "Hívójel nélkül",
-    "highAlt": "Nagy mag.",
-    "top": "Leggyakoribb",
     "firmsSatellite": "FIRMS műhold",
     "thermal": "Hőészlelés",
     "region": "Térség",
@@ -1710,7 +1707,8 @@
     "zoomIn": "Nagyítás",
     "zoomOut": "Kicsinyítés",
     "toggleFlights": "Repülési útvonalak be/ki",
-    "visualsHelp": "Kevesebb vizuális effekt, mobilon sík térképpel indul"
+    "visualsHelp": "Kevesebb vizuális effekt, mobilon sík térképpel indul",
+    "airAll": "Minden gép csoportok helyett"
   },
   "feeds": {
     "description": "Válaszd ki, mely RSS-csatornákat olvassa a frissítés, vegyél fel sajátot, vagy vidd át a listát OPML-lel más olvasóba. A változás a következő frissítéstől él.",
@@ -1794,14 +1792,33 @@
     "providers": "Árfolyamok: {providers}"
   },
   "air": {
-    "cellHead": "Légi forgalom · {lat} {lon}",
-    "cellNote": "Levegőben lévő, pozíciót sugárzó gépek, lajstromozó ország szerint (OpenSky).",
-    "gridSub": "{cells} cella · {alerts} squawk-riasztás",
-    "squawkHead": "Squawk {code}",
     "squawk_hijack": "7500: jogellenes beavatkozás (eltérítés)",
     "squawk_radio": "7600: rádióhiba",
     "squawk_emergency": "7700: általános vészhelyzet",
-    "altitude": "Magasság: {m} m",
-    "squawkNote": "Transzponderkód, nem megerősített esemény: előfordul tesztkód és elgépelt squawk is."
+    "squawkNote": "Transzponderkód, nem megerősített esemény: előfordul tesztkód és elgépelt squawk is.",
+    "groupHead": "Légi forgalom · {place}",
+    "miniCount": "{count} gép",
+    "miniHint": "Kattints egy gépre a részletekért és az útvonaláért.",
+    "loading": "Gépek betöltése…",
+    "noneHere": "Ebben a csoportban most nincs pozíciót sugárzó gép.",
+    "listUnavailable": "A géplista az élő szerverről jön; ebben a nézetben csak a csoport összegzése látszik.",
+    "close": "Bezárás",
+    "route": "Útvonal: {from} → {to}",
+    "registered": "Lajstromozás: {country}",
+    "altitudeFt": "Magasság: {m} m ({ft} láb)",
+    "speed": "Sebesség: {kmh} km/h",
+    "heading": "Irány: {deg}°",
+    "kind_squawk": "Vészhelyzeti squawk",
+    "kind_military": "Katonai mintázatú hívójel",
+    "kind_high": "Nagyon nagy magasság (FL450 fölött)",
+    "kind_nocallsign": "Nincs hívójel",
+    "kindShort_squawk": "squawk",
+    "kindShort_military": "katonai",
+    "kindShort_high": "nagyon magas",
+    "kindShort_nocallsign": "hívójel nélkül",
+    "militaryNote": "Katonai mintázatú hívójel: heurisztika, nem megerősített katonai repülés.",
+    "flow": "{from} → {to}: {count} járat a levegőben",
+    "routesMeta": "Útvonalak: adsb.im útvonaladat",
+    "notableSub": "{notable} figyelemre méltó · {alerts} squawk-riasztás"
   }
 }

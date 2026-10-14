@@ -179,15 +179,15 @@ test('the map buttons take their tooltip from the data-tip key with the map rend
   assert.match(map, /^function renderMapVisibility\(\)\{\n {2}localizeTooltips\(\);/);
   const buttons = () => [...html.matchAll(/title="([^"]*)" data-tip="([^"]+)"/g)].map(([, title, key]) => ({ title, getAttribute: () => key }));
   const run = messages => { const nodes = buttons(); vm.runInNewContext(`${source}\nlocalizeTooltips();`, { t: pageT(messages), document: { querySelectorAll: () => nodes } }); return nodes.map(node => node.title); };
-  assert.deepEqual(run(locale('hu')), ['Nagyítás', 'Kicsinyítés', 'Repülési útvonalak be/ki']);
-  assert.deepEqual(run({}), ['Zoom in', 'Zoom out', 'Toggle flight routes']);
+  assert.deepEqual(run(locale('hu')), ['Nagyítás', 'Kicsinyítés', 'Repülési útvonalak be/ki', 'Minden gép csoportok helyett']);
+  assert.deepEqual(run({}), ['Zoom in', 'Zoom out', 'Toggle flight routes', 'Every aircraft instead of groups']);
 });
 
 test('tFill fills the {slots} of a popup text and falls back to English', () => {
   const start = html.indexOf('function tFill(');
   const source = html.slice(start, html.indexOf('\n}\n', start) + 2);
   const fill = messages => vm.runInNewContext(`${source}\ntFill`, { t: pageT(messages) });
-  assert.equal(fill(locale('hu'))('air.cellHead', 'Air traffic · {lat} {lon}', { lat: '41°N', lon: '31°E' }), 'Légi forgalom · 41°N 31°E');
+  assert.equal(fill(locale('hu'))('air.groupHead', 'Air traffic · {place}', { place: '41°N 31°E' }), 'Légi forgalom · 41°N 31°E');
   assert.equal(fill(locale('en'))('popup.fatalities', '{count} fatalities', { count: 3 }), '3 fatalities');
   assert.equal(fill({})('popup.views', '{count} views', { count: '1,200' }), '1,200 views');
 });

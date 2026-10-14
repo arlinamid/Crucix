@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { briefing, resetState, summarizeStates } from '../apis/sources/opensky.mjs';
+import { briefing, resetState, summarizeStates, flowsOf, notableKind, readAircraft, AIRCRAFT_FIELDS } from '../apis/sources/opensky.mjs';
+import { parseRouteset, resetRoutes, routeOf } from '../apis/sources/air-routes.mjs';
 import { runSource } from '../apis/briefing.mjs';
 
 const TOKEN_URL = 'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token';
+const ROUTESET_URL = 'https://adsb.im/api/0/routeset';
 const now = Date.parse('2026-10-08T12:00:00Z');
 const MINUTE = 60000;
 const ID = 'crucix-test-client';
@@ -24,15 +26,16 @@ function useEnv(t, id, secret) {
   const set = (key, value) => { if (value === undefined) delete process.env[key]; else process.env[key] = value; };
   set('OPENSKY_CLIENT_ID', id); set('OPENSKY_CLIENT_SECRET', secret);
   t.after(() => { for (const [key, value] of Object.entries(saved)) set(key, value); });
-  resetState();
+  resetState(); resetRoutes({ disk: true });
 }
 
-// Routes the token endpoint and /states/all; records every request.
-function mockOpenSky(t, { token = n => json({ access_token: `tok-${n}`, expires_in: 1800 }), states = () => json(STATES) } = {}) {
-  const calls = { token: [], states: [] };
+// Routes the token endpoint, the route lookup and /states/all; records every request.
+function mockOpenSky(t, { token = n => json({ access_token: `tok-${n}`, expires_in: 1800 }), states = () => json(STATES), routes = () => json([]) } = {}) {
+  const calls = { token: [], states: [], routes: [] };
   const original = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
     if (String(url) === TOKEN_URL) { calls.token.push(init); return token(calls.token.length, init); }
+    if (String(url) === ROUTESET_URL) { const body = JSON.parse(String(init.body)); calls.routes.push(body); return routes(body); }
     const auth = new Headers(init.headers).get('authorization');
     calls.states.push({ url: String(url), auth });
     return states({ url: String(url), auth, n: calls.states.length, init });
@@ -370,7 +373,7 @@ test('the global vector gives a 2-degree density grid of airborne aircraft and t
   assert.deepEqual(south.grid.map(cell => [cell.lat, cell.lon]), [[-33, -71]]);
   assert.equal(south.alerts[0].kind, 'hijack');
   const empty = summarizeStates(undefined);
-  assert.deepEqual({ ...empty, hotspots: empty.hotspots.length }, { total: 0, airborne: 0, onGround: 0, hotspots: 10, grid: [], gridDegrees: 2, alerts: [] });
+  assert.deepEqual({ ...empty, hotspots: empty.hotspots.length }, { total: 0, airborne: 0, onGround: 0, hotspots: 10, grid: [], gridDegrees: 2, alerts: [], notable: [], aircraft: [] });
 });
 
 test('the grid keeps the 1,500 busiest cells', () => {
@@ -381,4 +384,73 @@ test('the grid keeps the 1,500 busiest cells', () => {
   assert.equal(airborne, states.length);
   assert.equal(grid.length, 1500);
   assert.deepEqual([grid[0].lat, grid[0].lon, grid[0].count], [1, 1, 2]);
+});
+
+test('notable aircraft: emergency squawks, military-pattern callsigns, very high flights and missing callsigns, in that order', () => {
+  const row = (callsign, alt, squawk = '1000') => ['a1b2c3', callsign, 'X', 0, 0, 10, 50, alt, false, 200, 45, 0, null, alt, squawk];
+  assert.equal(notableKind(row('DLH1', 11000, '7600')), 'squawk');
+  assert.equal(notableKind(row('RCH871', 9000)), 'military');
+  assert.equal(notableKind(row('RCHX', 9000)), null, 'a prefix needs a digit after it');
+  assert.equal(notableKind(row('GLF5', 14500)), 'high');
+  assert.equal(notableKind(row('  ', 9000)), 'nocallsign');
+  assert.equal(notableKind(row('DLH1', 11000)), null);
+  const { notable, aircraft } = summarizeStates([row('', 9000), row('NATO01', 9000), row('DLH1', 11000, '7700')]);
+  assert.deepEqual(notable.map(n => n.kind), ['squawk', 'military', 'nocallsign']);
+  assert.deepEqual(notable[1], { icao24: 'a1b2c3', callsign: 'NATO01', country: 'X', lat: 50, lon: 10, altitude: 9000, speed: 200, track: 45, squawk: '1000', kind: 'military' });
+  assert.deepEqual(aircraft[2], ['a1b2c3', 'DLH1', 'X', 50, 10, 11000, 200, 45, 0, '7700', 'squawk']);
+  assert.equal(AIRCRAFT_FIELDS.length, 13);
+});
+
+test('the route answer keeps plausible two-airport routes only, and never trusts provider text', () => {
+  const airport = (iata, lat, lon, cc = 'FR') => ({ iata, icao: 'LFPO', lat, lon, countryiso2: cc, name: 'x' });
+  const parsed = parseRouteset([
+    { callsign: 'TVF20BT', plausible: 1, _airports: [airport('ORY', 48.7253, 2.35944), airport('IBZ', 38.872898, 1.37312, 'ES')] },
+    { callsign: 'AFR1', plausible: 0, _airports: [airport('CDG', 49, 2.5), airport('JFK', 40.6, -73.8)] },           // implausible
+    { callsign: 'BAW2', plausible: 1, _airports: [airport('LHR', 51.5, -0.5), airport('DXB', 25.3, 55.4), airport('SIN', 1.4, 103.9)] }, // multi-leg
+    { callsign: 'UAE3', plausible: 1, _airports: [airport('<b>', 1, 1), airport('DXB', 95, 55.4)] },                    // hostile
+    { callsign: 'XXX9', plausible: 1, _airports: [airport('AAA', 1, 1), airport('BBB', 2, 2)] },                      // not asked
+  ], ['TVF20BT', 'AFR1', 'BAW2', 'UAE3']);
+  assert.deepEqual([...parsed.keys()], ['TVF20BT', 'AFR1', 'BAW2', 'UAE3']);
+  assert.deepEqual(parsed.get('TVF20BT'), { o: ['ORY', 48.7253, 2.3594, 'FR', 'LFPO'], d: ['IBZ', 38.8729, 1.3731, 'ES', 'LFPO'] });
+  assert.deepEqual([parsed.get('AFR1'), parsed.get('BAW2'), parsed.get('UAE3')], [null, null, null]);
+  assert.deepEqual(parseRouteset('nope', ['A']).get('A'), null);
+});
+
+test('a round looks up the airline routes, caches them a day, writes the aircraft list and draws the busiest airport pairs', async t => {
+  useEnv(t, undefined, undefined);
+  const states = { time: 1791417600, states: [
+    ['aa0001', 'TVF1', 'France', 0, 0, 2, 47, 11000, false, 230, 180, 0, null, 11000, '1000'],
+    ['aa0002', 'TVF2', 'France', 0, 0, 2.2, 46, 11000, false, 230, 180, 0, null, 11000, '1000'],
+    ['aa0003', 'DLH3', 'Germany', 0, 0, 9, 50, 11000, false, 230, 90, 0, null, 11000, '1000'],
+    ['aa0004', 'RCH12', 'United States', 0, 0, 9, 50, 9000, false, 230, 90, 0, null, 9000, '1000'],
+  ] };
+  const ory = { iata: 'ORY', icao: 'LFPO', lat: 48.7, lon: 2.4, countryiso2: 'FR' }, ibz = { iata: 'IBZ', icao: 'LEIB', lat: 38.9, lon: 1.4, countryiso2: 'ES' };
+  const calls = mockOpenSky(t, { states: () => json(states), routes: body => json(body.planes.filter(p => p.callsign.startsWith('TVF'))
+    .map(p => ({ callsign: p.callsign, plausible: 1, _airports: [ory, ibz] }))) });
+  const result = await briefing({ now });
+  assert.equal(calls.routes.length, 1);
+  assert.deepEqual(calls.routes[0].planes.map(p => p.callsign), ['TVF1', 'TVF2', 'DLH3'], 'airline callsigns only; RCH12 has no route data');
+  assert.deepEqual(result.flows, [{ from: ['ORY', 48.7, 2.4, 'FR'], to: ['IBZ', 38.9, 1.4, 'ES'], count: 2 }]);
+  assert.deepEqual(result.routes, { airline: 3, known: 2, asked: 3 });
+  assert.equal(result.aircraft, undefined, 'the full list is never part of the source result');
+  const list = readAircraft();
+  assert.deepEqual(list.fields, AIRCRAFT_FIELDS); assert.equal(list.rows.length, 4); assert.equal(list.observedAt, '2026-10-08T00:00:00.000Z');
+  assert.deepEqual(list.rows[0].slice(11), [['ORY', 48.7, 2.4, 'FR', 'LFPO'], ['IBZ', 38.9, 1.4, 'ES', 'LEIB']]);
+  assert.equal(list.rows[3][10], 'military');
+  // The next round asks for nothing new: TVF1/TVF2 are cached a day, DLH3 (no route) six hours.
+  await briefing({ now: now + 15 * MINUTE });
+  assert.equal(calls.routes.length, 1);
+  assert.ok(routeOf('TVF1', { now: now + 15 * MINUTE }));
+  resetRoutes();
+  assert.ok(routeOf('TVF1', { now: now + 15 * MINUTE }), 'the cache file survives a restart');
+});
+
+test('a failing route lookup leaves the round intact', async t => {
+  useEnv(t, undefined, undefined);
+  mockOpenSky(t, { routes: () => new Response('down', { status: 503 }) });
+  const result = await briefing({ now });
+  assert.equal(result.error, undefined);
+  assert.deepEqual(result.flows, []);
+  assert.match(result.routes.error, /503/);
+  assert.deepEqual(flowsOf([]), []);
 });

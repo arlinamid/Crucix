@@ -1671,9 +1671,6 @@
   },
   "popup": {
     "aircraft": "{count} aircraft",
-    "noCallsign": "No callsign",
-    "highAlt": "High alt",
-    "top": "Top",
     "firmsSatellite": "FIRMS Satellite",
     "thermal": "Thermal",
     "region": "Region",
@@ -1710,7 +1707,8 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "toggleFlights": "Toggle flight routes",
-    "visualsHelp": "Reduce visual effects and start mobile in flat mode"
+    "visualsHelp": "Reduce visual effects and start mobile in flat mode",
+    "airAll": "Every aircraft instead of groups"
   },
   "feeds": {
     "description": "Choose the RSS feeds the sweep reads, add your own, or move a list between readers with OPML. Changes apply from the next sweep.",
@@ -1794,14 +1792,33 @@
     "providers": "Quotes: {providers}"
   },
   "air": {
-    "cellHead": "Air traffic · {lat} {lon}",
-    "cellNote": "Airborne aircraft with a position, by registration country (OpenSky).",
-    "gridSub": "{cells} cells · {alerts} squawk alerts",
-    "squawkHead": "Squawk {code}",
     "squawk_hijack": "7500: unlawful interference (hijack)",
     "squawk_radio": "7600: radio failure",
     "squawk_emergency": "7700: general emergency",
-    "altitude": "Altitude: {m} m",
-    "squawkNote": "A transponder code, not a confirmed event: test codes and mistyped squawks happen."
+    "squawkNote": "A transponder code, not a confirmed event: test codes and mistyped squawks happen.",
+    "groupHead": "Air traffic · {place}",
+    "miniCount": "{count} aircraft",
+    "miniHint": "Click an aircraft for its details and route.",
+    "loading": "Loading aircraft…",
+    "noneHere": "No aircraft with a position in this group right now.",
+    "listUnavailable": "The aircraft list comes from the live server; this view has the group summary only.",
+    "close": "Close",
+    "route": "Route: {from} → {to}",
+    "registered": "Registered in: {country}",
+    "altitudeFt": "Altitude: {m} m ({ft} ft)",
+    "speed": "Speed: {kmh} km/h",
+    "heading": "Heading: {deg}°",
+    "kind_squawk": "Emergency squawk",
+    "kind_military": "Military-pattern callsign",
+    "kind_high": "Very high altitude (above FL450)",
+    "kind_nocallsign": "No callsign",
+    "kindShort_squawk": "squawk",
+    "kindShort_military": "military",
+    "kindShort_high": "very high",
+    "kindShort_nocallsign": "no callsign",
+    "militaryNote": "Military-pattern callsign: a heuristic, not a confirmed military flight.",
+    "flow": "{from} → {to}: {count} flights in the air",
+    "routesMeta": "Routes: adsb.im route data",
+    "notableSub": "{notable} notable · {alerts} squawk alerts"
   }
 }

@@ -8,6 +8,10 @@
 
 import { safeFetch, readBoundedText } from '../utils/fetch.mjs';
 import { readQuota, writeQuota, clearQuota } from '../utils/quota-cache.mjs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { crucixHome } from '../../lib/user-paths.mjs';
+import { AIRLINE_CALLSIGN, lookupRoutes, routeOf } from './air-routes.mjs';
 import '../utils/env.mjs';
 
 const BASE = 'https://opensky-network.org/api';
@@ -33,6 +37,21 @@ const MAX_CELLS = 1500;
 // Emergency transponder codes: unlawful interference, radio failure, general emergency.
 const SQUAWKS = Object.freeze({ '7500': 'hijack', '7600': 'radio', '7700': 'emergency' });
 const MAX_ALERTS = 50;
+// Aircraft worth a marker of their own (summarizeStates notable), by kind, at most MAX_NOTABLE in all.
+const NOTABLE_CAPS = Object.freeze({ squawk: 50, military: 300, high: 80, nocallsign: 120 });
+const MAX_NOTABLE = 500;
+const HIGH_ALTITUDE_M = 13700; // above FL450: business jets, military and research aircraft, rarely airliners
+// Callsign prefixes air forces and military transport fly under (US AMC "Reach", US Navy "Convoy", RQ-4 "Forte", P-8 "Homer", NATO AWACS,
+// the RAF, French, German, Italian, Belgian, Dutch, Greek, Polish, Canadian, Australian, New Zealand, Swiss, Spanish and Turkish air
+// forces …), each followed by a digit. A heuristic: a match is a military-pattern callsign, not a confirmed military flight.
+const MILITARY_CALLSIGN = /^(RCH|CNV|PAT|SAM|SPAR|FORTE|HOMER|JAKE|NATO|MMF|RRR|ASCOT|CTM|FAF|GAF|IAM|BAF|NAF|HAF|PLF|CFC|ASY|KIWI|SUI|AME|TUAF|DUKE|KING|EVAC|NAVY|ARMY)\d/;
+// Route arcs: the busiest airport pairs among the airborne aircraft with a known route.
+const MAX_FLOWS = 80;
+const MIN_FLOW = 2;
+// The full aircraft list for the map's detail views (GET /api/air), written each good round; never part of the source result.
+const AIRCRAFT_FILE = 'opensky-aircraft.json';
+const AIRCRAFT_MAX_BYTES = 8 * 1024 * 1024;
+const ROUTE_BUDGET_MS = 15000;
 const MIN_REQUEST_MS = 2000; // a request is not started with less time than this left
 
 let tokenCache = { token: null, expiresAt: 0 };
@@ -44,7 +63,7 @@ let hydrated = false;
 function persistQuota() {
   if (writeQuota('opensky', { blockedUntil, lastRound })) return;
   // Over the quota cache's size limit: the block and the interval matter more than the cached map grid.
-  const result = lastRound.result ? { ...lastRound.result, grid: [] } : null;
+  const result = lastRound.result ? { ...lastRound.result, grid: [], notable: (lastRound.result.notable || []).slice(0, 100) } : null;
   writeQuota('opensky', { blockedUntil, lastRound: { at: lastRound.at, result } });
 }
 
@@ -222,7 +241,70 @@ export function summarizeStates(states) {
     icao24: String(s[0] || '').slice(0, 6), callsign: String(s[1] || '').trim().slice(0, 8), country: String(s[2] || '').slice(0, 60),
     lat: s[6], lon: s[5], altitude: Number.isFinite(s[7]) ? Math.round(s[7]) : null, squawk: String(s[14]), kind: SQUAWKS[String(s[14])],
   }));
-  return { total: list.length, airborne: airborne.length, onGround: list.filter(s => s[8]).length, hotspots, grid, gridDegrees: GRID_DEGREES, alerts };
+  const notable = notableOf(airborne);
+  const aircraft = airborne.map(aircraftRow);
+  return { total: list.length, airborne: airborne.length, onGround: list.filter(s => s[8]).length, hotspots, grid, gridDegrees: GRID_DEGREES, alerts, notable, aircraft };
+}
+
+const callsignOf = s => String(s[1] || '').trim().toUpperCase().slice(0, 8);
+const num = (value, digits = 0) => Number.isFinite(value) ? Math.round(value * 10 ** digits) / 10 ** digits : null;
+/** Why an airborne state vector is notable ('squawk' | 'military' | 'high' | 'nocallsign'), or null. */
+export function notableKind(s) {
+  if (Object.hasOwn(SQUAWKS, String(s[14] || ''))) return 'squawk';
+  const callsign = callsignOf(s);
+  if (MILITARY_CALLSIGN.test(callsign)) return 'military';
+  if (s[7] > HIGH_ALTITUDE_M) return 'high';
+  if (!callsign) return 'nocallsign';
+  return null;
+}
+function notableOf(airborne) {
+  const taken = { squawk: 0, military: 0, high: 0, nocallsign: 0 };
+  const out = [];
+  for (const kind of Object.keys(NOTABLE_CAPS)) for (const s of airborne) {
+    if (out.length >= MAX_NOTABLE || taken[kind] >= NOTABLE_CAPS[kind]) break;
+    if (notableKind(s) !== kind) continue;
+    taken[kind]++;
+    out.push({ icao24: String(s[0] || '').slice(0, 6), callsign: callsignOf(s), country: String(s[2] || '').slice(0, 60), lat: num(s[6], 3), lon: num(s[5], 3),
+      altitude: num(s[7]), speed: num(s[9]), track: num(s[10]), squawk: String(s[14] || '').slice(0, 4), kind });
+  }
+  return out;
+}
+// A compact row of the aircraft list: [icao24, callsign, country, lat, lon, altitude m, speed m/s, track °, vertical rate m/s, squawk, kind].
+export const AIRCRAFT_FIELDS = Object.freeze(['icao24', 'callsign', 'country', 'lat', 'lon', 'altitude', 'speed', 'track', 'vrate', 'squawk', 'kind', 'from', 'to']);
+const aircraftRow = s => [String(s[0] || '').slice(0, 6), callsignOf(s), String(s[2] || '').slice(0, 60), num(s[6], 3), num(s[5], 3), num(s[7]), num(s[9]),
+  num(s[10]), num(s[11], 1), String(s[14] || '').slice(0, 4), notableKind(s) || ''];
+
+/** The busiest origin -> destination airport pairs of the aircraft rows that have a route ([..., from, to] airports). */
+export function flowsOf(rows) {
+  const pairs = new Map();
+  for (const row of rows) {
+    const from = row[11], to = row[12];
+    if (!from || !to) continue;
+    const key = `${from[0]}>${to[0]}`;
+    const pair = pairs.get(key) ?? { from: from.slice(0, 4), to: to.slice(0, 4), count: 0 };
+    pair.count++;
+    pairs.set(key, pair);
+  }
+  return [...pairs.values()].filter(pair => pair.count >= MIN_FLOW).sort((a, b) => b.count - a.count || (a.from[0] + a.to[0]).localeCompare(b.from[0] + b.to[0])).slice(0, MAX_FLOWS);
+}
+
+const aircraftPath = options => join(crucixHome(options), 'cache', AIRCRAFT_FILE);
+function writeAircraft(value, options) {
+  try {
+    mkdirSync(join(crucixHome(options), 'cache'), { recursive: true });
+    const file = aircraftPath(options), tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(value));
+    renameSync(tmp, file);
+  } catch { /* the detail list is optional: the map keeps its markers and arcs */ }
+}
+/** The aircraft list of the last good round ({ observedAt, at, fields, rows }), or null. */
+export function readAircraft(options) {
+  try {
+    const raw = readFileSync(aircraftPath(options), 'utf8');
+    if (raw.length > AIRCRAFT_MAX_BYTES) return null;
+    const data = JSON.parse(raw);
+    return data && Array.isArray(data.rows) ? data : null;
+  } catch { return null; }
 }
 
 // A result for the whole source without any request.
@@ -274,14 +356,29 @@ export async function briefing({ now = Date.now() } = {}) {
   }
   const error = data?.error || (!Array.isArray(data?.states) ? 'OpenSky answered without a state vector' : null);
   if (error) return failure(`OpenSky unavailable: ${error}`, now);
-  const summary = summarizeStates(data.states);
+  const { aircraft, ...summary } = summarizeStates(data.states);
+  // Routes of the airline callsigns (cached a day; a few hundred new ones a round), then the arcs: the busiest airport pairs.
+  const routeDeadline = Math.min(deadline - 1000, Date.now() + ROUTE_BUDGET_MS);
+  // Military-pattern callsigns look like airline ones (RCH871) but have no route data: they are not asked for.
+  const lookup = await lookupRoutes(aircraft.filter(row => row[10] !== 'military').map(row => ({ callsign: row[1], lat: row[3], lon: row[4] })), { deadline: routeDeadline, now });
+  let routed = 0, airline = 0;
+  for (const row of aircraft) {
+    if (!AIRLINE_CALLSIGN.test(row[1]) || row[10] === 'military') continue;
+    airline++;
+    const route = routeOf(row[1], { now });
+    if (route) { row.push(route.o, route.d); routed++; }
+  }
+  const flows = flowsOf(aircraft);
   const result = {
     source: 'OpenSky',
     timestamp: new Date(now).toISOString(),
     ...(Number.isFinite(data.time) ? { observedAt: new Date(data.time * 1000).toISOString() } : {}),
     ...summary,
+    flows,
+    routes: { airline, known: routed, asked: lookup.asked, ...(lookup.error ? { error: String(lookup.error).slice(0, 200) } : {}) },
     ...(creds.warning ? { message: creds.warning } : {}),
   };
+  writeAircraft({ observedAt: result.observedAt ?? result.timestamp, at: result.timestamp, fields: AIRCRAFT_FIELDS, rows: aircraft });
   lastRound = { at: now, result };
   persistQuota();
   return result;

@@ -1671,9 +1671,6 @@
   },
   "popup": {
     "aircraft": "{count} aéronefs",
-    "noCallsign": "Sans indicatif",
-    "highAlt": "Haute alt.",
-    "top": "Principaux",
     "firmsSatellite": "Satellite FIRMS",
     "thermal": "Thermique",
     "region": "Région",
@@ -1710,7 +1707,8 @@
     "zoomIn": "Zoom avant",
     "zoomOut": "Zoom arrière",
     "toggleFlights": "Afficher/masquer les routes aériennes",
-    "visualsHelp": "Réduire les effets visuels et démarrer en mode plat sur mobile"
+    "visualsHelp": "Réduire les effets visuels et démarrer en mode plat sur mobile",
+    "airAll": "Tous les aéronefs au lieu des groupes"
   },
   "feeds": {
     "description": "Choisissez les flux RSS lus par le balayage, ajoutez les vôtres ou transférez une liste entre lecteurs avec OPML. Les changements s’appliquent au prochain balayage.",
@@ -1794,14 +1792,33 @@
     "providers": "Cotations : {providers}"
   },
   "air": {
-    "cellHead": "Trafic aérien · {lat} {lon}",
-    "cellNote": "Aéronefs en vol avec position, par pays d’immatriculation (OpenSky).",
-    "gridSub": "{cells} cellules · {alerts} alertes squawk",
-    "squawkHead": "Squawk {code}",
     "squawk_hijack": "7500 : intervention illicite (détournement)",
     "squawk_radio": "7600 : panne radio",
     "squawk_emergency": "7700 : urgence générale",
-    "altitude": "Altitude : {m} m",
-    "squawkNote": "Un code transpondeur, pas un événement confirmé : codes de test et erreurs de saisie existent."
+    "squawkNote": "Un code transpondeur, pas un événement confirmé : codes de test et erreurs de saisie existent.",
+    "groupHead": "Trafic aérien · {place}",
+    "miniCount": "{count} aéronefs",
+    "miniHint": "Cliquez sur un aéronef pour ses détails et sa route.",
+    "loading": "Chargement des aéronefs…",
+    "noneHere": "Aucun aéronef avec position dans ce groupe pour le moment.",
+    "listUnavailable": "La liste des aéronefs vient du serveur en direct ; cette vue n’a que le résumé du groupe.",
+    "close": "Fermer",
+    "route": "Route : {from} → {to}",
+    "registered": "Immatriculé : {country}",
+    "altitudeFt": "Altitude : {m} m ({ft} ft)",
+    "speed": "Vitesse : {kmh} km/h",
+    "heading": "Cap : {deg}°",
+    "kind_squawk": "Squawk d’urgence",
+    "kind_military": "Indicatif de type militaire",
+    "kind_high": "Très haute altitude (au-dessus du FL450)",
+    "kind_nocallsign": "Sans indicatif",
+    "kindShort_squawk": "squawk",
+    "kindShort_military": "militaire",
+    "kindShort_high": "très haut",
+    "kindShort_nocallsign": "sans indicatif",
+    "militaryNote": "Indicatif de type militaire : une heuristique, pas un vol militaire confirmé.",
+    "flow": "{from} → {to} : {count} vols en l’air",
+    "routesMeta": "Routes : données de route adsb.im",
+    "notableSub": "{notable} remarquables · {alerts} alertes squawk"
   }
 }

@@ -33,6 +33,7 @@ import { broadcastEvent, writeToClient } from './lib/sse.mjs';
 import config from './crucix.config.mjs';
 import { getLocale, currentLanguage, getSupportedLocales } from './lib/i18n.mjs';
 import { fullBriefing } from './apis/briefing.mjs';
+import { readAircraft } from './apis/sources/opensky.mjs';
 import { startMaritimeCollector } from './apis/sources/ships.mjs';
 import { synthesize, generateIdeas } from './dashboard/inject.mjs';
 import { MemoryManager, computeDelta } from './lib/delta/index.mjs';
@@ -295,6 +296,14 @@ app.get('/', (req, res) => {
 app.get('/api/data', (req, res) => {
   if (!currentData) return res.status(503).json({ error: 'No data yet — first sweep in progress' });
   res.json(freshLiveSnapshot(currentData));
+});
+
+// API: every airborne aircraft of the last good OpenSky round, for the map's detail views (compact rows, see AIRCRAFT_FIELDS).
+app.get('/api/air', (req, res) => {
+  const list = readAircraft();
+  if (!list) return res.status(503).json({ error: 'No aircraft list yet — it is written by the next successful OpenSky round' });
+  res.set('Cache-Control', 'no-store');
+  res.json(list);
 });
 
 // API: the daily globe basemap (NASA GIBS VIIRS true colour of yesterday, cached; see lib/basemap.mjs)
