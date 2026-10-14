@@ -42,3 +42,24 @@ test('sweep pipeline: a failing step does not stop the next ones and RISK_ENABLE
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('sweep pipeline: the world-RSS headlines join the news feed before the events are built, so their countries reach the risk store', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'crucix-pipeline-'));
+  try {
+    const now = new Date().toISOString();
+    const worldNews = () => [
+      { title: 'Oroszországban drónok csapódtak be egy finomítóba', summary: '', source: 'Telex', url: 'https://telex.example/1', date: now, country: 'HU', lang: 'hu', tier: 2 },
+      { title: 'Oroszországban drónok csapódtak be egy finomítóba', source: 'Index.hu', url: 'https://index.example/1', date: now, country: 'HU', lang: 'hu', tier: 2 },
+    ];
+    const pipeline = createSweepPipeline({ runsDir: dir, config, logger: quiet, synthesize: snapshotOf, worldNews });
+    const raw = { crucix: { timestamp: now, totalDurationMs: 1, sourcesQueried: 0, sourcesOk: 0, sourcesFailed: 0, version: 'test' }, sources: {}, timing: {} };
+    const { snapshot, steps } = await pipeline.run(raw);
+    assert.deepEqual(steps.worldNews, { ok: true, added: 1 }, 'the same title from a second outlet is not added twice');
+    const news = snapshot.events.filter(event => event.kind === 'news');
+    assert.equal(news.length, 1);
+    assert.equal(steps.risk.ok, true);
+    assert.ok(snapshot.risk.top.some(row => row.iso3 === 'RUS'), 'the Hungarian headline counts as a mention of Russia');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

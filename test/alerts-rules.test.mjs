@@ -15,6 +15,7 @@ const MINIMAL = {
   absence: { id: 'a', name: 'A', kind: 'absence', params: { source: 'any', minFailSweeps: 3 } },
   convergence: { id: 'v', name: 'V', kind: 'convergence' },
   delta: { id: 'd', name: 'D', kind: 'delta', params: { minSeverity: 'critical' } },
+  thread: { id: 'h', name: 'H', kind: 'thread' },
 };
 
 function rejected(input, field, opts) {
@@ -43,14 +44,14 @@ function minimal(kind, changes = {}) {
 
 // ─── constants and the built-in pack ─────────────────────────────────────────
 
-test('RULE_KINDS lists the six kinds', () => {
-  assert.deepEqual([...RULE_KINDS], ['event', 'threshold', 'change', 'absence', 'convergence', 'delta']);
+test('RULE_KINDS lists the seven kinds', () => {
+  assert.deepEqual([...RULE_KINDS], ['event', 'threshold', 'change', 'absence', 'convergence', 'delta', 'thread']);
   assert.ok(Object.isFrozen(RULE_KINDS));
   assert.equal(MAX_USER_RULES, 50);
 });
 
 test('the built-in pack is the eight spec rules, in order', () => {
-  assert.deepEqual(DEFAULT_RULES.map(rule => rule.id), ['events-critical', 'events-high', 'convergence-default', 'source-stale', 'vix-spike', 'hy-spread-wide', 'delta-critical', 'hungary-region']);
+  assert.deepEqual(DEFAULT_RULES.map(rule => rule.id), ['events-critical', 'events-high', 'convergence-default', 'threads-multisource', 'source-stale', 'vix-spike', 'hy-spread-wide', 'delta-critical', 'hungary-region']);
 });
 
 test('every built-in rule validates and survives validation unchanged', () => {
@@ -505,7 +506,7 @@ test('mergeRules marks sources and keeps user rules after the built-ins', () => 
     { id: 'alpha', rule: userRule('alpha', 'change') },
   ]);
   assert.deepEqual(merged.map(rule => rule.id), [...DEFAULT_RULES.map(rule => rule.id), 'zeta', 'alpha']);
-  assert.deepEqual(merged.map(rule => rule.source), ['builtin', 'builtin', 'builtin', 'builtin', 'override', 'builtin', 'builtin', 'builtin', 'user', 'user']);
+  assert.deepEqual(merged.map(rule => rule.source), ['builtin', 'builtin', 'builtin', 'builtin', 'builtin', 'override', 'builtin', 'builtin', 'builtin', 'user', 'user']);
   assert.equal(merged.find(rule => rule.id === 'vix-spike').enabled, false);
   assert.equal(merged.find(rule => rule.id === 'zeta').name, 'User zeta');
 });

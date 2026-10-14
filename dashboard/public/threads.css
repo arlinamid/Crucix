@@ -1,0 +1,19 @@
+/* Story threads (threads.js): the right-rail panel and the thread sheet (which reuses the country sheet's cs-* classes). The status is a word,
+   the severity a coloured left edge plus the sheet's glyphs; rows wrap their text, so the panel never widens the page (390 px included). */
+.threads-panel h3:focus{outline:2px solid var(--accent,#64f0c8);outline-offset:3px}
+.th-list{margin:6px 0 0;padding:0;list-style:none}
+.th-item{border-top:1px solid var(--border,rgba(255,255,255,.08))}.th-item:first-child{border-top:0}
+.th-row{display:flex;flex-direction:column;gap:2px;box-sizing:border-box;width:100%;margin:0;padding:5px 4px 5px 8px;background:none;border:0;border-left:2px solid transparent;color:var(--text,#e8f4f0);font:inherit;font-size:11px;line-height:1.4;text-align:left;overflow-wrap:anywhere}
+.th-row[data-level="critical"]{border-left-color:var(--sev-critical,#D55E00)}.th-row[data-level="high"]{border-left-color:var(--sev-high,#E69F00)}.th-row[data-level="watch"]{border-left-color:var(--sev-watch,#F0E442)}
+button.th-row{cursor:pointer}button.th-row:hover:not([aria-disabled="true"]){background:rgba(100,240,200,.06)}
+button.th-row:focus-visible{outline:2px solid var(--accent,#64f0c8);outline-offset:2px}
+.th-row[aria-disabled="true"]{opacity:.6;cursor:not-allowed}
+.th-title{font-weight:600;min-width:0}
+.th-meta{font-size:10px;color:var(--dim,#8aa0a8)}
+.th-tags{display:flex;flex-wrap:wrap;gap:4px}
+.th-tag{padding:0 6px;border:1px solid var(--border,rgba(255,255,255,.12));border-radius:9px;font-family:var(--mono,monospace);font-size:9px;color:var(--dim,#8aa0a8)}
+.th-status{align-self:flex-start;font-family:var(--mono,monospace);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim,#8aa0a8)}
+.th-status[data-status="emerging"]{color:var(--warn,#ffb84c)}.th-status[data-status="active"]{color:var(--accent,#64f0c8)}
+.th-type{font-family:var(--mono,monospace);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim,#8aa0a8)}
+@media(max-width:700px){button.th-row{min-height:44px;padding:8px 4px 8px 8px}}
+@media(forced-colors:active){button.th-row:focus-visible{outline-color:Highlight}.th-row{border-left-color:CanvasText}}

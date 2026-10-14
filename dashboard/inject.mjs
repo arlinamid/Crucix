@@ -6,6 +6,7 @@
 // Exports synthesize(), generateIdeas(), fetchAllNews() for use by server.mjs
 
 import { militarySiteAt } from '../lib/intelligence/military-sites.mjs';
+import { firmsTime } from '../apis/sources/firms.mjs';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -358,7 +359,7 @@ async function fetchRSS(url, source, meta = {}) {
     const items = [];
     for (const item of parseFeed(response.rawText)) {
       const link = sanitizeExternalUrl(item.link);
-      if (item.title !== source) items.push({ title: item.title, date: item.date, source, url: link || undefined, ...(meta.tier ? { tier: meta.tier } : {}), ...(meta.lang && meta.lang !== 'en' ? { lang: meta.lang } : {}), ...(meta.state ? { state: true } : {}), ...(meta.country ? { country: meta.country } : {}) });
+      if (item.title !== source) items.push({ title: item.title, ...(item.summary ? { summary: item.summary } : {}), date: item.date, source, url: link || undefined, ...(meta.tier ? { tier: meta.tier } : {}), ...(meta.lang && meta.lang !== 'en' ? { lang: meta.lang } : {}), ...(meta.state ? { state: true } : {}), ...(meta.country ? { country: meta.country } : {}) });
     }
     return { source, items: items.slice(0, MAX_PER_FEED), error: null };
   } catch (e) {
@@ -402,6 +403,7 @@ export async function fetchAllNews(customFeeds, { now = Date.now(), concurrency 
     const geo = geoTagText(item.title);
       geoNews.push({
         title: item.title.substring(0, 2000),
+        ...(item.summary ? { summary: item.summary } : {}),
         source: item.source,
         date: item.date,
         url: item.url,
@@ -483,6 +485,8 @@ export async function synthesize(data, options = {}) {
     hc: h.highConfidence || 0,
     fires: (h.highIntensity || []).slice(0, 8).map(f => {
       const row = { lat: f.lat, lon: f.lon, frp: f.frp || 0 };
+      const at = firmsTime(f.date, f.time);
+      if (Number.isFinite(at)) row.at = new Date(at).toISOString();
       const site = militarySiteAt(f.lat, f.lon);
       if (site) row.site = site.name;
       return row;
@@ -582,6 +586,20 @@ export async function synthesize(data, options = {}) {
   const tgTop = (tgData.topPosts || []).filter(p => isEnglish(p.text)).map(p => ({
     id: p.postId, channel: p.channel, text: p.text?.substring(0, 2000), views: p.views, date: p.date, url: sanitizeExternalUrl(p.url), urgentFlags: []
   }));
+  // Vulnerabilities CISA added to its Known Exploited catalogue in the last 14 days: dated, named records (a CVE, a vendor, a product)
+  // that the event layer and the entity graph can link to other cyber reports.
+  const kevCutoff = (options.now ?? Date.now()) - 14 * 86400000;
+  const kev = (data.sources['CISA-KEV']?.vulnerabilities || [])
+    .filter(v => typeof v?.cveID === 'string' && /^CVE-\d{4}-\d{4,7}$/.test(v.cveID) && Date.parse(v.dateAdded) >= kevCutoff)
+    .slice(0, 20)
+    .map(v => ({
+      providerId: v.cveID, source: 'CISA-KEV',
+      title: `${v.cveID}: ${String(v.vulnerabilityName || `${v.vendorProject || ''} ${v.product || ''}`).substring(0, 200)} exploited`,
+      summary: String(v.shortDescription || '').substring(0, 300),
+      observedAt: v.dateAdded, url: `https://nvd.nist.gov/vuln/detail/${v.cveID}`,
+      severity: v.knownRansomwareCampaignUse === 'Known' ? 'high' : 'moderate',
+      vendor: String(v.vendorProject || '').substring(0, 80), product: String(v.product || '').substring(0, 80),
+    }));
   const who = (data.sources.WHO?.diseaseOutbreakNews || [])
     .map(w => {
       const geo = geoTagWhoAlert(w);
@@ -804,7 +822,7 @@ export async function synthesize(data, options = {}) {
     earthquakes: data.sources.USGS?.earthquakes || [],
     ioda,
     tg: { posts: tgData.totalPosts || 0, urgent: tgUrgent, topPosts: tgTop },
-    who, supplementalHealth, fred, energy, metals, bls, treasury, gscpi, defense, noaa, epa, acled, gdelt, space, health, news,
+    who, supplementalHealth, fred, energy, metals, bls, treasury, gscpi, defense, noaa, epa, acled, gdelt, space, health, news, kev,
     markets, // Live Yahoo Finance market data
     ideas: [], ideasSource: 'rules',
     // newsFeed for ticker (merged RSS + GDELT + Telegram)
@@ -838,7 +856,7 @@ export function buildNewsFeed(rssNews, gdeltData, tgUrgent, tgTop) {
   // RSS news
   for (const n of rssNews) {
     feed.push({
-      headline: n.title, source: n.source, type: 'rss',
+      headline: n.title, ...(n.summary ? { summary: n.summary } : {}), source: n.source, type: 'rss',
       timestamp: sourceTimestamp(n.date), publishedAt: sourceTimestamp(n.date), region: n.region, urgent: false, url: sanitizeExternalUrl(n.url),
       ...(n.tier ? { tier: n.tier } : {}), ...(n.lang ? { lang: n.lang } : {}), ...(n.state ? { state: true } : {}),
       ...(n.country ? { country: n.country } : {}),

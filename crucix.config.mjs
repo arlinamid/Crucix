@@ -133,6 +133,8 @@ export default {
     briefingTimeoutMs: envInteger('LLM_BRIEFING_TIMEOUT_MS', 60000, 1000, 360000),
     askMaxTokens: envInteger('LLM_ASK_MAX_TOKENS', 500, 64, 2048), // the bots' /ask answers (getLLMBudget(config, 'ask'))
     askTimeoutMs: envInteger('LLM_ASK_TIMEOUT_MS', 45000, 1000, 360000),
+    linkingMaxTokens: envInteger('LLM_LINKING_MAX_TOKENS', 400, 64, 2048), // the optional story linker (getLLMBudget(config, 'linking'))
+    linkingTimeoutMs: envInteger('LLM_LINKING_TIMEOUT_MS', 45000, 1000, 360000),
     everyNSweeps: envInteger('LLM_IDEAS_EVERY_N_SWEEPS', 1, 1, 96),
     tradeIdeasLang: process.env.TRADE_IDEAS_LANG || process.env.CRUCIX_LANG || 'en',
   },
@@ -184,6 +186,10 @@ export default {
   risk: {
     enabled: envBoolean('RISK_ENABLED', true),
     retentionDays: envInteger('RISK_RETENTION_DAYS', 35, 14, 90), // event references and score series kept
+    // The optional model help for the entity graph (lib/llm/linker.mjs): a few borderline report pairs per sweep, in one call. Off by default;
+    // a model link may join a story thread but never counts towards an alert or the corroboration score.
+    llmLinking: envBoolean('RISK_LLM_LINKING', false),
+    llmLinkingPairs: envInteger('RISK_LLM_LINKING_PAIRS', 6, 1, 20),
   },
 
   // Market quotes: the default base currency of the FX crosses (each dashboard user can pick another one)

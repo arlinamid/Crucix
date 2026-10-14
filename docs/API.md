@@ -111,7 +111,10 @@ Not available when `RISK_ENABLED=false` (404). These routes take no query parame
 | Endpoint | Returns |
 |----------|---------|
 | `GET /api/countries` | Countries with a score above 0, highest first (≤ 100): `{version, at, total, countries: [{iso3, name, displayName, score, change24h, coverage, convergence}]}` (`name` is the English gazetteer name, `displayName` the name in `CRUCIX_LANG`) |
-| `GET /api/countries/:iso3` | One country: score, components with weights, score series, VIEWS and INFORM inputs, last 20 records, linked countries. `iso3` = ISO 3166-1 alpha-3, upper case. |
+| `GET /api/countries/:iso3` | One country: score, components with weights, score series, VIEWS and INFORM inputs, last 20 records, linked countries and (2.41) up to 5 story threads naming it. `iso3` = ISO 3166-1 alpha-3, upper case. |
+| `GET /api/threads` | Story threads of the last 72 hours, most significant first (≤ 50): `{at, total, threads: [{id, title, status, first, last, members, memberCount, kinds, sources, reports, observations, maxLevel, countries, entities, edges, rule}]}`. A thread is records the entity graph links by rule; `rule` holds the counts without model links. |
+| `GET /api/threads/:id` | One thread with its records (`events`: title, kind, level, source, url, time, entities) and the links among them (`links`: `{a, b, type, s, m}`). `id` = `thread-` + 16 hex digits; 404 once it left the 72-hour window. |
+| `GET /api/entities/:id` | One entity (`country:IRN`, `chokepoint:hormuz`, `site:…`, `actor:apt28`, `cve:CVE-2026-1234`; URL-encode the colon): its records of the last 7 days, the entities named with it and its threads. |
 | `GET /api/predictions` | The prediction journal: `{calibration, recent}` |
 | `POST /api/briefing` | A cited briefing for `{"scope": "global"}` or an ISO3 code. Same-origin only (it can call the LLM), body ≤ 1 KB. |
 

@@ -246,6 +246,8 @@ All settings are in `.env` with sensible defaults:
 | `CRUCIX_ENV_FILE` | — | Absolute path of the `.env` the setup page writes |
 | `LLM_ASK_MAX_TOKENS` | `500` | Output budget of `/ask` (64–2048) |
 | `LLM_ASK_TIMEOUT_MS` | `45000` | Timeout of `/ask` (ms) |
+| `LLM_LINKING_MAX_TOKENS` | `400` | Output budget of the optional story linker (64–2048) |
+| `LLM_LINKING_TIMEOUT_MS` | `45000` | Timeout of the optional story linker (ms); a failure means no model links that sweep |
 | `LLM_BASE_URL` | — | Separate OpenAI-compatible endpoint |
 | `ANTHROPIC_BASE_URL` | — | Anthropic Messages endpoint for `LLM_PROVIDER=anthropic` (a self-hosted gateway or router); default `https://api.anthropic.com` |
 | `ANTHROPIC_AUTH_TOKEN` | — | Bearer token for `LLM_PROVIDER=anthropic`, sent as `Authorization: Bearer` instead of `x-api-key`; use it or `LLM_API_KEY`, not both |
@@ -267,6 +269,8 @@ All settings are in `.env` with sensible defaults:
 | `SWEEP_ARCHIVE_MAX_MB` | `64` | Disk budget of the sweep archive in MB (4–512); the oldest sweeps go first, the newest is always kept |
 | `RISK_ENABLED` | `true` | Country risk step, logged predictions and briefings; `false` writes no files and leaves `/api/countries`, `/api/predictions` and `/api/briefing` uninstalled (404) |
 | `RISK_RETENTION_DAYS` | `35` | Days of event references and score history kept in `RUNS_DIR/intelligence/countries.json` (14–90) |
+| `RISK_LLM_LINKING` | `false` | `true` asks the configured LLM once per sweep whether a few borderline report pairs (two languages, the same strait …) are one story; a model link may join a story thread but never counts towards an alert or the corroboration score |
+| `RISK_LLM_LINKING_PAIRS` | `6` | Report pairs asked per sweep (1–20) |
 | `LLM_BRIEFING_MAX_TOKENS` | `1200` | Output budget of a cited briefing (128–8192) |
 | `LLM_BRIEFING_TIMEOUT_MS` | `60000` | Timeout of a cited briefing (1000–360000 ms); a failure gives the rule-based briefing |
 

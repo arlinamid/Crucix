@@ -8,14 +8,27 @@ import { mapLimited } from '../apis/utils/rss-pool.mjs';
 
 test('parseFeed reads RSS, RDF and Atom and cuts every field', () => {
   const rss = '<rss><channel><item><title><![CDATA[Egy cím]]></title><link>https://a.example/1</link><pubDate>Wed, 07 Oct 2026 22:26:52 +0200</pubDate></item></channel></rss>';
-  assert.deepEqual(parseFeed(rss), [{ title: 'Egy cím', link: 'https://a.example/1', date: 'Wed, 07 Oct 2026 22:26:52 +0200' }]);
+  assert.deepEqual(parseFeed(rss), [{ title: 'Egy cím', link: 'https://a.example/1', date: 'Wed, 07 Oct 2026 22:26:52 +0200', summary: '' }]);
   const atom = '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title type="html">Atom &amp; co</title><link rel="alternate" href="https://b.example/2"/><updated>2026-10-07T12:00:00Z</updated></entry></feed>';
-  assert.deepEqual(parseFeed(atom), [{ title: 'Atom & co', link: 'https://b.example/2', date: '2026-10-07T12:00:00Z' }]);
+  assert.deepEqual(parseFeed(atom), [{ title: 'Atom & co', link: 'https://b.example/2', date: '2026-10-07T12:00:00Z', summary: '' }]);
   const rdf = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"><item><title>RDF item</title><link>https://c.example/3</link><dc:date>2026-10-07T10:00:00Z</dc:date></item></rdf:RDF>';
   assert.equal(parseFeed(rdf)[0].date, '2026-10-07T10:00:00Z');
   const long = `<rss><channel>${'<item><title>x</title></item>'.repeat(100)}</channel></rss>`;
   assert.equal(parseFeed(long).length, 40);
   assert.equal(parseFeed('<rss><channel><item><title>' + 'y'.repeat(5000) + '</title></item></channel></rss>')[0].title.length, 2000);
+});
+
+test('parseFeed reads a short summary without markup from the description (RSS) or summary (Atom)', () => {
+  const rss = '<rss><channel><item><title>T</title><description>&lt;p&gt;Drónok &lt;b&gt;Oroszországban&lt;/b&gt;&lt;/p&gt;</description></item></channel></rss>';
+  assert.equal(parseFeed(rss)[0].summary, 'Drónok Oroszországban');
+  const cdata = '<rss><channel><item><title>T</title><description><![CDATA[<img src="x.jpg"/> Strike near <a href="#">Hodeidah</a>]]></description></item></channel></rss>';
+  assert.equal(parseFeed(cdata)[0].summary, 'Strike near Hodeidah');
+  const atom = '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>A</title><summary>Short text</summary></entry></feed>';
+  assert.equal(parseFeed(atom)[0].summary, 'Short text');
+  const long = `<rss><channel><item><title>T</title><description>${'z'.repeat(2000)}</description></item></channel></rss>`;
+  assert.equal(parseFeed(long)[0].summary.length, 240);
+  const odd = '<!DOCTYPE rss [<!ENTITY x "y">]><rss><channel><item><title>T</title><description><![CDATA[<p>Pattern path</p>]]></description></item></channel></rss>';
+  assert.equal(parseFeed(odd)[0].summary, 'Pattern path');
 });
 
 test('parseFeed never throws and falls back to the item pattern for a feed the parser refuses', () => {

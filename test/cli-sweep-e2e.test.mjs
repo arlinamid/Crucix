@@ -36,7 +36,7 @@ test('e2e sweep: the first sweep fills history, risk, alerts, memory and the arc
   const first = await sweep();
   assert.equal(first.code, 0, first.stderr);
   assert.match(first.stdout, /Sweep Completed Successfully/);
-  assert.match(first.stdout, /Processed: synthesize, delta, events, risk, alerts, archive/);
+  assert.match(first.stdout, /Processed: synthesize, worldNews, delta, events, risk, alerts, archive/);
   for (const file of ['latest.json', 'intelligence/history.json', 'intelligence/countries.json', 'alerts/alerts.json', 'memory/hot.json', 'sweeps/index.json']) {
     assert.ok(existsSync(join(runsDir, file)), `${file} was written`);
   }

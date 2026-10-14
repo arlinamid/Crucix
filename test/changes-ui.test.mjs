@@ -1007,7 +1007,7 @@ test('jarvis.html loads changes.js and changes.css after the matrix and mounts t
 
 test('jarvis.html: the panel is registered in the zones, the label, the builder and the top bar, and update/refresh are wired', () => {
   const zones = sliceBetween(html, 'const dashboardDefaultZones = {', '};');
-  assert.match(zones, /right:\['changes','countryRisk','liveSources',/, 'first in the right rail by default, Country risk after it');
+  assert.match(zones, /right:\['changes','countryRisk','storyThreads','liveSources',/, 'first in the right rail by default, Country risk and the story threads after it');
   assert.equal(count(zones, /'changes'/g), 1);
   assert.match(html, /case 'changes': return t\('panels\.changes','What changed'\);/);
   assert.match(html, /case 'changes': return window\.CrucixChanges\?\.panelHtml\(D\.changes\)\|\|'';/);
@@ -1029,8 +1029,8 @@ function layoutApi() {
   return { fresh: () => plain(vm.runInContext('createDefaultDashboardLayout', context)()), normalize: raw => plain(vm.runInContext('normalizeDashboardLayout', context)(raw)) };
 }
 const OLD_RAIL = ['sourceHealth', 'liveSources', 'sweepDelta'];
-// The layouts below have seen the Country risk panel (2.13), so only the What changed rules are in play.
-const oldLayout = (extra = {}) => ({ zones: { left: ['sensorGrid'], center1: ['newsTicker'], center2: [], center3: [], right: OLD_RAIL }, fixed: { map: false }, ...extra, visibility: { countryRisk: true, ...(extra.visibility ?? { sourceHealth: false }) } });
+// The layouts below have seen the Country risk (2.13) and Story threads (2.41) panels, so only the What changed rules are in play.
+const oldLayout = (extra = {}) => ({ zones: { left: ['sensorGrid'], center1: ['newsTicker'], center2: [], center3: [], right: OLD_RAIL }, fixed: { map: false }, ...extra, visibility: { countryRisk: true, storyThreads: true, ...(extra.visibility ?? { sourceHealth: false }) } });
 
 test('a saved layout that never held the panel gets it at the top of its right rail, visible; a fresh layout has it there too', () => {
   const { fresh, normalize } = layoutApi();
@@ -1074,7 +1074,7 @@ test('a user who hid the panel does not get it back: a visibility entry means th
 
 test('the workspace profiles know the panel: default zones, the presets and an old stored profile', () => {
   const source = read('dashboard/public/intelligence.js');
-  assert.match(source, /right: \['changes', 'countryRisk', 'crossSourceSignals'/, 'first in the right rail of the default zones');
+  assert.match(source, /right: \['changes', 'countryRisk', 'storyThreads', 'crossSourceSignals'/, 'first in the right rail of the default zones');
   assert.equal(count(sliceBetween(source, 'const DEFAULT_ZONES = {', '};'), /'changes'/g), 1);
   const market = sliceBetween(source, "id === 'market' ? [", "] : id === 'infrastructure'"), infrastructure = sliceBetween(source, "id === 'infrastructure' ? [", "] : PANELS");
   assert.ok(market.includes("'changes'") && infrastructure.includes("'changes'"), 'the two explicit presets list it (research takes every panel)');

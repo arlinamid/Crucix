@@ -48,7 +48,7 @@ test('the rule list: name, kind, source badge, severity, toggles, summary and ac
   assert.equal(count(html,'<li class="ar-rule'),RULES.length);
   assert(html.includes('<h3 class="ar-heading" id="ar-heading">Rules</h3>'),'a heading'); assert(html.includes('data-rule-action="new"')&&html.includes('New rule'));
   // Source badges: pristine built-in, overridden built-in, user rule.
-  assert.equal(count(html,'ar-source-builtin'),7); assert.equal(count(html,'ar-source-override'),1); assert.equal(count(html,'ar-source-user'),2);
+  assert.equal(count(html,'ar-source-builtin'),8); assert.equal(count(html,'ar-source-override'),1); assert.equal(count(html,'ar-source-user'),2);
   assert(row(html,'vix-spike').includes('>Built-in<')&&row(html,'hy-spread-wide').includes('>Modified<')&&row(html,'vix-watch').includes('>Custom<'));
   // Kind labels and summaries (English fallbacks; the symbols are language-neutral).
   assert(row(html,'vix-spike').includes('>Threshold<')&&row(html,'vix-spike').includes('VIX &gt; 30'));
@@ -391,7 +391,7 @@ test('the Rules tab reads the rules and the metric values, every request is same
   assert(h.html().includes('Loading rules…'),'loading first'); await h.until(()=>h.html().includes('data-rule-id="vix-spike"'));
   assert.deepEqual(plain(h.requests.map(({path,method,credentials})=>[path,method,credentials])),[['/api/alerts?state=all&limit=200','GET','same-origin'],['/api/alerts/rules','GET','same-origin']]);
   for(const rule of DEFAULT_RULES)assert(h.html().includes(`data-rule-id="${rule.id}"`)&&h.html().includes(rule.name),rule.id);
-  assert.equal(count(h.html(),'ar-source-builtin'),8);
+  assert.equal(count(h.html(),'ar-source-builtin'),9);
   assert(h.html().includes('<div class="at-rules"><section class="ar-panel"'),'inside the tray\'s rules placeholder');
   h.press({'data-rule-action':'new'}); h.choose('kind','threshold'); assert(h.html().includes('VIX — 22.5 index')&&h.html().includes('current: 22.5 index'),'the metric values come from the server');
   h.press({'data-rule-action':'cancel'}); h.press({'data-alert-tab':'active'}); h.press({'data-alert-tab':'rules'}); await h.until(()=>h.requests.filter(request=>request.path==='/api/alerts/rules').length===2,'a reload');

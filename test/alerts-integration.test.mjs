@@ -261,7 +261,7 @@ test('the real server starts with a corrupt alerts file and an empty alert state
   assert.equal(summary.threat.level, 1);
   assert.equal(summary.status.alerts, 'corrupt');
   assert.equal(summary.status.rules, 'corrupt');
-  assert.equal(summary.rules.total, 8);
+  assert.equal(summary.rules.total, 9);
   assert.equal((await fetch(`${base}/api/alerts/rules`)).status, 200);
   assert.equal((await fetch(`${base}/healthz`)).status, 200);
   assert.equal(child.exitCode, null);

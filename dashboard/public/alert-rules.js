@@ -10,10 +10,10 @@
   // data-rule-toggle + data-rule-id (list checkboxes) or name (form fields, the keys of a draft); every form field sits in a
   // wrapper with data-rule-field="<the server's field path>", which is where a server error is shown. A draft is the flat set
   // of form values (strings, booleans, one array); parseDraft turns it into the body of PUT /api/alerts/rules/:id.
-  const KINDS=['event','threshold','change','absence','convergence','delta'];
+  const KINDS=['event','threshold','change','absence','convergence','delta','thread'];
   // The kinds of events the dashboard can hold (lib/intelligence/history.mjs); a rule may name others, they stay selectable.
-  const EVENT_KINDS=['news','osint','health','earthquake','weather','outage','conflict','signal','disaster','space-weather','economic','forecast','network','cyber','maritime','aviation','sanctions','market','energy', 'interference','displacement','launch'];
-  const KIND_TEXT={event:'Event',threshold:'Threshold',change:'Change',absence:'Absence',convergence:'Convergence',delta:'Delta'};
+  const EVENT_KINDS=['news','osint','health','earthquake','weather','outage','conflict','signal','thermal','disaster','space-weather','economic','forecast','network','cyber','maritime','aviation','sanctions','market','energy', 'interference','displacement','launch'];
+  const KIND_TEXT={event:'Event',threshold:'Threshold',change:'Change',absence:'Absence',convergence:'Convergence',delta:'Delta',thread:'Story thread'};
   const SOURCE_TEXT={builtin:'Built-in',override:'Modified',user:'Custom'};
   const OPERATORS=[['>','>'],['>=','≥'],['<','<'],['<=','≤']];
   const SOURCES=['builtin','override','user'];
@@ -21,7 +21,7 @@
   // What a built-in accepts (it replaces params and scope wholesale), and what a user rule consists of.
   const OVERRIDE_FIELDS=['enabled','notify','severity','forSweeps','cooldownMinutes','params','scope'];
   const USER_FIELDS=['name','kind','enabled','severity','notify','forSweeps','cooldownMinutes','scope','params'];
-  const DRAFT_KEYS=['name','id','kind','enabled','notify','severity','forSweeps','cooldownMinutes','minLevel','maxLevel','kinds','sources','keywords','lat','lon','km','metric','op','value','clearValue','pct','source','minFailSweeps','maxAgeMinutes','cellDegrees','windowHours','minKinds','minSeverity'];
+  const DRAFT_KEYS=['name','id','kind','enabled','notify','severity','forSweeps','cooldownMinutes','minLevel','maxLevel','kinds','sources','keywords','lat','lon','km','metric','op','value','clearValue','pct','source','minFailSweeps','maxAgeMinutes','cellDegrees','windowHours','minKinds','minSeverity','minSources','minObservations'];
   const HUNGARY={lat:'47.5',lon:'19',km:'500'};
   const RULE_ID=/^[a-z0-9-]{1,40}$/,TOKEN=/^[a-z][a-z0-9-]{0,29}$/,KEY=/^[a-z][a-z0-9_]{0,39}$/,MAX_LIST=100;
   const obj=value=>value!==null&&typeof value==='object'&&!Array.isArray(value)?value:null;
@@ -81,6 +81,8 @@
       return Array.isArray(params.kinds)?`${main} · ${env.tx('alerts.rules.summary.kinds','types')}: ${esc(shownList(params.kinds))}`:main;
     },
     delta:(env,{params})=>`≥ ${lv(env,params.minSeverity)}`,
+    thread:(env,{params})=>fill(env.raw('alerts.rules.summary.thread','{sources}+ sources, {kinds}+ record types, {observations}+ observations at {level} or above'),
+      {sources:esc(shown(params.minSources)),kinds:esc(shown(params.minKinds)),observations:esc(shown(params.minObservations)),level:lv(env,params.minLevel)}),
   };
   function describe(env,rule){
     if(!Object.hasOwn(SUMMARY,text(rule.kind)))return '';
@@ -100,6 +102,7 @@
     absence:{severity:'high',forSweeps:'1',source:'any',minFailSweeps:'3',maxAgeMinutes:''},
     convergence:{severity:'high',forSweeps:'1',cellDegrees:'2',windowHours:'24',minKinds:'3',minLevel:'watch',kinds:[]},
     delta:{severity:'high',forSweeps:'1',minSeverity:'critical'},
+    thread:{severity:'high',forSweeps:'1',minSources:'3',minKinds:'2',minObservations:'1',minLevel:'high'},
   });
   /** The form values of a new rule of `kind` (the first catalog metric where a metric is wanted). */
   function newDraft(kind,metrics){
@@ -115,7 +118,7 @@
     set('enabled',r.enabled!==false);set('notify',r.notify===true);
     if(typeof r.severity==='string')set('severity',r.severity);
     for(const key of ['forSweeps','cooldownMinutes'])if(r[key]!==undefined)set(key,textOf(r[key]));
-    for(const key of ['minLevel','maxLevel','metric','op','value','clearValue','pct','source','minFailSweeps','maxAgeMinutes','cellDegrees','windowHours','minKinds','minSeverity'])if(params[key]!==undefined)set(key,textOf(params[key]));
+    for(const key of ['minLevel','maxLevel','metric','op','value','clearValue','pct','source','minFailSweeps','maxAgeMinutes','cellDegrees','windowHours','minKinds','minSeverity','minSources','minObservations'])if(params[key]!==undefined)set(key,textOf(params[key]));
     if(draft.kind==='event'){
       set('kinds',tokens(scope.kinds));set('sources',listText(scope.sources));set('keywords',listText(scope.keywords));
       for(const key of ['lat','lon','km'])set(key,textOf(radius[key]));
@@ -158,6 +161,10 @@
       put(params,'cellDegrees',num(get('cellDegrees')));put(params,'windowHours',num(get('windowHours')));put(params,'minKinds',num(get('minKinds')));
       params.minLevel=str('minLevel');if(kinds.length)params.kinds=kinds;
     }else if(kind==='delta')params.minSeverity=str('minSeverity');
+    else if(kind==='thread'){
+      put(params,'minSources',num(get('minSources')));put(params,'minKinds',num(get('minKinds')));put(params,'minObservations',num(get('minObservations')));
+      params.minLevel=str('minLevel');
+    }
     rule.params=params;
     return rule;
   }
@@ -185,7 +192,7 @@
   const textInput=(ctx,name,{mode='',max=0}={})=>attrs=>`<input id="ar-${name}" name="${name}" type="text"${mode?` inputmode="${mode}"`:''}${max?` maxlength="${max}"`:''} value="${esc(val(ctx.draft,name))}" autocomplete="off"${attrs}${ctx.dis}>`;
   const selectInput=(ctx,name,options)=>attrs=>`<select id="ar-${name}" name="${name}"${attrs}${ctx.dis}>${options.map(([value,label])=>`<option value="${esc(value)}"${value===val(ctx.draft,name)?' selected':''}>${label}</option>`).join('')}</select>`;
   const levelOptions=(env,first=[])=>[...first,...LEVELS.map(level=>[level,levelName(env,level)])];
-  const LABELS={forSweeps:'Sweeps to confirm',cooldown:'Cooldown (minutes)',failSweeps:'Consecutive failed sweeps',maxAge:'Max age (minutes)',window:'Window (hours)',minKinds:'Distinct event types',lat:'Latitude',lon:'Longitude',km:'Radius (km)',value:'Value',clearValue:'Clear value',percent:'Change %'};
+  const LABELS={minSources:'Distinct sources',minObservations:'Observations (not reports)',forSweeps:'Sweeps to confirm',cooldown:'Cooldown (minutes)',failSweeps:'Consecutive failed sweeps',maxAge:'Max age (minutes)',window:'Window (hours)',minKinds:'Distinct event types',lat:'Latitude',lon:'Longitude',km:'Radius (km)',value:'Value',clearValue:'Clear value',percent:'Change %'};
   const label=(env,key)=>env.tx('alerts.rules.'+key,LABELS[key]);
   const intField=(ctx,path,name,key,max=0)=>field(ctx,{path,id:'ar-'+name,label:label(ctx.env,key),control:textInput(ctx,name,{mode:'numeric',max})});
   const decimalField=(ctx,path,name,key)=>field(ctx,{path,id:'ar-'+name,label:label(ctx.env,key),control:textInput(ctx,name,{mode:'decimal',max:24})});
@@ -229,6 +236,9 @@
       +intField(ctx,'params.windowHours','windowHours','window',3)+intField(ctx,'params.minKinds','minKinds','minKinds',2)
       +field(ctx,{path:'params.minLevel',id:'ar-minLevel',label:tx('alerts.rules.minLevel','Minimum level'),control:selectInput(ctx,'minLevel',levelOptions(env))})
       +kindsField(ctx,'params.kinds',tx('alerts.rules.eventKinds','Event types'));
+    if(kind==='thread')return intField(ctx,'params.minSources','minSources','minSources',2)+intField(ctx,'params.minKinds','minKinds','minKinds',2)
+      +intField(ctx,'params.minObservations','minObservations','minObservations',2)
+      +field(ctx,{path:'params.minLevel',id:'ar-minLevel',label:tx('alerts.rules.minLevel','Minimum level'),control:selectInput(ctx,'minLevel',levelOptions(env))});
     return field(ctx,{path:'params.minSeverity',id:'ar-minSeverity',label:tx('alerts.rules.minSeverity','Minimum severity'),control:selectInput(ctx,'minSeverity',['high','critical'].map(level=>[level,levelName(env,level)]))});
   }
   const fixed=(label,value)=>`<div class="ar-field ar-static"><span class="ar-label">${label}</span><span class="ar-static-value">${value}</span></div>`;
@@ -258,7 +268,8 @@
   // The paths of the fields the form shows for a kind (where a server error can sit).
   function fieldNames(kind,isNew,builtin){
     const byKind={event:['params.minLevel','params.maxLevel','scope.kinds','scope.sources','scope.keywords','scope.radius.lat','scope.radius.lon','scope.radius.km'],threshold:['params.metric','params.op','params.value','params.clearValue'],change:['params.metric','params.pct'],
-      absence:['params.source','params.minFailSweeps','params.maxAgeMinutes'],convergence:['params.cellDegrees','params.windowHours','params.minKinds','params.minLevel','params.kinds'],delta:['params.minSeverity']};
+      absence:['params.source','params.minFailSweeps','params.maxAgeMinutes'],convergence:['params.cellDegrees','params.windowHours','params.minKinds','params.minLevel','params.kinds'],delta:['params.minSeverity'],
+      thread:['params.minSources','params.minKinds','params.minObservations','params.minLevel']};
     return ['severity','forSweeps','cooldownMinutes','enabled','notify',...(builtin?[]:['name']),...(isNew?['id','kind']:[]),...byKind[kind]];
   }
 

@@ -44,9 +44,9 @@ test('countryDisplayName: the CLDR name in the language, the English gazetteer n
   assert.equal(countryDisplayName('PSE', 'en'), countryByIso3('PSE').name);
   for (const odd of ['xx', 'not a tag!', '', null, 42]) assert.equal(countryDisplayName('HUN', odd), 'Hungary', String(odd));
   for (const code of ['QQQ', '', null, undefined]) assert.equal(countryDisplayName(code, 'hu'), null, String(code));
-  // Display only: matching still runs on the English names.
+  // The gazetteer name stays English; local names are known to matching too (a Telex or Le Monde headline names its country).
   assert.equal(countryByIso3('HUN').name, 'Hungary');
-  assert.equal(countryByName('Magyarország'), null);
+  assert.equal(countryByName('Magyarország')?.iso3, 'HUN');
 });
 
 test('the risk summary and the risk routes carry displayName in the server language next to the English name', async t => {

@@ -879,7 +879,7 @@ test('rules persist across a restart', t => {
   first.engine.putRule('vix-spike', { enabled: false });
   const second = setup(t, { warm: false, dir: first.dir });
   assert.deepEqual(second.engine.rules(), first.engine.rules());
-  assert.deepEqual(second.engine.summary().rules, { enabled: 8, total: 9 });
+  assert.deepEqual(second.engine.summary().rules, { enabled: 9, total: 10 });
 });
 
 test('alerts of a rule that disappeared from the rule set are resolved on the next sweep', t => {
@@ -946,7 +946,7 @@ test('summary: counts, at most 5 drivers, top ordering and compact shape', t => 
   assert.deepEqual(summary.top.slice(0, 2).map(alert => alert.title), ['Newer critical', 'Older critical']);
   assert.deepEqual(Object.keys(summary.top[0]).sort(), ['count', 'firstSeenAt', 'id', 'lastSeenAt', 'ruleId', 'ruleName', 'severity', 'silent', 'state', 'title']);
   assert.deepEqual(summary.status, { alerts: 'empty', rules: 'empty' }, 'the status of the last load');
-  assert.deepEqual(summary.rules, { enabled: 7, total: 9 });
+  assert.deepEqual(summary.rules, { enabled: 8, total: 10 });
 });
 
 test('list filters by state, severity and rule, sorts firing first and honours the limit', t => {

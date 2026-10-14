@@ -200,7 +200,7 @@ test('rule names are localised by id, rules without a locale name keep the store
   assert(A.renderToast(alert(),tr).includes('Kritikus események'));
   // Every built-in rule is looked up under its own key (the locale test pins that each key exists).
   const keyT=key=>'L:'+key;
-  assert.equal(DEFAULT_RULES.length,8);
+  assert.equal(DEFAULT_RULES.length,9);
   for(const {id,name} of DEFAULT_RULES)assert(A.renderToast(alert({ruleId:id,ruleName:name}),keyT).includes('L:alerts.ruleNames.'+id),id);
   assert(!A.renderToast(alert({ruleId:'Bad Id!',ruleName:'Odd rule'}),keyT).includes('L:alerts.ruleNames'),'malformed ids are not looked up');
 });

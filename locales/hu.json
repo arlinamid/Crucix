@@ -71,7 +71,8 @@
     "ecbIndicators": "EKB-mutatók",
     "sourceHealth": "Források állapota",
     "changes": "Mi változott",
-    "countryRisk": "Országkockázat"
+    "countryRisk": "Országkockázat",
+    "storyThreads": "Történetszálak"
   },
   "layers": {
     "airActivity": "Légi aktivitás",
@@ -467,6 +468,7 @@
       "events-critical": "Kritikus események",
       "events-high": "Magas súlyosságú események",
       "convergence-default": "Események összetorlódása",
+      "threads-multisource": "Többforrású történetszál",
       "source-stale": "Elhallgatott forrás",
       "vix-spike": "VIX-kiugrás",
       "hy-spread-wide": "Széles magas hozamú kötvényfelár",
@@ -492,7 +494,8 @@
         "change": "Változás",
         "absence": "Kiesés",
         "convergence": "Összetorlódás",
-        "delta": "Változásjelzés"
+        "delta": "Változásjelzés",
+        "thread": "Történetszál"
       },
       "source": {
         "builtin": "Beépített",
@@ -563,6 +566,8 @@
       "cell": "Rácscella (fok)",
       "window": "Időablak (óra)",
       "minKinds": "Különböző eseménytípusok",
+      "minSources": "Különböző források",
+      "minObservations": "Megfigyelések (nem hírek)",
       "minSeverity": "Legalacsonyabb súlyosság",
       "forSweeps": "Megerősítő gyűjtések",
       "cooldown": "Várakozási idő (perc)",
@@ -586,7 +591,8 @@
         "any": "bármely forrás",
         "absence": "{source}: {sweeps}+ sikertelen gyűjtés egymás után",
         "absenceAge": "{minutes} percnél régebbi",
-        "convergence": "{kinds}+ eseménytípus egy {cell}°-os cellában, {hours} órán belül, {level} vagy magasabb szinten"
+        "convergence": "{kinds}+ eseménytípus egy {cell}°-os cellában, {hours} órán belül, {level} vagy magasabb szinten",
+        "thread": "{sources}+ forrás, {kinds}+ rekordtípus, {observations}+ megfigyelés, {level} vagy annál súlyosabb"
       },
       "errorSave": "A szabályt nem sikerült menteni",
       "errorLoad": "A szabályokat nem sikerült betölteni",
@@ -650,6 +656,7 @@
     "systemPrompt": "Te egy makrohírszerzési vállalat kvantitatív elemzője vagy. 25 forrásból származó strukturált OSINT- és gazdasági adatokat kapsz, és ezekből 5-8 végrehajtható kereskedési ötletet állítasz elő.\n\nSzabályok:\n- Minden ötlet hivatkozzon a bemenet konkrét adatpontjaira\n- Tartalmazza a belépési indoklást, a fő kockázatokat és az időtávot\n- Kapcsold össze a geopolitikai, gazdasági és piaci jelzéseket\n- Légy konkrét: nevezd meg az instrumentumokat (tickerek, futures, ETF-ek), ne csak általános szektorokat\n- Ha a delta jelentős változásokat mutat, azokkal kezdj\n- NE ismételd meg a \"previous ideas\" listában szereplő ötleteket, kivéve ha a feltételek érdemben változtak\n- A bizonyosság besorolása: HIGH (több megerősítő jelzés), MEDIUM (alátámasztott tézis), LOW (spekulatív)\n\nA kimenet CSAK egy érvényes, 5-8 objektumból álló JSON tömb legyen, soha nem egyetlen önálló objektum. Formátum:\n[\n  {\n    \"title\": \"Rövid magyar cím (max. 10 szó)\",\n    \"type\": \"LONG|SHORT|HEDGE|WATCH|AVOID\",\n    \"ticker\": \"Elsődleges instrumentum\",\n    \"confidence\": \"HIGH|MEDIUM|LOW\",\n    \"rationale\": \"2-3 magyar mondatos indoklás konkrét adathivatkozásokkal\",\n    \"risk\": \"Fő kockázati tényező magyarul\",\n    \"horizon\": \"Intraday|Days|Weeks|Months\",\n    \"signals\": [\"signal1\", \"signal2\"]\n  }\n]",
     "briefing": {
       "event": "{kind}, {level}: {title}",
+      "thread": "{kind}, {level}: {title} ({count} összekapcsolt rekord)",
       "country": "{country}: kockázati pontszám {score}/100, {change}.",
       "changeUp": "24 óra alatt {value} ponttal nőtt",
       "changeDown": "24 óra alatt {value} ponttal csökkent",
@@ -893,7 +900,10 @@
     "kind_displacement": "Menekültmozgás",
     "kind_launch": "Indítás",
     "method_orbit-centre": "A felismert körpályák átlagos középpontja (összesítés, nem repülőgép-pozíció)",
-    "method_airport": "A repülőtér vonatkoztatási pontja (nem légijármű)"
+    "method_airport": "A repülőtér vonatkoztatási pontja (nem légijármű)",
+    "thread": "Történetszál",
+    "threadHelp": "Az entitásgráf szabályok alapján kapcsolja össze ezt a rekordot másokkal (egy történet több forrásból, vagy egy beszámoló és egy megfigyelés ugyanarról a helyről vagy dologról). A kapcsolat nem megerősítés.",
+    "threadOpen": "A történetszál megnyitása"
   },
   "pwa": {
     "menu": "Telepítés / offline",
@@ -1315,6 +1325,7 @@
     "paletteHint": "Kockázati pontszám: {score}",
     "paletteHintNone": "Országlap",
     "c_advisory": "Utazási figyelmeztetés (USA)",
+    "c_corroboration": "Megerősítettség (történetszálak)",
     "advisory": "Utazási figyelmeztetés (USA külügyminisztérium)",
     "advisoryNone": "Ehhez az országhoz nincs amerikai utazási figyelmeztetés.",
     "advisoryLevel": "{level}. szint a 4-ből",
@@ -1343,7 +1354,49 @@
     "cp_panama": "Panama-csatorna",
     "cp_gibraltar": "Gibraltári-szoros",
     "cp_bosporus": "Boszporusz",
-    "exposureNote": "A World Monitor szerkesztői megítélése arról, mennyire támaszkodik egy ország egy átjáróra, és mennyire kerülheti meg (index = függés × (1 − alternatívák) teljes lezárás esetén). Nem mért kereskedelmi adat. Forgalom: IMF PortWatch, csak az AIS-sel látható hajók."
+    "exposureNote": "A World Monitor szerkesztői megítélése arról, mennyire támaszkodik egy ország egy átjáróra, és mennyire kerülheti meg (index = függés × (1 − alternatívák) teljes lezárás esetén). Nem mért kereskedelmi adat. Forgalom: IMF PortWatch, csak az AIS-sel látható hajók.",
+    "threads": "Történetszálak",
+    "threadMeta": "{members} rekord · {sources} forrás",
+    "threadsNote": "Az entitásgráf által összekapcsolt rekordok (egy történet több forrásból, vagy egy beszámoló és egy megfigyelés ugyanarról a helyről vagy dologról). A kapcsolat nem megerősítés."
+  },
+  "threads": {
+    "title": "Történetszálak",
+    "intro": "Az entitásgráf által összekapcsolt rekordok: egy történet több forrásból, egy beszámoló és egy megfigyelés ugyanarról a szorosról, létesítményről vagy CVE-ről, vagy különböző típusú megfigyelések egy helyen. A kapcsolat nem megerősítés.",
+    "unavailable": "A történetszálak nem érhetők el.",
+    "empty": "Az elmúlt 72 órában nincs összekapcsolt történet.",
+    "summary": "{count} szál az elmúlt 72 órában",
+    "status_emerging": "Kialakuló",
+    "status_active": "Aktív",
+    "status_fading": "Lecsengő",
+    "meta": "{members} rekord · {sources} forrás",
+    "observations": "{count} megfigyelés",
+    "sheet": "Történetszál",
+    "close": "Bezárás",
+    "loading": "A szál betöltése…",
+    "error": "A szál nem tölthető be. Zárd be, és nyisd meg újra.",
+    "notFound": "Ez a szál már nincs benne az elmúlt 72 órában.",
+    "span": "{first} – {last}",
+    "records": "Rekordok",
+    "links": "Kapcsolatok",
+    "linksSummary": "{story} azonos történet · {cooccurs} együttes előfordulás",
+    "linkHelp": "Az azonos történet kapcsolat különböző forrásokból származó, hasonló című beszámolókat köt össze; az együttes előfordulás ugyanazt a szorost, létesítményt, szereplőt vagy CVE-t említő rekordokat, illetve 100 km-en és egy napon belüli megfigyeléseket. Egy hírügynökségi anyag átvett másolatai egy forrásnak számítanak.",
+    "entities": "A szálban említve",
+    "countries": "Országok",
+    "entity": "Entitás",
+    "entityEvents": "Rekordok az elmúlt 7 napban",
+    "neighbors": "Együtt említve ezekkel",
+    "neighborCount": "{count} rekord",
+    "entityThreads": "Szálak",
+    "entityNone": "Az elmúlt 7 napban egyetlen rekord sem említi ezt az entitást.",
+    "back": "Vissza a szálhoz",
+    "type_country": "Ország",
+    "type_chokepoint": "Tengeri szoros",
+    "type_site": "Katonai terület",
+    "type_actor": "Fenyegetésszereplő",
+    "type_cve": "Sérülékenység",
+    "untitled": "A cím nem érhető el",
+    "open": "A szál megnyitása",
+    "replayNote": "A szál-lap az élő gráfot olvassa, ezért a visszajátszás alatt nem érhető el. A látható lista a visszajátszott sweep saját listája."
   },
   "briefing": {
     "title": "Összefoglaló",

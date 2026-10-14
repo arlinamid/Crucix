@@ -12,7 +12,7 @@ import { normalizeHistoryEvent, validateHistoryFilters } from '../lib/intelligen
 const root = new URL('../', import.meta.url);
 const read = path => readFileSync(new URL(path, root), 'utf8');
 const NEW_KINDS = ['earthquake', 'maritime', 'aviation', 'sanctions', 'market', 'energy', 'interference', 'displacement', 'launch', 'health'];
-const OTHER_KINDS = ['news', 'osint', 'health', 'outage', 'conflict', 'signal'];
+const OTHER_KINDS = ['news', 'osint', 'health', 'outage', 'conflict', 'signal', 'thermal'];
 const now = Date.parse('2026-10-01T21:00:00Z');
 const keys = value => Object.keys(value).sort();
 const browser = () => {

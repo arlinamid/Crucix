@@ -20,6 +20,9 @@ import { installIntelligenceRoutes } from './lib/intelligence/routes.mjs';
 import { EntityStore } from './lib/intelligence/entities.mjs';
 import { PredictionJournal } from './lib/intelligence/predictions.mjs';
 import { runRiskStep } from './lib/intelligence/risk-step.mjs';
+import { GraphStore } from './lib/intelligence/graph.mjs';
+import { ThreadStore } from './lib/intelligence/threads.mjs';
+import { LinkCache, linkWithModel } from './lib/llm/linker.mjs';
 import { KeywordStore } from './lib/intelligence/keywords.mjs';
 import { ThermalStore } from './lib/intelligence/thermal.mjs';
 import { installRiskRoutes } from './lib/intelligence/risk-routes.mjs';
@@ -49,7 +52,8 @@ import { installSetupRoutes } from './lib/setup-wizard.mjs';
 import { archiveSweep } from './lib/sweeps/step.mjs';
 import { WORLD_FEEDS, getFeedsByCountry } from './apis/utils/news-feeds.mjs';
 import { parseFeed } from './apis/utils/rss.mjs';
-import { getWorldNewsByCountry, getWorldNews, getBalancedWorldNews, getWorldRssStats, startWorldRssScheduler } from './lib/world-rss-runner.mjs';
+import { getWorldNewsByCountry, getWorldNews, getBalancedWorldNews, getWorldRssStats, loadWorldRssCache, startWorldRssScheduler } from './lib/world-rss-runner.mjs';
+import { enrichNewsFeed as enrichWorldNews, WORLD_NEWS_PER_COUNTRY } from './lib/news/world-enrich.mjs';
 import { openFeedStore, setActiveFeedStore } from './lib/news/feed-store.mjs';
 import { installFeedRoutes } from './lib/news/routes.mjs';
 import { resolveRunsDir as resolveUserRunsDir, feedsSettingsPath, settingsEnvPath } from './lib/user-paths.mjs';
@@ -96,7 +100,14 @@ const riskStore = config.risk.enabled ? new EntityStore(RUNS_DIR, { retentionDay
 const riskJournal = config.risk.enabled ? new PredictionJournal(RUNS_DIR) : null;
 const riskKeywords = config.risk.enabled ? new KeywordStore(RUNS_DIR) : null;
 const riskThermal = config.risk.enabled ? new ThermalStore(RUNS_DIR) : null;
+// The entity graph (runs/intelligence/graph.json): events linked through chokepoints, sites, actors, CVEs and shared stories.
+const riskGraph = config.risk.enabled ? new GraphStore(RUNS_DIR) : null;
+const riskThreads = config.risk.enabled ? new ThreadStore(RUNS_DIR) : null;
 riskStore?.load();
+riskGraph?.load();
+riskThreads?.load();
+// RISK_LLM_LINKING=true: the model's answers on borderline report pairs, kept for the life of the server.
+const linkCache = new LinkCache();
 riskJournal?.load();
 riskKeywords?.load();
 riskThermal?.load();
@@ -105,7 +116,7 @@ let riskLatest = null; // the last successful step: {at, scores, inputs}
 // Never throws: on a failure the snapshot goes on without `risk` and /api/health says 'unavailable'.
 function recordRisk(snapshot, raw) {
   if (!riskStore) return;
-  const result = runRiskStep({ store: riskStore, journal: riskJournal, keywords: riskKeywords, thermal: riskThermal, snapshot, raw, now: Date.now(), language: currentLanguage });
+  const result = runRiskStep({ store: riskStore, journal: riskJournal, keywords: riskKeywords, thermal: riskThermal, graph: riskGraph, threads: riskThreads, snapshot, raw, now: Date.now(), language: currentLanguage });
   riskStatus = result.ok ? 'ok' : 'unavailable';
   if (result.ok) riskLatest = result;
 }
@@ -303,7 +314,7 @@ installIntelligenceRoutes(app, { getSnapshot: () => freshLiveSnapshot(currentDat
 if (riskStore) {
   const briefing = createBriefingService({ provider: llmProvider, language: currentLanguage, store: riskStore, history,
     getSnapshot: () => currentData, getScores: () => riskLatest?.scores ?? null });
-  installRiskRoutes(app, { store: riskStore, journal: riskJournal, getSnapshot: () => currentData, getState: () => riskLatest, history, briefing, language: currentLanguage,
+  installRiskRoutes(app, { store: riskStore, journal: riskJournal, getSnapshot: () => currentData, getState: () => riskLatest, history, briefing, graph: riskGraph, threads: riskThreads, language: currentLanguage,
     security: { publicUrl: config.alerts.publicUrl, allowedHosts: config.alerts.allowedHosts } });
 }
 // After an operator action the dashboards get the new summary; the next /api/data and page load carry it too.
@@ -459,42 +470,8 @@ function broadcast(data) {
   broadcastEvent(sseClients, data);
 }
 
-function safeIsoDate(raw) {
-  if (!raw) return new Date().toISOString();
-  const ms = Date.parse(raw);
-  return Number.isFinite(ms) ? new Date(ms).toISOString() : new Date().toISOString();
-}
-
-function enrichNewsFeed(synthesized) {
-  try {
-    const cachedWorldNews = getBalancedWorldNews(12);
-    if (!cachedWorldNews || !cachedWorldNews.length) return;
-    const existingUrls = new Set((synthesized.newsFeed || []).map(n => n.url).filter(Boolean));
-    const existingTitles = new Set((synthesized.newsFeed || []).map(n => (n.headline || '').substring(0, 40).toLowerCase()));
-    for (const item of cachedWorldNews) {
-      const titleKey = (item.title || '').substring(0, 40).toLowerCase();
-      if (existingUrls.has(item.url) || existingTitles.has(titleKey)) continue;
-      const iso = safeIsoDate(item.date);
-      synthesized.newsFeed.push({
-        headline: item.title,
-        source: item.source,
-        type: 'rss',
-        timestamp: iso,
-        publishedAt: iso,
-        region: item.country || 'Global',
-        urgent: false,
-        url: item.url,
-        tier: item.tier || 3,
-        lang: item.lang,
-        country: item.country,
-      });
-      existingUrls.add(item.url);
-      existingTitles.add(titleKey);
-    }
-  } catch (err) {
-    console.warn('[NewsFeed] Enrich error:', err.message);
-  }
-}
+// World-RSS headlines (their own background sweep) join the news feed before the events are built.
+const enrichNewsFeed = snapshot => enrichWorldNews(snapshot, getBalancedWorldNews(WORLD_NEWS_PER_COUNTRY));
 
 // === Sweep Cycle ===
 async function runSweepCycle() {
@@ -556,6 +533,12 @@ async function runSweepCycle() {
     recordSnapshotEvents(synthesized);
     // Country risk: sets synthesized.risk before the alert metrics read it and before the sweep is archived; never throws.
     recordRisk(synthesized, rawData);
+    // The optional model help for the entity graph runs in the background: its links show in the next sweep's threads.
+    if (riskGraph && config.risk.llmLinking && llmProvider?.isConfigured) {
+      linkWithModel({ graph: riskGraph, provider: llmProvider, now: Date.now(), limit: config.risk.llmLinkingPairs, cache: linkCache })
+        .then(edges => { if (edges.length) { riskGraph.link(edges); riskGraph.save(); console.log(`[Linker] ${edges.length} model link(s) added`); } })
+        .catch(error => console.warn('[Linker] Failed:', error?.message || error));
+    }
     // Alert engine: never throws and does not wait for the notifications it sends.
     runAlertStep(synthesized, { engine: alertEngine, notifier: alertNotifier, delta });
     // Sets synthesized.changes and stores the sweep; never throws. After a failed write the next changes are counted from
@@ -642,6 +625,9 @@ async function start() {
     try {
       const existing = JSON.parse(readFileSync(join(RUNS_DIR, 'latest.json'), 'utf8'));
       const data = await synthesize(existing, { news: [] });
+      // The world-RSS cache of the last run (the scheduler below loads it again and refreshes it).
+      loadWorldRssCache();
+      enrichNewsFeed(data);
       recordSnapshotEvents(data);
       // The stored references and VIEWS/INFORM inputs of runs/latest.json give the dashboard a risk summary at once; the
       // event ids are cached, so the next sweep does not count these events twice.
@@ -650,7 +636,6 @@ async function start() {
       // news, and the sweep behind runs/latest.json was archived when it ran - except on the first start after the upgrade to a
       // version with an archive, when that sweep ran before there was one. The initial sweep below is then the first one stored.
       attachAlertSummary(data, alertEngine);
-      enrichNewsFeed(data);
       currentData = data;
       lastSweepTime = data.meta?.timestamp || null;
       console.log('[Crucix] Loaded existing data from runs/latest.json — dashboard ready instantly');

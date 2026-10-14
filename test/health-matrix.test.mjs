@@ -879,7 +879,7 @@ test('the page wires one mount line, and the replay bar and the matrix share the
   assert.equal(count(html, /CrucixHealthMatrix\?\.mount\(/g), 1);
   assert.equal(count(html, /CrucixReplay\?\.mount\(/g), 1);
   assert.ok(html.includes('locale:uiLocale()'));
-  assert.equal(count(html, /locale:uiLocale\(\)/g), 6, 'the replay bar, the matrix, the changes panel and the country-risk panel, sheet and briefing take their locale from the helper');
+  assert.equal(count(html, /locale:uiLocale\(\)/g), 7, 'the replay bar, the matrix, the changes panel, the country-risk panel, sheet and briefing and the story threads take their locale from the helper');
 });
 
 test('health-matrix.css: the column times keep room between them (measured at 390 px: 1 px padding left 2 px between labels)', () => {

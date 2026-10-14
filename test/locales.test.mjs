@@ -96,7 +96,7 @@ test('the palette group has the same keys in the same order in en, hu and fr, ea
 });
 
 test('the alert UI has every string it renders, a name for each built-in rule and the inspector level words', () => {
-  assert.equal(BUILTIN_RULES.length, 8, 'the built-in rule pack');
+  assert.equal(BUILTIN_RULES.length, 9, 'the built-in rule pack');
   for (const lang of LANGS) {
     const strings = flat(lang);
     for (const key of ALERT_UI_KEYS) assert.ok(strings.has(`alerts.${key}`), `${lang}: alerts.${key}`);

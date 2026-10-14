@@ -21,6 +21,7 @@
 <script src="health-matrix.js"></script>
 <script src="changes.js"></script>
 <script src="risk.js"></script>
+<script src="threads.js"></script>
 <script src="country.js"></script>
 <script src="briefing.js"></script>
 <script src="record-core.js"></script>
@@ -42,6 +43,7 @@
 <link rel="stylesheet" href="health-matrix.css">
 <link rel="stylesheet" href="changes.css">
 <link rel="stylesheet" href="risk.css">
+<link rel="stylesheet" href="threads.css">
 <link rel="stylesheet" href="country.css">
 <link rel="stylesheet" href="briefing.css">
 <link rel="stylesheet" href="palette.css">
@@ -600,13 +602,13 @@ const dashboardDefaultZones = {
   center1:['newsTicker'],
   center2:['macroMarkets'],
   center3:['tradeIdeas'],
-  right:['changes','countryRisk','liveSources','crossSourceSignals','osintStream','signalCore','sourceHealth','internetOutages','healthAlerts','supplementalHealth','sweepDelta']
+  right:['changes','countryRisk','storyThreads','liveSources','crossSourceSignals','osintStream','signalCore','sourceHealth','internetOutages','healthAlerts','supplementalHealth','sweepDelta']
 };
 const dashboardPanelIds = Object.values(dashboardDefaultZones).flat();
 // A panel from this list that a saved layout has never held (in no zone and with no visibility entry) goes to the top of its default rail
 // (after the top panels already leading it, so "Country risk" lands under "What changed") instead of the end; any later save has an entry
 // for it, so a user who hid it does not get it back.
-const dashboardTopPanels = ['changes','countryRisk'];
+const dashboardTopPanels = ['changes','countryRisk','storyThreads'];
 const dashboardFixedModuleIds = ['map','mapRegions'];
 const DASHBOARD_LAYOUT_STORAGE_KEY = 'crucix_dashboard_layout_v2';
 const MAP_LAYER_STORAGE_KEY = 'crucix_map_layers_v1';
@@ -782,6 +784,7 @@ function getPanelLabel(panelId){
     case 'sweepDelta': return t('panels.sweepDelta','Sweep Delta');
     case 'changes': return t('panels.changes','What changed');
     case 'countryRisk': return t('panels.countryRisk','Country risk');
+    case 'storyThreads': return t('panels.storyThreads','Story threads');
     default: return panelId;
   }
 }
@@ -1708,6 +1711,8 @@ function buildPanelHtml(panelId, zone){
     case 'changes': return window.CrucixChanges?.panelHtml(D.changes)||'';
     // Not lens-filtered: a country has no domain. During a replay D is the archived snapshot, so this is that sweep's own ranking.
     case 'countryRisk': return window.CrucixRisk?.panelHtml(D.risk)||'';
+    // Records the entity graph links (lib/intelligence/threads.mjs); like the country risk, not lens-filtered and the replayed sweep's own.
+    case 'storyThreads': return window.CrucixThreads?.panelHtml(D.threads)||'';
     default: return '';
   }
 }
@@ -3508,6 +3513,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   // POST /api/briefing), so like the archive hooks they are left out on file pages and in the offline shell, and are off during a replay.
   const replayOn=()=>!!window.CrucixReplay?.active();
   window.CrucixRisk?.mount({t,locale:uiLocale(),getRisk:()=>D.risk,isReplay:replayOn,fetchJson:archiveApi?fetchJsonNoStore:undefined});
+  // Story threads: the panel reads the snapshot's own threads; the thread sheet reads the live graph (GET /api/threads/:id, /api/entities/:id).
+  window.CrucixThreads?.mount({t,locale:uiLocale(),now:clockNow,getThreads:()=>D.threads,isReplay:replayOn,fetchJson:archiveApi?fetchJsonNoStore:undefined,
+    openEvent:id=>window.CrucixIntelligence?.openEvent(id),openCountry:iso3=>window.CrucixCountry?.open(iso3)});
   if(archiveApi){
     window.CrucixCountry?.mount({t,locale:uiLocale(),now:clockNow,fetchJson:fetchJsonNoStore,isReplay:replayOn,openEvent:id=>window.CrucixIntelligence?.openEvent(id)});
     window.CrucixBriefing?.mount({t,locale:uiLocale(),isReplay:replayOn,getScopes:()=>Array.isArray(D.risk?.top)?D.risk.top:[],openEvent:id=>window.CrucixIntelligence?.openEvent(id)});

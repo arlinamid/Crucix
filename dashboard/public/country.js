@@ -11,13 +11,13 @@
   //   now()             the page clock of the age labels
   // open(iso3) shows the dialog (one request at a time: a newer open or a close makes an older answer stale); close() closes it. Esc, the
   // Close button and the backdrop close it too, and the focus goes back to where it was before the dialog opened.
-  const ISO3=/^[A-Z]{3}$/,EVENT_ID=/^event-[0-9a-f]{32}$/;
+  const ISO3=/^[A-Z]{3}$/,EVENT_ID=/^event-[0-9a-f]{32}$/,THREAD=/^thread-[a-f0-9]{16}$/;
   const ISO_TIME=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
-  const LEVELS=['critical','high','watch','info'],COMPONENTS=['events','persistence','diversity','attention','forecast','baseline','advisory'];
+  const LEVELS=['critical','high','watch','info'],COMPONENTS=['events','persistence','diversity','attention','forecast','baseline','advisory','corroboration'];
   const COPY={title:'Country sheet',close:'Close',loading:'Loading the country sheet…',error:'Could not load the country sheet. Close and reopen it to try again.',notFound:'This country is not in the gazetteer.',
     noScore:'No risk score: no recorded event in the last 7 days and no forecast or baseline for this country.',score:'Risk score',outOf:'{score} of 100',change:'24 h change',coverage:'Coverage',
     updated:'Scored {time} · model v{version}',components:'Components',component:'Component',weight:'Weight',value:'Value (0–100)',status:'Data',available:'Available',missing:'Missing (left out)',
-    c_events:'Events (24 h)',c_persistence:'Persistence (7 days)',c_diversity:'Diversity of event types',c_attention:'News attention',c_forecast:'Conflict forecast (VIEWS)',c_baseline:'Baseline risk (INFORM)',c_advisory:'Travel advisory (U.S.)',
+    c_events:'Events (24 h)',c_persistence:'Persistence (7 days)',c_diversity:'Diversity of event types',c_attention:'News attention',c_forecast:'Conflict forecast (VIEWS)',c_baseline:'Baseline risk (INFORM)',c_advisory:'Travel advisory (U.S.)',c_corroboration:'Corroboration (story threads)',
     trend:'Trend',trendDaily:'Daily score, last {count} days: {values}',trendRecent:'Score in the last 48 hours: {values}',trendNone:'Not enough history for a trend yet.',
     convergence:'Convergence',convergenceOn:'{count} event types at high or above within 24 hours: {kinds}.',convergenceOff:'No convergence: fewer than 3 event types at high or above within 24 hours.',
     forecast:'Conflict forecast (VIEWS)',forecastNone:'No VIEWS forecast for this country.',month:'Month',probability:'Chance of ≥ 25 battle deaths',fatalities:'Expected battle deaths',monthUsed:'used in the score',run:'Run {run}',
@@ -31,6 +31,7 @@
     actorsNote:'Attribution is the MISP community’s suspicion, not a proven finding, and many groups have no country at all.',aliases:'also known as {names}',
     events:'Recent records',eventsNone:'No recorded event linked to this country.',located:'Located',mentioned:'Mentioned',untitled:'Title unavailable',
     linked:'Linked countries',linkedNone:'No country shares records with this one in the last 7 days.',linkedCount:'{count} shared records',briefing:'Briefing for this country',
+    threads:'Story threads',threadMeta:'{members} records · {sources} sources',threadsNote:'Records the entity graph links (one story from several outlets, or a report and an observation of the same place or thing). Linked is not confirmed.',
     paletteOpen:'Open country: {name}',paletteHint:'Risk score {score}',paletteHintNone:'Country sheet'};
   let opts=null,nodes=null,seq=0,opener=null,finished=true;
   const log=error=>{try{console.error('[country]',error);}catch{}};
@@ -155,6 +156,16 @@
       .map(item=>`<li><button type="button" class="cs-link" data-country-open="${item.iso3}">${esc(text(item.displayName,120)||text(item.name,120)||item.iso3)} <span class="cs-n">${esc(say('linkedCount',{count:Number.isSafeInteger(item.count)?item.count:0}))}</span></button></li>`);
     return `<section class="cs-sec" aria-labelledby="cs-linked"><h3 id="cs-linked">${esc(say('linked'))}</h3>${rows.length?`<ul class="cs-links">${rows.join('')}</ul>`:`<p class="cs-calm">${esc(say('linkedNone'))}</p>`}</section>`;
   }
+  // The story threads naming this country (2.41; absent from an older server): each opens the thread sheet (threads.js).
+  function threads(list){
+    const rows=(Array.isArray(list)?list:[]).filter(item=>isObject(item)&&typeof item.id==='string'&&THREAD.test(item.id)).slice(0,5).map(item=>{
+      const level=LEVELS.includes(item.maxLevel)?item.maxLevel:'unknown',count=value=>Number.isSafeInteger(value)&&value>=0?value:0;
+      const meta=[say('threadMeta',{members:count(item.memberCount),sources:count(item.sources)}),(Array.isArray(item.kinds)?item.kinds:[]).filter(kind=>typeof kind==='string').slice(0,6).map(kind=>kindName(kind.slice(0,40))).join(', ')].filter(Boolean).join(' · ');
+      return `<li><button type="button" class="cs-ev" data-country-thread="${item.id}"><span class="cs-sev sev-${level}"><i aria-hidden="true">${esc(glyphOf(level))}</i> ${esc(tx('inspector.level.'+level,level[0].toUpperCase()+level.slice(1)))}</span><span class="cs-ev-title">${esc(text(item.title,300)||say('untitled'))}</span><span class="cs-ev-meta">${esc(meta)}</span></button></li>`;
+    });
+    if(!rows.length)return '';
+    return `<section class="cs-sec" aria-labelledby="cs-threads"><h3 id="cs-threads">${esc(say('threads'))}</h3><ul class="cs-list">${rows.join('')}</ul><p class="cs-cite">${esc(say('threadsNote'))}</p></section>`;
+  }
   /** The sheet's markup for one /api/countries/:iso3 answer (pure; every dynamic string escaped). */
   function render(data){
     if(!isObject(data)||typeof data.iso3!=='string'||!ISO3.test(data.iso3))return '';
@@ -164,7 +175,7 @@
       ?`<div class="cs-head"><p class="cs-score" data-band="${score>=70?'high':score>=40?'elevated':score>=10?'watch':'low'}"><span class="cs-label">${esc(say('score'))}</span> <strong>${esc(say('outOf',{score}))}</strong></p><span class="cs-bar" aria-hidden="true"><span class="cs-fill" style="width:${score}%"></span></span><dl class="cs-facts"><div><dt>${esc(say('change'))}</dt><dd>${esc(changeText(data.change24h))}</dd></div><div><dt>${esc(say('coverage'))}</dt><dd>${esc(percent(data.coverage))}</dd></div></dl>${at!==null?`<p class="cs-cite">${esc(say('updated',{time:clock(at),version:Number.isSafeInteger(data.version)?data.version:'?'}))}</p>`:''}</div>`
       :`<p class="cs-calm cs-noscore">${esc(say('noScore'))}</p>`;
     const brief=`<p class="cs-actions"><button type="button" class="cs-brief" data-country-briefing="${data.iso3}" aria-haspopup="dialog">${esc(say('briefing'))}</button></p>`;
-    return head+(scored?components(data.components):'')+trend(data.series)+(scored?convergence(data.convergence):'')+forecast(data.forecast)+baseline(data.baseline)+advisory(data.advisory)+exposure(data.exposure)+actors(data.actors)+events(data.events)+linked(data.linked)+brief;
+    return head+(scored?components(data.components):'')+trend(data.series)+(scored?convergence(data.convergence):'')+forecast(data.forecast)+baseline(data.baseline)+advisory(data.advisory)+exposure(data.exposure)+actors(data.actors)+threads(data.threads)+events(data.events)+linked(data.linked)+brief;
   }
 
   // ===== The dialog =====
@@ -237,6 +248,14 @@
       closeDialog();
       const intelligence=window.CrucixIntelligence,fn=typeof opts.openEvent==='function'?opts.openEvent:intelligence&&intelligence.openEvent;
       if(typeof fn==='function')Promise.resolve(fn(id)).catch(log);
+      return;
+    }
+    const thread=target.closest('[data-country-thread]');
+    if(thread){
+      const id=thread.getAttribute('data-country-thread');
+      if(typeof id!=='string'||!THREAD.test(id)||!window.CrucixThreads||typeof window.CrucixThreads.open!=='function')return;
+      closeDialog();
+      Promise.resolve(window.CrucixThreads.open(id)).catch(log);
       return;
     }
     const other=target.closest('[data-country-open]');

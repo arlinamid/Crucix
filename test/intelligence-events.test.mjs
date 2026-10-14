@@ -341,3 +341,26 @@ behavior('provider severity words map onto the event scale', () => {
   for (const [word, level] of Object.entries(cases)) assert.equal(model.normalizeSeverity(word), level, word);
   for (const bad of ['', 'banana', null, 7, {}, 'x'.repeat(400)]) assert.equal(model.normalizeSeverity(bad), null);
 });
+
+test('buildEvents: a high-intensity fire at a mapped military area and a new KEV entry become located/dated records', () => {
+  const snapshot = {
+    meta: { timestamp: '2026-10-14T10:00:00Z' },
+    thermal: [{ region: 'Middle East', fires: [
+      { lat: 33.512, lon: 36.278, frp: 140, at: '2026-10-14T09:12:00Z', site: 'Mezzeh Air Base' },
+      { lat: 30, lon: 31, frp: 300, at: '2026-10-14T09:12:00Z' },
+    ] }],
+    kev: [{ providerId: 'CVE-2026-12345', source: 'CISA-KEV', title: 'CVE-2026-12345: Router RCE exploited', summary: 'Remote code execution.',
+      observedAt: '2026-10-13', url: 'https://nvd.nist.gov/vuln/detail/CVE-2026-12345', severity: 'high' }],
+  };
+  const events = model.buildEvents(snapshot, { now: Date.parse("2026-10-14T10:00:00Z") });
+  const fires = events.filter(event => event.kind === 'thermal');
+  assert.equal(fires.length, 1, 'only the fire beside a mapped site becomes an event');
+  assert.equal(fires[0].title, 'High-intensity fire (140 MW) at Mezzeh Air Base');
+  assert.equal(fires[0].location.method, 'provider');
+  assert.equal(fires[0].observedAt, '2026-10-14T09:12:00.000Z');
+  assert.equal(fires[0].severity, 'high');
+  const kev = events.find(event => event.source.name === 'CISA-KEV');
+  assert.equal(kev.kind, 'cyber');
+  assert.equal(kev.title, 'CVE-2026-12345: Router RCE exploited');
+  assert.ok(kev.observedAt.startsWith('2026-10-13'));
+});

@@ -71,7 +71,8 @@
     "ecbIndicators": "ECB Indicators",
     "sourceHealth": "Source health",
     "changes": "What changed",
-    "countryRisk": "Country risk"
+    "countryRisk": "Country risk",
+    "storyThreads": "Story threads"
   },
   "layers": {
     "airActivity": "Air Activity",
@@ -467,6 +468,7 @@
       "events-critical": "Critical events",
       "events-high": "High-severity events",
       "convergence-default": "Event convergence",
+      "threads-multisource": "Multi-source story thread",
       "source-stale": "Source gone quiet",
       "vix-spike": "VIX spike",
       "hy-spread-wide": "High-yield spread wide",
@@ -492,7 +494,8 @@
         "change": "Change",
         "absence": "Absence",
         "convergence": "Convergence",
-        "delta": "Delta"
+        "delta": "Delta",
+        "thread": "Story thread"
       },
       "source": {
         "builtin": "Built-in",
@@ -563,6 +566,8 @@
       "cell": "Grid cell (degrees)",
       "window": "Window (hours)",
       "minKinds": "Distinct event types",
+      "minSources": "Distinct sources",
+      "minObservations": "Observations (not reports)",
       "minSeverity": "Minimum severity",
       "forSweeps": "Sweeps to confirm",
       "cooldown": "Cooldown (minutes)",
@@ -586,7 +591,8 @@
         "any": "any source",
         "absence": "{source}: {sweeps}+ failed sweeps in a row",
         "absenceAge": "older than {minutes} min",
-        "convergence": "{kinds}+ event types within one {cell}° cell in {hours} h at {level} or above"
+        "convergence": "{kinds}+ event types within one {cell}° cell in {hours} h at {level} or above",
+        "thread": "{sources}+ sources, {kinds}+ record types, {observations}+ observations at {level} or above"
       },
       "errorSave": "Could not save the rule",
       "errorLoad": "Could not load the rules",
@@ -650,6 +656,7 @@
     "systemPrompt": "You are a quantitative analyst at a macro intelligence firm. You receive structured OSINT + economic data from 25 sources and produce 5-8 actionable trade ideas.\n\nRules:\n- Each idea must cite specific data points from the input\n- Include entry rationale, risk factors, and time horizon\n- Blend geopolitical, economic, and market signals — cross-correlate across domains\n- Be specific: name instruments (tickers, futures, ETFs), not vague sectors\n- If delta shows significant changes, lead with those\n- Do NOT repeat ideas from the \"previous ideas\" list unless conditions have materially changed\n- Rate confidence: HIGH (multiple confirming signals), MEDIUM (thesis supported), LOW (speculative)\n\nOutput ONLY a valid JSON array of 5-8 objects, never a single bare object. Format:\n[\n  {\n    \"title\": \"Short title (max 10 words)\",\n    \"type\": \"LONG|SHORT|HEDGE|WATCH|AVOID\",\n    \"ticker\": \"Primary instrument\",\n    \"confidence\": \"HIGH|MEDIUM|LOW\",\n    \"rationale\": \"2-3 sentence explanation citing specific data\",\n    \"risk\": \"Key risk factor\",\n    \"horizon\": \"Intraday|Days|Weeks|Months\",\n    \"signals\": [\"signal1\", \"signal2\"]\n  }\n]",
     "briefing": {
       "event": "{kind}, {level}: {title}",
+      "thread": "{kind}, {level}: {title} ({count} linked records)",
       "country": "{country}: risk score {score}/100, {change}.",
       "changeUp": "up {value} points in 24 hours",
       "changeDown": "down {value} points in 24 hours",
@@ -893,7 +900,10 @@
     "kind_displacement": "Displacement",
     "kind_launch": "Launch",
     "method_orbit-centre": "Mean centre of the detected orbits (aggregate, not an aircraft position)",
-    "method_airport": "Airport reference position (not an aircraft)"
+    "method_airport": "Airport reference position (not an aircraft)",
+    "thread": "Story thread",
+    "threadHelp": "The entity graph links this record with others by rule (one story from several outlets, or a report and an observation of the same place or thing). Linked is not confirmed.",
+    "threadOpen": "Open the story thread"
   },
   "pwa": {
     "menu": "Install / offline",
@@ -1315,6 +1325,7 @@
     "paletteHint": "Risk score {score}",
     "paletteHintNone": "Country sheet",
     "c_advisory": "Travel advisory (U.S.)",
+    "c_corroboration": "Corroboration (story threads)",
     "advisory": "Travel advisory (U.S. State Department)",
     "advisoryNone": "No U.S. travel advisory for this country.",
     "advisoryLevel": "Level {level} of 4",
@@ -1343,7 +1354,49 @@
     "cp_panama": "Panama Canal",
     "cp_gibraltar": "Gibraltar Strait",
     "cp_bosporus": "Bosporus Strait",
-    "exposureNote": "World Monitor’s editorial judgement of how much a country leans on a passage and could route around it (index = reliance × (1 − alternatives) for a full closure). It is not measured trade data. Traffic: IMF PortWatch, AIS-visible ships only."
+    "exposureNote": "World Monitor’s editorial judgement of how much a country leans on a passage and could route around it (index = reliance × (1 − alternatives) for a full closure). It is not measured trade data. Traffic: IMF PortWatch, AIS-visible ships only.",
+    "threads": "Story threads",
+    "threadMeta": "{members} records · {sources} sources",
+    "threadsNote": "Records the entity graph links (one story from several outlets, or a report and an observation of the same place or thing). Linked is not confirmed."
+  },
+  "threads": {
+    "title": "Story threads",
+    "intro": "Records the entity graph links: one story from several outlets, a report and an observation of the same strait, site or CVE, or observations of different kinds at one place. Linked is not confirmed.",
+    "unavailable": "Story threads are not available.",
+    "empty": "No linked story in the last 72 hours.",
+    "summary": "{count} threads in the last 72 hours",
+    "status_emerging": "Emerging",
+    "status_active": "Active",
+    "status_fading": "Fading",
+    "meta": "{members} records · {sources} sources",
+    "observations": "{count} observations",
+    "sheet": "Story thread",
+    "close": "Close",
+    "loading": "Loading the thread…",
+    "error": "Could not load the thread. Close and reopen it to try again.",
+    "notFound": "This thread is no longer in the last 72 hours.",
+    "span": "{first} – {last}",
+    "records": "Records",
+    "links": "Links",
+    "linksSummary": "{story} same-story links · {cooccurs} co-occurrence links",
+    "linkHelp": "A same-story link joins reports with alike titles from different outlets; a co-occurrence joins records naming the same strait, site, actor or CVE, or observations within 100 km and a day. Syndicated copies of one wire story are one source.",
+    "entities": "Named in the thread",
+    "countries": "Countries",
+    "entity": "Entity",
+    "entityEvents": "Records in the last 7 days",
+    "neighbors": "Named together with",
+    "neighborCount": "{count} records",
+    "entityThreads": "Threads",
+    "entityNone": "No record names this entity in the last 7 days.",
+    "back": "Back to the thread",
+    "type_country": "Country",
+    "type_chokepoint": "Chokepoint",
+    "type_site": "Military area",
+    "type_actor": "Threat actor",
+    "type_cve": "Vulnerability",
+    "untitled": "Title unavailable",
+    "open": "Open the thread",
+    "replayNote": "The thread sheet reads the live graph, so it is off during the replay. The list shown is the replayed sweep’s own."
   },
   "briefing": {
     "title": "Briefing",

@@ -138,7 +138,7 @@ test('GET routes return the agreed shapes without caching', async t => {
   const catalog = await rules.json();
   assert.deepEqual(Object.keys(catalog).sort(), ['kinds', 'metrics', 'rules']);
   assert.deepEqual(catalog.kinds, [...RULE_KINDS]);
-  assert.equal(catalog.rules.length, 8);
+  assert.equal(catalog.rules.length, 9);
   assert.ok(catalog.rules.every(rule => rule.source === 'builtin'));
   const vix = catalog.metrics.find(metric => metric.key === 'vix');
   assert.deepEqual(Object.keys(vix).sort(), ['key', 'kind', 'label', 'unit', 'value']);
@@ -202,7 +202,7 @@ test('a cross-site request with valid cached credentials is refused before it ch
     await assertJsonError(await send('DELETE', '/api/alerts/rules/vix-spike', {}, headers), 403, 'CROSS_ORIGIN');
   }
   assert.equal(engine.get(critical.id).state, 'firing');
-  assert.equal(engine.rules().length, 8);
+  assert.equal(engine.rules().length, 9);
   assert.equal(changes.length, 0);
   // Same origin but a cross-site fetch context is still refused.
   const mixed = await call(`/api/alerts/${critical.id}/ack`, { method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'cross-site', Origin: 'http://127.0.0.1' } });
@@ -224,7 +224,7 @@ test('a body that is not JSON is refused with 415 before it changes anything', a
   }
   await assertJsonError(await call('/api/alerts/rules/vix-spike', { method: 'DELETE' }), 415, 'UNSUPPORTED_MEDIA_TYPE');
   assert.equal(engine.get(critical.id).state, 'firing');
-  assert.equal(engine.rules().length, 8);
+  assert.equal(engine.rules().length, 9);
 });
 
 test('an oversize body is 413 and malformed JSON is 400, both as JSON', async t => {
@@ -302,14 +302,14 @@ test('PUT creates and replaces user rules, takes the id from the path and ignore
   const { rule, summary } = await created.json();
   assert.equal(rule.id, 'vix-forty');
   assert.equal(rule.source, 'user');
-  assert.equal(summary.rules.total, 9);
+  assert.equal(summary.rules.total, 10);
   assert.equal(changes.length, 1);
   // A rule exactly as GET returned it can be sent back.
   const listed = (await (await call('/api/alerts/rules')).json()).rules.find(item => item.id === 'vix-forty');
   const replaced = await send('PUT', '/api/alerts/rules/vix-forty', { ...listed, name: 'VIX above 45', params: { ...listed.params, value: 45 } });
   assert.equal(replaced.status, 200);
   assert.equal((await replaced.json()).rule.params.value, 45);
-  assert.equal(engine.rules().length, 9);
+  assert.equal(engine.rules().length, 10);
   await assertJsonError(await send('PUT', '/api/alerts/rules/vix-forty', userRule({ id: 'other-id' })), 400, 'INVALID_RULE', 'id');
   await assertJsonError(await send('PUT', '/api/alerts/rules/Bad_Id', userRule()), 400, 'INVALID_RULE', 'id');
   // "constructor" and "prototype" are ordinary rule ids.
@@ -352,7 +352,7 @@ test('hostile rule input is refused with a field and changes nothing', async t =
     assert.match(String(error.field), /^[A-Za-z0-9_.[\]?-]+$/, 'the field is never echoed raw');
   }
   assert.equal({}.polluted, undefined);
-  assert.equal(engine.rules().length, 8);
+  assert.equal(engine.rules().length, 9);
   assert.equal(changes.length, 0);
   // A regex-looking keyword is plain text and stored verbatim.
   const keywords = await send('PUT', '/api/alerts/rules/odd-keywords', { name: 'Odd', kind: 'event', params: { minLevel: 'high' }, scope: { keywords: ['(a+)+$', '.*'] } });
@@ -364,7 +364,7 @@ test('the 51st user rule is refused', async t => {
   const { send, engine } = await setup(t);
   for (let i = 0; i < 50; i += 1) assert.equal((await send('PUT', `/api/alerts/rules/rule-${i}`, userRule())).status, 200);
   await assertJsonError(await send('PUT', '/api/alerts/rules/rule-50', userRule()), 400, 'INVALID_STATE', 'id');
-  assert.equal(engine.rules().length, 58);
+  assert.equal(engine.rules().length, 59);
   assert.equal((await send('PUT', '/api/alerts/rules/rule-0', userRule({ name: 'Replaced' }))).status, 200, 'replacing an existing one still works');
 });
 
@@ -378,7 +378,7 @@ test('DELETE removes user rules and resets overrides but never deletes a built-i
   assert.equal(deleted.status, 200);
   const body = await deleted.json();
   assert.equal(body.deleted, 'mine');
-  assert.equal(body.summary.rules.total, 8);
+  assert.equal(body.summary.rules.total, 9);
   assert.equal((await send('PUT', '/api/alerts/rules/vix-spike', { enabled: false })).status, 200);
   assert.equal((await send('DELETE', '/api/alerts/rules/vix-spike')).status, 200);
   assert.equal(engine.rules().find(rule => rule.id === 'vix-spike').source, 'builtin');
@@ -503,7 +503,7 @@ test('a path that cannot be decoded is a JSON 400 without a stack, logged as one
     assert.match(response.headers.get('content-type'), /^application\/json/);
     assert.deepEqual(JSON.parse(text), { error: 'Invalid request', code: 'INVALID_REQUEST', field: null });
   }
-  assert.equal(engine.rules().length, 8);
+  assert.equal(engine.rules().length, 9);
   assert.equal(logged.mock.callCount(), 3);
   for (const { arguments: args } of logged.mock.calls) {
     const line = args.map(String).join(' ');

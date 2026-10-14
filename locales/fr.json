@@ -71,7 +71,8 @@
     "ecbIndicators": "Indicateurs BCE",
     "sourceHealth": "État des sources",
     "changes": "Ce qui a changé",
-    "countryRisk": "Risque pays"
+    "countryRisk": "Risque pays",
+    "storyThreads": "Fils d’actualité"
   },
   "layers": {
     "airActivity": "Activité Aérienne",
@@ -467,6 +468,7 @@
       "events-critical": "Événements critiques",
       "events-high": "Événements de gravité forte",
       "convergence-default": "Convergence d’événements",
+      "threads-multisource": "Fil d’actualité multi-sources",
       "source-stale": "Source devenue muette",
       "vix-spike": "Pic du VIX",
       "hy-spread-wide": "Écart high yield élargi",
@@ -492,7 +494,8 @@
         "change": "Variation",
         "absence": "Absence",
         "convergence": "Convergence",
-        "delta": "Signal de variation"
+        "delta": "Signal de variation",
+        "thread": "Fil d’actualité"
       },
       "source": {
         "builtin": "Intégrée",
@@ -563,6 +566,8 @@
       "cell": "Cellule de grille (degrés)",
       "window": "Fenêtre (heures)",
       "minKinds": "Types d’événements distincts",
+      "minSources": "Sources distinctes",
+      "minObservations": "Observations (hors articles)",
       "minSeverity": "Gravité minimale",
       "forSweeps": "Collectes de confirmation",
       "cooldown": "Délai de réarmement (minutes)",
@@ -586,7 +591,8 @@
         "any": "n’importe quelle source",
         "absence": "{source} : {sweeps}+ collectes échouées d’affilée",
         "absenceAge": "plus de {minutes} min",
-        "convergence": "{kinds}+ types d’événements dans une même cellule de {cell}° en {hours} h, niveau {level} ou plus"
+        "convergence": "{kinds}+ types d’événements dans une même cellule de {cell}° en {hours} h, niveau {level} ou plus",
+        "thread": "{sources}+ sources, {kinds}+ types d’enregistrement, {observations}+ observations au niveau {level} ou plus"
       },
       "errorSave": "Impossible d’enregistrer la règle",
       "errorLoad": "Impossible de charger les règles",
@@ -650,6 +656,7 @@
     "systemPrompt": "Tu es un analyste quantitatif dans une firme de renseignement macro. Tu reçois des données OSINT + économiques structurées de 25 sources et tu produis 5-8 idées de trade actionnables.\n\nRègles:\n- Chaque idée doit citer des données spécifiques de l'input\n- Inclure le rationnel d'entrée, les facteurs de risque et l'horizon temporel\n- Croiser les signaux géopolitiques, économiques et de marché\n- Être spécifique: nommer les instruments (tickers, futures, ETFs), pas des secteurs vagues\n- Si le delta montre des changements significatifs, commencer par ceux-là\n- NE PAS répéter les idées de la liste \"previous ideas\" sauf si les conditions ont matériellement changé\n- Évaluer la confiance: HIGH (signaux multiples confirmants), MEDIUM (thèse supportée), LOW (spéculatif)\n\nOutput UNIQUEMENT un tableau JSON valide de 5-8 objets, jamais un objet isolé. Format:\n[\n  {\n    \"title\": \"Titre court en français (max 10 mots)\",\n    \"type\": \"LONG|SHORT|HEDGE|WATCH|AVOID\",\n    \"ticker\": \"Instrument principal\",\n    \"confidence\": \"HIGH|MEDIUM|LOW\",\n    \"rationale\": \"Explication 2-3 phrases en français citant les données spécifiques\",\n    \"risk\": \"Facteur de risque principal en français\",\n    \"horizon\": \"Intraday|Days|Weeks|Months\",\n    \"signals\": [\"signal1\", \"signal2\"]\n  }\n]",
     "briefing": {
       "event": "{kind}, {level} : {title}",
+      "thread": "{kind}, {level} : {title} ({count} enregistrements liés)",
       "country": "{country} : score de risque {score}/100, {change}.",
       "changeUp": "en hausse de {value} points sur 24 heures",
       "changeDown": "en baisse de {value} points sur 24 heures",
@@ -893,7 +900,10 @@
     "kind_displacement": "Déplacements",
     "kind_launch": "Lancement",
     "method_orbit-centre": "Centre moyen des orbites détectées (agrégat, pas la position d’un aéronef)",
-    "method_airport": "Point de référence de l’aéroport (pas un aéronef)"
+    "method_airport": "Point de référence de l’aéroport (pas un aéronef)",
+    "thread": "Fil d’actualité",
+    "threadHelp": "Le graphe d’entités relie cet enregistrement à d’autres selon des règles (une même histoire de plusieurs sources, ou un article et une observation du même lieu ou objet). Lié ne veut pas dire confirmé.",
+    "threadOpen": "Ouvrir le fil d’actualité"
   },
   "pwa": {
     "menu": "Installer / hors ligne",
@@ -1315,6 +1325,7 @@
     "paletteHint": "Score de risque {score}",
     "paletteHintNone": "Fiche pays",
     "c_advisory": "Avis aux voyageurs (É.-U.)",
+    "c_corroboration": "Corroboration (fils d’actualité)",
     "advisory": "Avis aux voyageurs (département d’État américain)",
     "advisoryNone": "Aucun avis américain aux voyageurs pour ce pays.",
     "advisoryLevel": "Niveau {level} sur 4",
@@ -1343,7 +1354,49 @@
     "cp_panama": "Canal de Panama",
     "cp_gibraltar": "Détroit de Gibraltar",
     "cp_bosporus": "Bosphore",
-    "exposureNote": "Jugement éditorial de World Monitor sur la dépendance d’un pays à un passage et sa capacité à le contourner (indice = dépendance × (1 − alternatives) pour une fermeture totale). Ce ne sont pas des données commerciales mesurées. Trafic : IMF PortWatch, navires visibles par AIS uniquement."
+    "exposureNote": "Jugement éditorial de World Monitor sur la dépendance d’un pays à un passage et sa capacité à le contourner (indice = dépendance × (1 − alternatives) pour une fermeture totale). Ce ne sont pas des données commerciales mesurées. Trafic : IMF PortWatch, navires visibles par AIS uniquement.",
+    "threads": "Fils d’actualité",
+    "threadMeta": "{members} enregistrements · {sources} sources",
+    "threadsNote": "Enregistrements reliés par le graphe d’entités (une même histoire de plusieurs sources, ou un article et une observation du même lieu ou objet). Lié ne veut pas dire confirmé."
+  },
+  "threads": {
+    "title": "Fils d’actualité",
+    "intro": "Enregistrements reliés par le graphe d’entités : une même histoire de plusieurs sources, un article et une observation du même détroit, site ou CVE, ou des observations de types différents au même endroit. Lié ne veut pas dire confirmé.",
+    "unavailable": "Les fils d’actualité ne sont pas disponibles.",
+    "empty": "Aucune histoire reliée ces 72 dernières heures.",
+    "summary": "{count} fils ces 72 dernières heures",
+    "status_emerging": "Émergent",
+    "status_active": "Actif",
+    "status_fading": "En déclin",
+    "meta": "{members} enregistrements · {sources} sources",
+    "observations": "{count} observations",
+    "sheet": "Fil d’actualité",
+    "close": "Fermer",
+    "loading": "Chargement du fil…",
+    "error": "Impossible de charger le fil. Fermez-le et rouvrez-le pour réessayer.",
+    "notFound": "Ce fil ne fait plus partie des 72 dernières heures.",
+    "span": "{first} – {last}",
+    "records": "Enregistrements",
+    "links": "Liens",
+    "linksSummary": "{story} liens même histoire · {cooccurs} liens de cooccurrence",
+    "linkHelp": "Un lien « même histoire » relie des articles aux titres proches venant de sources différentes ; une cooccurrence relie des enregistrements citant le même détroit, site, acteur ou CVE, ou des observations à moins de 100 km et d’un jour. Les copies d’une même dépêche comptent pour une seule source.",
+    "entities": "Cités dans le fil",
+    "countries": "Pays",
+    "entity": "Entité",
+    "entityEvents": "Enregistrements des 7 derniers jours",
+    "neighbors": "Cités avec",
+    "neighborCount": "{count} enregistrements",
+    "entityThreads": "Fils",
+    "entityNone": "Aucun enregistrement ne cite cette entité ces 7 derniers jours.",
+    "back": "Retour au fil",
+    "type_country": "Pays",
+    "type_chokepoint": "Détroit",
+    "type_site": "Zone militaire",
+    "type_actor": "Acteur de menace",
+    "type_cve": "Vulnérabilité",
+    "untitled": "Titre indisponible",
+    "open": "Ouvrir le fil",
+    "replayNote": "La fiche du fil lit le graphe en direct ; elle est donc désactivée pendant la relecture. La liste affichée est celle du balayage rejoué."
   },
   "briefing": {
     "title": "Synthèse",

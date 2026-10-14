@@ -1,10 +1,13 @@
 // Feed parsing for the news ticker: RSS 2.0, RDF (DW) and Atom. The XML is parsed with the same hardened parser as the other
 // adapters (no DOCTYPE, no entities, 2 MiB cap); a feed it refuses falls back to the older item-by-item pattern so one odd
-// feed never costs its headlines. Only title, link and date are read, and every string is cut to a fixed length.
+// feed never costs its headlines. Only title, link, date and a short summary are read, and every string is cut to a fixed length.
 import { parseXml } from './xml.mjs';
 
 const MAX_ITEMS = 40;
 const clean = (value, cap) => String(value ?? '').replace(/<[^>]*>/g, ' ').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, cap);
+// The summary is context for country and entity matching, not a full text: markup (also escaped, as some feeds send it) is dropped.
+const SUMMARY_CHARS = 240;
+const summaryOf = value => clean(String(value ?? '').replace(/&lt;[\s\S]*?&gt;/g, ' ').replace(/&(?:amp|quot|apos|nbsp|#39);/g, ' '), SUMMARY_CHARS);
 
 // A tag value is a string, or an object holding #text (attributes present) or, for Atom links, @_href.
 function textOf(value) {
@@ -31,6 +34,7 @@ function viaXml(xml) {
     title: clean(textOf(entry?.title), 2000),
     link: clean(linkOf(entry?.link), 2048),
     date: clean(textOf(entry?.pubDate) || textOf(entry?.published) || textOf(entry?.updated) || textOf(entry?.date), 64),
+    summary: summaryOf(textOf(entry?.description) || textOf(entry?.summary)),
   }));
 }
 
@@ -41,12 +45,12 @@ function viaPattern(xml) {
   while ((match = pattern.exec(xml)) !== null && items.length < MAX_ITEMS) {
     const block = match[1];
     const pick = tag => block.match(new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${tag}>`))?.[1] ?? '';
-    items.push({ title: clean(pick('title'), 2000), link: clean(pick('link'), 2048), date: clean(pick('pubDate') || pick('dc:date'), 64) });
+    items.push({ title: clean(pick('title'), 2000), link: clean(pick('link'), 2048), date: clean(pick('pubDate') || pick('dc:date'), 64), summary: summaryOf(pick('description')) });
   }
   return items;
 }
 
-/** Headlines of an RSS/RDF/Atom document: [{ title, link, date }], newest as the feed lists them, at most 40. */
+/** Headlines of an RSS/RDF/Atom document: [{ title, link, date, summary }], newest as the feed lists them, at most 40. */
 export function parseFeed(xml) {
   if (typeof xml !== 'string' || !xml) return [];
   let items;
