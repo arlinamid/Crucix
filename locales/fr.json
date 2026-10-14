@@ -1107,7 +1107,9 @@
     "moreSources": "et {count} de plus",
     "noLiveSources": "Aucune source en direct dans ce thème.",
     "noSources": "Aucune source de ce thème n’a répondu lors de ce scan.",
-    "status": "Lentille thématique : {name}"
+    "status": "Lentille thématique : {name}",
+    "layerOff": "Hors de cette lentille",
+    "regionFiltered": "Filtré : {name}"
   },
   "replay": {
     "button": "Relecture",
@@ -1668,10 +1670,8 @@
     }
   },
   "popup": {
-    "aircraftTracked": "{count} aéronefs suivis",
     "aircraft": "{count} aéronefs",
     "noCallsign": "Sans indicatif",
-    "highAltitude": "Haute altitude",
     "highAlt": "Haute alt.",
     "top": "Principaux",
     "firmsSatellite": "Satellite FIRMS",
@@ -1706,7 +1706,6 @@
     "fatalities": "{count} victimes",
     "acledData": "Données de conflit ACLED",
     "date": "Date",
-    "corridor": "{from} ↔ {to} : {count} aéronefs",
     "globeLoading": "Initialisation du globe 3D",
     "zoomIn": "Zoom avant",
     "zoomOut": "Zoom arrière",
@@ -1793,5 +1792,16 @@
     "source": "Source",
     "noFx": "Aucun taux de change dans ce relevé",
     "providers": "Cotations : {providers}"
+  },
+  "air": {
+    "cellHead": "Trafic aérien · {lat} {lon}",
+    "cellNote": "Aéronefs en vol avec position, par pays d’immatriculation (OpenSky).",
+    "gridSub": "{cells} cellules · {alerts} alertes squawk",
+    "squawkHead": "Squawk {code}",
+    "squawk_hijack": "7500 : intervention illicite (détournement)",
+    "squawk_radio": "7600 : panne radio",
+    "squawk_emergency": "7700 : urgence générale",
+    "altitude": "Altitude : {m} m",
+    "squawkNote": "Un code transpondeur, pas un événement confirmé : codes de test et erreurs de saisie existent."
   }
 }

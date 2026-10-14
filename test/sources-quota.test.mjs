@@ -243,9 +243,9 @@ test('OpenSky 429 pause is remembered after a memory reset', async t => {
     return new Response('limit', { status: 429, headers: { 'X-Rate-Limit-Retry-After-Seconds': '3600' } });
   });
   await opensky({ now: NOW });
-  assert.equal(calls.length, 10);
+  assert.equal(calls.length, 1, 'one global state vector per round');
   resetOpenSky({ disk: false });
   const blocked = await opensky({ now: NOW + 30 * 60 * 1000 });
-  assert.equal(calls.length, 10, 'no hotspot request after restart while blocked');
+  assert.equal(calls.length, 1, 'no request after restart while blocked');
   assert.match(blocked.error, /credit limit reached/i);
 });

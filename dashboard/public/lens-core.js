@@ -33,5 +33,27 @@
       return {domain,rows:list,worst,attention:list.some(row=>row.state!=='ok')||worst==='critical'||worst==='high'};
     });
   }
-  window.CrucixLensCore={normalize,matchesSource,matchesEvent,groupSources};
+  // The map layers (jarvis.html mapLayerRegistry ids) each lens shows; a layer not listed here, or listed with '*', shows under every lens.
+  // A layer can belong to several lenses (a heat detection is a hazard and, beside a military area, a security signal).
+  const LAYER_LENSES=Object.freeze({air:['security'],thermal:['hazards','security'],sdr:['security'],maritime:['security','supply'],nuclear:['health','security'],
+    conflict:['security'],osint:['security'],health:['health'],network:['cyber'],news:['*'],weather:['hazards'],disaster:['hazards'],earthquake:['hazards'],
+    cyclones:['hazards'],space:['space'],launches:['space'],interference:['security','cyber'],pipelines:['supply'],dams:['supply'],datacenters:['cyber'],
+    bases:['security'],milareas:['security']});
+  function matchesLayer(lens,layer){
+    const id=normalize(lens);
+    if(id==='all')return true;
+    const lenses=Object.hasOwn(LAYER_LENSES,layer)?LAYER_LENSES[layer]:['*'];
+    return lenses.includes('*')||lenses.includes(id);
+  }
+  // The news topics (lib/intelligence/topics.mjs) a lens shows; a lens without topics (space, supply, sanctions) shows no news, and an item
+  // without topics shows only under `all`.
+  const LENS_TOPICS=Object.freeze({security:['conflict','politics'],hazards:['disaster'],cyber:['technology'],economy:['economy'],supply:['economy'],
+    sanctions:['politics'],health:['health'],space:[]});
+  function matchesTopics(lens,topics){
+    const id=normalize(lens);
+    if(id==='all')return true;
+    const wanted=LENS_TOPICS[id]||[];
+    return Array.isArray(topics)&&topics.some(topic=>wanted.includes(topic));
+  }
+  window.CrucixLensCore={normalize,matchesSource,matchesEvent,groupSources,matchesLayer,matchesTopics,LAYER_LENSES};
 })(window);

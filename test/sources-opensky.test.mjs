@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { briefing, resetState } from '../apis/sources/opensky.mjs';
+import { briefing, resetState, summarizeStates } from '../apis/sources/opensky.mjs';
 import { runSource } from '../apis/briefing.mjs';
 
 const TOKEN_URL = 'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token';
@@ -8,8 +8,15 @@ const now = Date.parse('2026-10-08T12:00:00Z');
 const MINUTE = 60000;
 const ID = 'crucix-test-client';
 const SECRET = 'top-secret-client-value';
-// states: [icao24, callsign, origin_country, time_position, last_contact, lon, lat, baro_altitude, ...]
-const STATES = { time: 1, states: [['abc123', 'DLH1  ', 'Germany', 0, 0, 10, 50, 11000], ['def456', '', 'Turkey', 0, 0, 30, 40, 13000]] };
+// states: [icao24, callsign, origin_country, time_position, last_contact, lon, lat, baro_altitude, on_ground, velocity, track,
+//          vertical_rate, sensors, geo_altitude, squawk, ...]
+const STATES = { time: 1791417600, states: [
+  ['abc123', 'DLH1  ', 'Germany', 0, 0, 10, 50, 11000, false, 230, 90, 0, null, 11100, '1000'],
+  ['def456', '', 'Turkey', 0, 0, 30, 40, 13000, false, 240, 180, 0, null, 13100, '7700'],
+  ['aaa111', 'THY2  ', 'Turkey', 0, 0, 31.5, 41.9, 9000, false, 220, 0, 0, null, 9050, '2200'],
+  ['ggg000', 'GND1  ', 'Turkey', 0, 0, 30.5, 40.5, null, true, 0, 0, 0, null, null, '7700'],
+  ['nopos0', 'NOP1  ', 'France', 0, 0, null, null, 10000, false, 230, 0, 0, null, null, '1000'],
+] };
 const json = (body, init) => new Response(JSON.stringify(body), { status: 200, ...init });
 
 function useEnv(t, id, secret) {
@@ -34,19 +41,23 @@ function mockOpenSky(t, { token = n => json({ access_token: `tok-${n}`, expires_
   return calls;
 }
 
-test('without credentials every hotspot is requested anonymously', async t => {
+test('without credentials one global state vector is requested anonymously', async t => {
   useEnv(t, undefined, undefined);
   const calls = mockOpenSky(t);
   const result = await briefing({ now });
   assert.equal(calls.token.length, 0);
-  assert.equal(calls.states.length, 10);
+  assert.equal(calls.states.length, 1);
+  assert.equal(calls.states[0].url, 'https://opensky-network.org/api/states/all', 'the global vector, no bounding box');
   assert.ok(calls.states.every(call => call.auth === null), 'no Authorization header');
   assert.equal(result.source, 'OpenSky'); assert.equal(result.hotspots.length, 10);
   assert.equal(result.error, undefined); assert.equal(result.stale, undefined);
+  assert.equal(result.observedAt, '2026-10-08T00:00:00.000Z');
+  assert.deepEqual({ total: result.total, airborne: result.airborne, onGround: result.onGround }, { total: 5, airborne: 3, onGround: 1 });
   const first = result.hotspots[0];
   assert.deepEqual({ region: first.region, key: first.key, totalAircraft: first.totalAircraft, noCallsign: first.noCallsign, highAltitude: first.highAltitude },
-    { region: 'Middle East', key: 'middleEast', totalAircraft: 2, noCallsign: 1, highAltitude: 1 });
-  assert.deepEqual(first.byCountry, { Germany: 1, Turkey: 1 });
+    { region: 'Middle East', key: 'middleEast', totalAircraft: 3, noCallsign: 1, highAltitude: 1 }, 'the boxes count the aircraft on the ground too');
+  assert.deepEqual(first.byCountry, { Turkey: 3 });
+  assert.ok(result.hotspots.slice(1).every(h => h.totalAircraft === 0 && h.error === undefined));
 });
 
 test('only one of the two credentials falls back to anonymous access and says so', async t => {
@@ -58,11 +69,11 @@ test('only one of the two credentials falls back to anonymous access and says so
   assert.equal(result.error, undefined);
   assert.match(result.message, /OPENSKY_CLIENT_ID/); assert.match(result.message, /OPENSKY_CLIENT_SECRET/); assert.match(result.message, /anonymous/i);
   const cached = await briefing({ now: now + MINUTE });
-  assert.equal(cached.stale, true); assert.equal(calls.states.length, 10);
+  assert.equal(cached.stale, true); assert.equal(calls.states.length, 1);
   assert.match(cached.message, /Cached OpenSky result/); assert.match(cached.message, /Only one of OPENSKY_CLIENT_ID and OPENSKY_CLIENT_SECRET/);
 });
 
-test('with credentials ten parallel hotspots share one token request and all send the Bearer token', async t => {
+test('with credentials the global request sends the Bearer token of one token request', async t => {
   useEnv(t, ID, SECRET);
   const calls = mockOpenSky(t);
   const result = await briefing({ now });
@@ -74,7 +85,7 @@ test('with credentials ten parallel hotspots share one token request and all sen
   assert.deepEqual(Object.fromEntries(form), { grant_type: 'client_credentials', client_id: ID, client_secret: SECRET });
   assert.ok(init.signal, 'the token request is bounded');
   assert.equal(init.redirect, 'error', 'the client secret is never replayed to a redirect target');
-  assert.equal(calls.states.length, 10);
+  assert.equal(calls.states.length, 1);
   assert.ok(calls.states.every(call => call.auth === 'Bearer tok-1'));
   assert.equal(result.error, undefined);
   assert.doesNotMatch(JSON.stringify(result), /tok-1|top-secret/);
@@ -86,13 +97,13 @@ test('the token is reused until 30 s before expires_in and refreshed after that'
   await briefing({ now });
   await briefing({ now: now + 1769 * 1000 });
   assert.equal(calls.token.length, 1, 'still valid 31 s before the 1800 s expiry');
-  assert.ok(calls.states.slice(10).every(call => call.auth === 'Bearer tok-1'));
+  assert.ok(calls.states.slice(1).every(call => call.auth === 'Bearer tok-1'));
   resetState();
   calls.token.length = 0; calls.states.length = 0;
   await briefing({ now });
   await briefing({ now: now + 1771 * 1000 });
   assert.equal(calls.token.length, 2, 'refreshed 29 s before the 1800 s expiry');
-  assert.ok(calls.states.slice(10).every(call => call.auth === 'Bearer tok-2'));
+  assert.ok(calls.states.slice(1).every(call => call.auth === 'Bearer tok-2'));
 });
 
 test('a short expires_in is honoured', async t => {
@@ -127,42 +138,23 @@ test('expires_in is clamped to 60 s at least, so a fresh token is not refetched 
   assert.equal(calls.token.length, 2);
 });
 
-test('HTTP 401 invalidates the token, fetches one new token for all hotspots and retries each hotspot once', async t => {
+test('HTTP 401 invalidates the token, fetches one new token and retries the request once', async t => {
   useEnv(t, ID, SECRET);
   const calls = mockOpenSky(t, { states: ({ auth }) => auth === 'Bearer tok-1' ? new Response('expired', { status: 401 }) : json(STATES) });
   const result = await briefing({ now });
-  assert.equal(calls.token.length, 2, 'one refresh shared by ten concurrent 401s');
-  assert.equal(calls.states.length, 20);
-  assert.ok(calls.states.slice(10).every(call => call.auth === 'Bearer tok-2'));
+  assert.equal(calls.token.length, 2, 'one refresh');
+  assert.equal(calls.states.length, 2);
+  assert.equal(calls.states[1].auth, 'Bearer tok-2');
   assert.equal(result.error, undefined);
-  assert.equal(result.hotspots[0].totalAircraft, 2);
+  assert.equal(result.hotspots[0].totalAircraft, 3);
 });
 
-test('a late HTTP 401 for the old token neither clears the refreshed token nor requests a third one', async t => {
-  useEnv(t, ID, SECRET);
-  let releaseLate;
-  const late = new Promise(resolve => { releaseLate = resolve; });
-  const calls = mockOpenSky(t, { states: async ({ auth, n }) => {
-    if (auth === 'Bearer tok-1') {
-      if (n > 1) await late; // nine hotspots answer only after the refreshed token is in use
-      return new Response('expired', { status: 401 });
-    }
-    releaseLate();
-    return json(STATES);
-  } });
-  const result = await briefing({ now });
-  assert.equal(calls.token.length, 2, 'the late 401s reuse tok-2');
-  assert.equal(calls.states.length, 20);
-  assert.ok(calls.states.filter(call => call.auth !== 'Bearer tok-1').every(call => call.auth === 'Bearer tok-2'));
-  assert.equal(result.error, undefined);
-});
-
-test('a persistent HTTP 401 is retried only once per hotspot', async t => {
+test('a persistent HTTP 401 is retried only once', async t => {
   useEnv(t, ID, SECRET);
   const calls = mockOpenSky(t, { states: () => new Response('denied', { status: 401 }) });
   const result = await briefing({ now });
   assert.equal(calls.token.length, 2);
-  assert.equal(calls.states.length, 20);
+  assert.equal(calls.states.length, 2);
   assert.match(result.error, /HTTP 401/);
 });
 
@@ -235,15 +227,15 @@ test('HTTP 429 is not retried and blocks every request until the provider retry 
   useEnv(t, undefined, undefined);
   const calls = mockOpenSky(t, { states: () => new Response('limit', { status: 429, headers: { 'X-Rate-Limit-Retry-After-Seconds': '3600', 'X-Rate-Limit-Remaining': '0' } }) });
   const result = await briefing({ now });
-  assert.equal(calls.states.length, 10, 'no retry on 429');
+  assert.equal(calls.states.length, 1, 'no retry on 429');
   const until = new Date(now + 3600 * 1000).toISOString();
   assert.match(result.error, /credit limit reached/i); assert.ok(result.error.includes(until));
   const blocked = await briefing({ now: now + 30 * MINUTE });
-  assert.equal(calls.states.length, 10, 'no request while blocked');
+  assert.equal(calls.states.length, 1, 'no request while blocked');
   assert.match(blocked.error, /credit limit reached/i); assert.ok(blocked.error.includes(until));
   assert.equal(blocked.hotspots.length, 10);
   await briefing({ now: now + 61 * MINUTE });
-  assert.equal(calls.states.length, 20, 'requests resume after the retry time');
+  assert.equal(calls.states.length, 2, 'requests resume after the retry time');
 });
 
 test('while blocked by HTTP 429 the last good result is served as stale', async t => {
@@ -253,12 +245,13 @@ test('while blocked by HTTP 429 the last good result is served as stale', async 
   const good = await briefing({ now });
   limited = true;
   const hit = await briefing({ now: now + 15 * MINUTE });
-  assert.equal(calls.states.length, 20);
+  assert.equal(calls.states.length, 2);
   assert.equal(hit.stale, true); assert.equal(hit.error, undefined);
   assert.deepEqual(hit.hotspots, good.hotspots); assert.equal(hit.timestamp, good.timestamp, 'the original observation time is kept');
   assert.match(hit.message, /credit limit/i);
   const later = await briefing({ now: now + 60 * MINUTE });
-  assert.equal(calls.states.length, 20, 'no request while blocked');
+  assert.equal(calls.states.length, 2, 'no request while blocked');
+  assert.deepEqual(later.grid, good.grid, 'the cached map grid too');
   assert.equal(later.stale, true); assert.deepEqual(later.hotspots, good.hotspots);
 });
 
@@ -269,9 +262,9 @@ test('a huge X-Rate-Limit-Retry-After-Seconds blocks for 24 hours at most and ne
   const until = new Date(now + 24 * 60 * MINUTE).toISOString();
   assert.ok(result.error.includes(until), result.error);
   assert.ok((await briefing({ now: now + 24 * 60 * MINUTE - 1 })).error.includes(until));
-  assert.equal(calls.states.length, 10);
+  assert.equal(calls.states.length, 1);
   await briefing({ now: now + 24 * 60 * MINUTE });
-  assert.equal(calls.states.length, 20, 'requests resume after 24 hours');
+  assert.equal(calls.states.length, 2, 'requests resume after 24 hours');
 });
 
 test('HTTP 429 without X-Rate-Limit-Retry-After-Seconds blocks for the round interval', async t => {
@@ -281,7 +274,7 @@ test('HTTP 429 without X-Rate-Limit-Retry-After-Seconds blocks for the round int
   const until = new Date(now + 120 * MINUTE).toISOString();
   assert.ok(result.error.includes(until), result.error);
   assert.ok((await briefing({ now: now + 119 * MINUTE })).error.includes(until));
-  assert.equal(calls.states.length, 10, 'no request while blocked');
+  assert.equal(calls.states.length, 1, 'no request while blocked');
 });
 
 test('stale data is served for at most 3 hours while blocked, then the credit-limit error', async t => {
@@ -298,7 +291,7 @@ test('stale data is served for at most 3 hours while blocked, then the credit-li
   assert.equal(expired.stale, undefined);
   assert.match(expired.error, /credit limit reached; retry after 2026-10-08T20:00:00\.000Z/);
   assert.equal(expired.hotspots.length, 10); assert.ok(expired.hotspots.every(h => h.error && h.totalAircraft === 0));
-  assert.equal(calls.states.length, 20, 'no request while blocked');
+  assert.equal(calls.states.length, 2, 'no request while blocked');
 });
 
 test('an anonymous round inside the 120-minute interval (less 60 s slack) returns the cached result without fetching', async t => {
@@ -306,12 +299,12 @@ test('an anonymous round inside the 120-minute interval (less 60 s slack) return
   const calls = mockOpenSky(t);
   const first = await briefing({ now });
   const cached = await briefing({ now: now + 118 * MINUTE });
-  assert.equal(calls.states.length, 10);
+  assert.equal(calls.states.length, 1);
   assert.equal(cached.stale, true); assert.deepEqual(cached.hotspots, first.hotspots); assert.equal(cached.timestamp, first.timestamp);
   assert.match(cached.message, /next request after 2026-10-08T13:59:00\.000Z/);
   assert.equal(first.stale, undefined, 'the cached copy does not alter the original');
   await briefing({ now: now + 119 * MINUTE });
-  assert.equal(calls.states.length, 20);
+  assert.equal(calls.states.length, 2);
 });
 
 test('an authenticated round inside the 15-minute interval (less 60 s slack) returns the cached result without fetching', async t => {
@@ -319,9 +312,9 @@ test('an authenticated round inside the 15-minute interval (less 60 s slack) ret
   const calls = mockOpenSky(t);
   await briefing({ now });
   assert.equal((await briefing({ now: now + 14 * MINUTE - 1 })).stale, true);
-  assert.equal(calls.states.length, 10);
+  assert.equal(calls.states.length, 1);
   await briefing({ now: now + 14 * MINUTE });
-  assert.equal(calls.states.length, 20);
+  assert.equal(calls.states.length, 2);
 });
 
 test('a 15-minute sweep that fires a few seconds early still refreshes', async t => {
@@ -333,7 +326,7 @@ test('a 15-minute sweep that fires a few seconds early still refreshes', async t
     const result = await briefing({ now: at });
     assert.equal(result.stale, undefined, `sweep ${new Date(at).toISOString()}`);
   }
-  assert.equal(calls.states.length, 50);
+  assert.equal(calls.states.length, 5);
 });
 
 test('a cached round reaches the orchestrator as stale, not as an error', async t => {
@@ -343,13 +336,49 @@ test('a cached round reaches the orchestrator as stale, not as an error', async 
   assert.equal((await runSource('OpenSky', () => briefing({ now: now + MINUTE }))).status, 'stale');
 });
 
-test('a round without any successful hotspot does not start the interval', async t => {
+test('a failed round does not start the interval', async t => {
   useEnv(t, undefined, undefined);
   let down = true;
   const calls = mockOpenSky(t, { states: () => down ? new Response('down', { status: 404 }) : json(STATES) });
   const failed = await briefing({ now });
-  assert.match(failed.error, /unavailable across all hotspots/);
+  assert.match(failed.error, /OpenSky unavailable: HTTP 404/);
+  assert.equal(failed.hotspots.length, 10); assert.ok(failed.hotspots.every(h => h.error && h.totalAircraft === 0));
   down = false;
   const next = await briefing({ now: now + MINUTE });
-  assert.equal(calls.states.length, 20); assert.equal(next.error, undefined);
+  assert.equal(calls.states.length, 2); assert.equal(next.error, undefined);
+});
+
+test('an answer without a state vector is an error, not an empty sky', async t => {
+  useEnv(t, undefined, undefined);
+  mockOpenSky(t, { states: () => json({ time: 1, states: null }) });
+  const result = await briefing({ now });
+  assert.match(result.error, /without a state vector/);
+});
+
+test('the global vector gives a 2-degree density grid of airborne aircraft and the emergency squawks', () => {
+  const summary = summarizeStates(STATES.states);
+  assert.equal(summary.gridDegrees, 2);
+  // The two airborne Turkish aircraft share the cell centred on (41, 31); Germany (50, 10) is in the cell centred on (51, 11).
+  assert.deepEqual(summary.grid, [
+    { lat: 41, lon: 31, count: 2, noCallsign: 1, highAlt: 1, top: [['Turkey', 2]] },
+    { lat: 51, lon: 11, count: 1, noCallsign: 0, highAlt: 0, top: [['Germany', 1]] },
+  ]);
+  // The on-ground 7700 is not an alert; the airborne one is.
+  assert.deepEqual(summary.alerts, [{ icao24: 'def456', callsign: '', country: 'Turkey', lat: 40, lon: 30, altitude: 13000, squawk: '7700', kind: 'emergency' }]);
+  // Negative coordinates floor into the right cell; hostile rows are skipped.
+  const south = summarizeStates([['x', 'A', 'Chile', 0, 0, -70.6, -33.4, 1000, false, 0, 0, 0, null, 0, '7500'], null, 'junk', [], ['y']]);
+  assert.deepEqual(south.grid.map(cell => [cell.lat, cell.lon]), [[-33, -71]]);
+  assert.equal(south.alerts[0].kind, 'hijack');
+  const empty = summarizeStates(undefined);
+  assert.deepEqual({ ...empty, hotspots: empty.hotspots.length }, { total: 0, airborne: 0, onGround: 0, hotspots: 10, grid: [], gridDegrees: 2, alerts: [] });
+});
+
+test('the grid keeps the 1,500 busiest cells', () => {
+  const states = [];
+  for (let lat = -80; lat < 80; lat += 2) for (let lon = -180; lon < 180; lon += 2) states.push(['i', 'C', 'X', 0, 0, lon + 0.5, lat + 0.5, 1000, false]);
+  states.push(['j', 'C', 'X', 0, 0, 0.5, 0.5, 1000, false]);
+  const { grid, airborne } = summarizeStates(states);
+  assert.equal(airborne, states.length);
+  assert.equal(grid.length, 1500);
+  assert.deepEqual([grid[0].lat, grid[0].lon, grid[0].count], [1, 1, 2]);
 });

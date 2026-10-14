@@ -72,6 +72,33 @@ test('partial OpenSky failures preserve successful current hotspots', async t =>
   assert.equal(data.airMeta.fallback, false);
 });
 
+test('the global air picture reaches the snapshot: density grid, squawk alerts and the worldwide airborne count', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'crucix-air-grid-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const grid = [
+    { lat: 51, lon: 9, count: 140, noCallsign: 3, highAlt: 20, top: [['Germany', 90], ['United Kingdom', 30]] },
+    { lat: 95, lon: 9, count: 5, top: [] },                // off the globe
+    { lat: 41, lon: 'x', count: 5, top: [] },              // not a number
+    { lat: 41, lon: 31, count: 0, top: [] },               // empty
+    { lat: -33, lon: -71, count: 4, top: [[42, 1], ['Chile', 'many'], ['Chile', 4]] },
+  ];
+  const alerts = [
+    { icao24: 'abc1234567', callsign: 'TEST1', country: 'Spain', lat: 40, lon: -3, altitude: 3000.4, squawk: '7700' },
+    { icao24: 'x', lat: 1, lon: 1, squawk: '1200' },       // not an emergency code
+  ];
+  const data = await synthesize({ crucix: { timestamp: '2026-10-01T12:00:00Z' }, sources: { OpenSky: { timestamp: '2026-10-01T12:00:00Z', airborne: 11234, grid, alerts, hotspots: [{ region: 'Middle East', totalAircraft: 20 }] } } }, { news: [], runsDir: dir });
+  assert.deepEqual(data.airGrid, [
+    { lat: 51, lon: 9, count: 140, noCallsign: 3, highAlt: 20, top: [['Germany', 90], ['United Kingdom', 30]] },
+    { lat: -33, lon: -71, count: 4, noCallsign: 0, highAlt: 0, top: [['Chile', 4]] },
+  ]);
+  assert.deepEqual(data.airAlerts, [{ icao24: 'abc123', callsign: 'TEST1', country: 'Spain', lat: 40, lon: -3, altitude: 3000.4, squawk: '7700', kind: 'emergency' }]);
+  assert.equal(data.airMeta.airborne, 11234); assert.equal(data.airMeta.gridDegrees, 2);
+  assert.equal(data.air[0].total, 20, 'the legacy hotspot counts keep their shape');
+  // A round of ten boxes (before 2.45) has no grid: empty layers, no airborne count.
+  const old = await synthesize({ crucix: { timestamp: '2026-10-01T12:00:00Z' }, sources: { OpenSky: { hotspots: [{ region: 'Middle East', totalAircraft: 20 }] } } }, { news: [], runsDir: dir });
+  assert.deepEqual([old.airGrid, old.airAlerts, old.airMeta.airborne], [[], [], null]);
+});
+
 test('nuclear watch carries the reading status and measurement time from Safecast', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'crucix-nuke-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));

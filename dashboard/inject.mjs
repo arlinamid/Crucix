@@ -25,6 +25,7 @@ import { createLLMProvider } from '../lib/llm/index.mjs';
 import { generateRuleBasedIdeas, resolveIdeas } from '../lib/llm/rule-ideas.mjs';
 import { buildEvents, stampLiveEventIds } from '../lib/intelligence/events.mjs';
 import { normalizeLiveSources } from '../lib/intelligence/live-sources.mjs';
+import { annotateNews } from '../lib/news/annotate.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -315,6 +316,29 @@ function summarizeAirHotspots(hotspots = []) {
   }));
 }
 
+// The global OpenSky picture (apis/sources/opensky.mjs summarizeStates) for the map: the density grid and the emergency squawks.
+// Rows from a source this module did not build are dropped field by field, never trusted whole.
+const MAX_AIR_CELLS = 1500;
+const MAX_AIR_ALERTS = 50;
+const finite = value => typeof value === 'number' && Number.isFinite(value);
+export function airGridOf(grid) {
+  return (Array.isArray(grid) ? grid : []).filter(cell => cell && finite(cell.lat) && finite(cell.lon) && finite(cell.count) && cell.count > 0
+    && Math.abs(cell.lat) <= 90 && Math.abs(cell.lon) <= 180).slice(0, MAX_AIR_CELLS).map(cell => ({
+    lat: cell.lat, lon: cell.lon, count: cell.count,
+    noCallsign: finite(cell.noCallsign) ? cell.noCallsign : 0, highAlt: finite(cell.highAlt) ? cell.highAlt : 0,
+    top: (Array.isArray(cell.top) ? cell.top : []).filter(row => Array.isArray(row) && typeof row[0] === 'string' && finite(row[1]))
+      .slice(0, 3).map(([country, count]) => [country.slice(0, 60), count]),
+  }));
+}
+export function airAlertsOf(alerts) {
+  return (Array.isArray(alerts) ? alerts : []).filter(row => row && finite(row.lat) && finite(row.lon) && ['7500', '7600', '7700'].includes(row.squawk))
+    .slice(0, MAX_AIR_ALERTS).map(row => ({
+      icao24: String(row.icao24 || '').slice(0, 6), callsign: String(row.callsign || '').slice(0, 8), country: String(row.country || '').slice(0, 60),
+      lat: row.lat, lon: row.lon, altitude: finite(row.altitude) ? row.altitude : null, squawk: row.squawk,
+      kind: { 7500: 'hijack', 7600: 'radio', 7700: 'emergency' }[row.squawk],
+    }));
+}
+
 export function loadOpenSkyFallback(currentTimestamp, runsDir = config.runsDir || join(ROOT, 'runs'), ttlMs = 3600000) {
   if (!existsSync(runsDir)) return null;
 
@@ -336,7 +360,8 @@ export function loadOpenSkyFallback(currentTimestamp, runsDir = config.runsDir |
 
       const hotspots = prior.sources?.OpenSky?.hotspots || [];
       if (!prior.sources?.OpenSky?.error && sumAirHotspots(hotspots) > 0) {
-        candidates.push({ file, timestamp: priorTimestamp, hotspots, ageMs: currentMs - priorMs });
+        const { grid, alerts, airborne } = prior.sources.OpenSky;
+        candidates.push({ file, timestamp: priorTimestamp, hotspots, grid, alerts, airborne, ageMs: currentMs - priorMs });
       }
     } catch {
       // Ignore unreadable historical runs and continue searching backward.
@@ -500,6 +525,10 @@ export async function synthesize(data, options = {}) {
     : null;
   const effectiveAirHotspots = airFallback?.hotspots || liveAirHotspots;
   const air = summarizeAirHotspots(effectiveAirHotspots);
+  // The global picture comes from the same round as the hotspot counts (live, or the fallback run's).
+  const airRound = airFallback || data.sources.OpenSky || {};
+  const airGrid = airGridOf(airRound.grid);
+  const airAlerts = airAlertsOf(airRound.alerts);
   const thermal = (data.sources.FIRMS?.hotspots || []).map(h => ({
     region: h.region, det: h.totalDetections || 0, night: h.nightDetections || 0,
     hc: h.highConfidence || 0,
@@ -830,10 +859,13 @@ export async function synthesize(data, options = {}) {
   const topicNews = options.news ? [] : topicHeadlines();
 
   const V2 = {
-    meta: data.crucix, air, thermal, tSignals, chokepoints, aisVessels, nuke, nukeSignals, liveSources, cyclones,
+    meta: data.crucix, air, airGrid, airAlerts, thermal, tSignals, chokepoints, aisVessels, nuke, nukeSignals, liveSources, cyclones,
     airMeta: {
       fallback: Boolean(airFallback),
       liveTotal: sumAirHotspots(liveAirHotspots),
+      gridDegrees: 2,
+      // Every airborne aircraft OpenSky saw worldwide (null for a pre-2.45 round of ten boxes).
+      airborne: finite(airRound.airborne) ? airRound.airborne : null,
       timestamp: airFallback?.timestamp || data.sources.OpenSky?.timestamp || data.crucix?.timestamp || null,
       source: airFallback ? 'OpenSky fallback' : 'OpenSky',
       ...(airFallback ? { fallbackFile: airFallback.file } : {}),
@@ -852,6 +884,8 @@ export async function synthesize(data, options = {}) {
     topicNews,
   };
 
+  // Topics and "about" countries for the lens and region filters (lib/news/annotate.mjs); the publisher's country stays `country`.
+  for (const item of [...V2.news, ...V2.newsFeed, ...V2.who, ...V2.supplementalHealth]) annotateNews(item);
   V2.ideas = generateIdeas(V2);
   V2.liveSources = stampLiveEventIds(V2.liveSources);
   V2.events = buildEvents(V2, { now: options.now ?? Date.now() });

@@ -119,8 +119,8 @@ test('a located live row takes the colour of the layer it is drawn in, on the gl
   const code = html.match(/const LIVE_MARKER_TYPE[\s\S]*?const liveMarkerColor=[^\n]*/);
   assert(code, 'LIVE_MARKER_COLOR and liveMarkerColor follow the type table');
   const color = vm.runInNewContext(code[0] + '\nliveMarkerColor');
-  // The colours the layers' own markers use: USGS quakes, the chokepoints, the air theaters; everything else keeps the live blue.
-  assert.match(html, /color:'rgba\(255,112,67,0\.9\)',type:'earthquake'/); assert.match(html, /color:'rgba\(179,136,255,0\.8\)', type:'maritime'/); assert.match(html, /color:'rgba\(100,240,200,0\.8\)', type:'air'/);
+  // The colours the layers' own markers use: USGS quakes, the chokepoints, the air layer (its legend colour); everything else keeps the live blue.
+  assert.match(html, /color:'rgba\(255,112,67,0\.9\)',type:'earthquake'/); assert.match(html, /color:'rgba\(179,136,255,0\.8\)', type:'maritime'/); assert.match(html, /\{c:'#64f0c8',l:t\('map\.airTraffic'/);
   assert.deepEqual(['earthquake', 'disaster', 'maritime', 'aviation', 'weather', 'forecast', 'energy', '__proto__', undefined].map(kind => color(kind, 0.8)),
     ['rgba(255,112,67,0.8)', 'rgba(255,112,67,0.8)', 'rgba(179,136,255,0.8)', 'rgba(100,240,200,0.8)', 'rgba(100,200,255,0.8)', 'rgba(100,200,255,0.8)', 'rgba(100,200,255,0.8)', 'rgba(100,200,255,0.8)', 'rgba(100,200,255,0.8)']);
   assert.equal(html.match(/liveMarkerColor\(row\.kind,/g)?.length, 3, 'the globe colour and the flat fill and stroke');

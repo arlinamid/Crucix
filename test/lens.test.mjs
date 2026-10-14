@@ -453,11 +453,30 @@ test('the 30 s outerHTML swap and a live update keep the focus on the same live 
 });
 
 test('the lenses locale group carries the group-header strings in en, hu and fr', () => {
-  const keys = ['all', 'label', ...DOMAIN_IDS, 'sourceCount', 'sourceCountOne', 'recordCount', 'recordCountOne', 'attention', 'moreSources', 'noLiveSources', 'noSources', 'status'];
+  const keys = ['all', 'label', ...DOMAIN_IDS, 'sourceCount', 'sourceCountOne', 'recordCount', 'recordCountOne', 'attention', 'moreSources', 'noLiveSources', 'noSources', 'status', 'layerOff', 'regionFiltered'];
   for (const lang of ['en', 'hu', 'fr']) {
     const group = JSON.parse(read(`locales/${lang}.json`)).lenses;
     assert.deepEqual(Object.keys(group), keys, lang);
     for (const key of ['sourceCount', 'sourceCountOne', 'recordCount', 'recordCountOne', 'moreSources']) assert.ok(group[key].includes('{count}'), `${lang}: lenses.${key}`);
     assert.ok(group.status.includes('{name}'), `${lang}: lenses.status`);
   }
+});
+
+test('lens-core: map layers and news topics follow the lens; "all" shows everything', () => {
+  const window = {};
+  vm.runInContext(read('dashboard/public/domains.js'), vm.createContext({ window }));
+  vm.runInContext(read('dashboard/public/lens-core.js'), vm.createContext({ window }));
+  const { matchesLayer, matchesTopics } = window.CrucixLensCore;
+  for (const layer of ['air', 'conflict', 'osint', 'interference', 'bases', 'news']) assert.equal(matchesLayer('security', layer), true, layer);
+  for (const layer of ['weather', 'cyclones', 'health', 'launches', 'network']) assert.equal(matchesLayer('security', layer), false, layer);
+  assert.equal(matchesLayer('space', 'launches'), true);
+  assert.equal(matchesLayer('space', 'air'), false);
+  assert.equal(matchesLayer('all', 'weather'), true);
+  assert.equal(matchesLayer('nonsense', 'weather'), true, 'an unknown lens is "all"');
+  assert.equal(matchesTopics('security', ['conflict']), true);
+  assert.equal(matchesTopics('security', ['technology']), false);
+  assert.equal(matchesTopics('cyber', ['technology']), true);
+  assert.equal(matchesTopics('space', ['conflict']), false, 'no news under the space lens');
+  assert.equal(matchesTopics('security', undefined), false, 'an item without topics only under "all"');
+  assert.equal(matchesTopics('all', undefined), true);
 });

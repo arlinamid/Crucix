@@ -38,7 +38,7 @@ test('threads: strongly linked events form a thread, weak links and lone events 
   assert.equal(list[0].sources, 3);
   assert.deepEqual(list[0].edges, { 'same-story': 1, 'co-occurs': 1 });
   assert.equal(list[0].title, 'Title 2', 'the most linked member names the thread');
-  assert.deepEqual(list[0].countries, [{ iso3: 'SAU', count: 3, located: false }]);
+  assert.deepEqual(list[0].countries, [{ iso3: 'SAU', iso2: 'SA', count: 3, located: false }]);
   assert.equal(threads.threadOf(idOf(4)), null);
   assert.equal(threads.threadOf(idOf(1)).id, list[0].id);
 });

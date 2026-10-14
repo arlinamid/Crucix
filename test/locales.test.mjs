@@ -29,7 +29,7 @@ test('every liveSources, inspector, alerts and lenses value is a non-empty strin
 });
 
 // The live panel's group headers and the lens bar's announcement (live-sources.js, lens.js), after the domain names.
-const LENS_UI_KEYS = ['sourceCount', 'sourceCountOne', 'recordCount', 'recordCountOne', 'attention', 'moreSources', 'noLiveSources', 'noSources', 'status'];
+const LENS_UI_KEYS = ['sourceCount', 'sourceCountOne', 'recordCount', 'recordCountOne', 'attention', 'moreSources', 'noLiveSources', 'noSources', 'status', 'layerOff', 'regionFiltered'];
 
 test('the lenses group names "all", the lens bar and each domain of the registry, in registry order, then the group-header strings', () => {
   for (const lang of LANGS) assert.deepEqual(Object.keys(locale(lang).lenses), ['all', 'label', ...DOMAIN_IDS, ...LENS_UI_KEYS], `${lang}: lenses keys`);

@@ -159,6 +159,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .conflict-ring{animation:pulse-conflict 2.5s ease-in-out infinite}
 @keyframes dash-flow{to{stroke-dashoffset:-20}}
 .corridor-flow{animation:dash-flow 2s linear infinite}
+.leg-off{opacity:.35}
 .map-legend{position:absolute;bottom:10px;left:12px;display:flex;gap:14px;font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:0.06em;text-transform:uppercase;z-index:5;flex-wrap:wrap}
 .leg-item{display:flex;align-items:center;gap:5px}
 .leg-dot{width:8px;height:8px;border-radius:50%}
@@ -648,7 +649,13 @@ function loadMapLayers(){
   let raw;try{raw=JSON.parse(readPreference(MAP_LAYER_STORAGE_KEY)||'null')}catch{}
   return Object.fromEntries(mapLayerRegistry.map(layer=>[layer.id,typeof raw?.[layer.id]==='boolean'?raw[layer.id]:layer.off!==true]));
 }
-function isMarkerTypeVisible(type){const layer=mapLayerRegistry.find(layer=>layer.types.includes(type));return !layer||mapLayers[layer.id]!==false}
+// A marker type shows when its layer is switched on AND the domain lens covers the layer (lens-core.js LAYER_LENSES): under "Security and
+// conflict" the weather, cyclone and health layers step aside without touching the user's own layer switches.
+const currentLens=()=>window.CrucixLens?.get?.()||'all';
+const lensAllowsLayer=id=>!window.CrucixLensCore?.matchesLayer||window.CrucixLensCore.matchesLayer(currentLens(),id);
+function isMarkerTypeVisible(type){const layer=mapLayerRegistry.find(layer=>layer.types.includes(type));return !layer||(mapLayers[layer.id]!==false&&lensAllowsLayer(layer.id))}
+// A news item under a lens: only when its topics (dashboard/inject.mjs, lib/intelligence/topics.mjs) are the lens's; every item under `all`.
+const newsInLens=item=>currentLens()==='all'||!!window.CrucixLensCore?.matchesTopics?.(currentLens(),item&&item.topics);
 // Escalation status of the FIRMS heat cluster a detection lies in (D.risk.thermal, within about 20 km), for the marker colour: the strongest status wins.
 const THERMAL_TONES={spike:{rank:0,color:'#ff2d55',halo:'rgba(255,45,85,0.3)',key:'risk.thermalSpike',label:'Spike'},persistent:{rank:1,color:'#ff9500',halo:'rgba(255,149,0,0.3)',key:'risk.thermalPersistent',label:'Persistent'},elevated:{rank:2,color:'#ffd60a',halo:'rgba(255,214,10,0.3)',key:'risk.thermalElevated',label:'Elevated'}};
 function thermalTone(lat,lon){
@@ -1232,31 +1239,35 @@ function buildSourceHealthPanel(){
 
 // === DASHBOARD PANELS ===
 function buildSensorGridPanel(){
-  const totalAir=D.air.reduce((s,a)=>s+a.total,0);
+  // Air: airborne aircraft worldwide (or in the chosen region's cells); a pre-2.45 sweep only has the ten theatre boxes.
+  const airCells=airInScope(airGrid());
+  const totalAir=airGrid().length?airCells.reduce((s,c)=>s+c.count,0):D.air.reduce((s,a)=>s+a.total,0);
+  const airSub=airGrid().length?tFill('air.gridSub','{cells} cells · {alerts} squawk alerts',{cells:airCells.length,alerts:airInScope(airAlerts()).length}):`${D.air.length} ${t('layers.theaters','theaters')}`;
   const totalThermal=D.thermal.reduce((s,t)=>s+t.det,0);
   const totalNight=D.thermal.reduce((s,t)=>s+t.night,0);
-  const newsCount=(D.news||[]).length;
+  // Under a lens the news count is of the lens's topics (newsInLens), like the map.
+  const newsCount=(D.news||[]).filter(newsInLens).length;
   const conflictEvents = D.acled?.totalEvents || 0;
   const conflictFatal = D.acled?.totalFatalities || 0;
   const iodaCountries = D.ioda?.countries?.length || 0;
   const iodaActive = D.ioda?.activeEvents || 0;
   const layers=[
-    {name:t('layers.airActivity','Air Activity'),count:totalAir,dot:'air',sub:`${D.air.length} ${t('layers.theaters','theaters')}`},
-    {name:t('layers.thermalSpikes','Thermal Spikes'),count:totalThermal.toLocaleString(),dot:'thermal',sub:`${totalNight.toLocaleString()} ${t('layers.nightDet','night det.')}`},
-    {name:t('layers.sdrCoverage','SDR Coverage'),count:D.sdr.total,dot:'sdr',sub:`${D.sdr.online} ${t('layers.online','online')}`},
-    {name:t('layers.maritimeWatch','Maritime Watch'),count:D.chokepoints.length,dot:'maritime',sub:t('layers.chokepoints','chokepoints')},
-    {name:t('layers.nuclearSites','Nuclear Sites'),count:D.nuke.length,dot:'nuke',sub:t('layers.monitors','monitors')},
-    {name:t('layers.conflictEvents','Conflict Events'),count:conflictEvents,dot:'thermal',sub:`${conflictFatal.toLocaleString()} ${t('layers.fatalities','fatalities')}`},
-    {name:t('layers.internetOutages','Internet Outages'),count:iodaCountries,dot:'network',sub:`IODA · ${iodaActive} ${t('ioda.active','ACTIVE').toLowerCase()}`},
-    {name:t('layers.healthWatch','Health Watch'),count:(D.who.length+(D.supplementalHealth||[]).length),dot:'health',sub:`${t('layers.whoAlerts','WHO alerts')} + ReliefWeb/HDX`},
-    {name:t('layers.worldNews','World News'),count:newsCount,dot:'news',sub:t('layers.rssGeolocated','RSS geolocated')},
-    {name:t('layers.osintFeed','OSINT Feed'),count:D.tg.posts,dot:'incident',sub:`${D.tg.urgent.length} ${t('badges.urgent','urgent').toLowerCase()}`},
-    {name:t('layers.spaceActivity','Satellites'),count:D.space?.militarySats||0,dot:'space',sub:`${D.space?.totalNewObjects||0} ${t('space.newLast30d','new (30d)')}`}
+    {name:t('layers.airActivity','Air Activity'),count:totalAir.toLocaleString(),dot:'air',layer:'air',sub:airSub},
+    {name:t('layers.thermalSpikes','Thermal Spikes'),count:totalThermal.toLocaleString(),dot:'thermal',layer:'thermal',sub:`${totalNight.toLocaleString()} ${t('layers.nightDet','night det.')}`},
+    {name:t('layers.sdrCoverage','SDR Coverage'),count:D.sdr.total,dot:'sdr',layer:'sdr',sub:`${D.sdr.online} ${t('layers.online','online')}`},
+    {name:t('layers.maritimeWatch','Maritime Watch'),count:D.chokepoints.length,dot:'maritime',layer:'maritime',sub:t('layers.chokepoints','chokepoints')},
+    {name:t('layers.nuclearSites','Nuclear Sites'),count:D.nuke.length,dot:'nuke',layer:'nuclear',sub:t('layers.monitors','monitors')},
+    {name:t('layers.conflictEvents','Conflict Events'),count:conflictEvents,dot:'thermal',layer:'conflict',sub:`${conflictFatal.toLocaleString()} ${t('layers.fatalities','fatalities')}`},
+    {name:t('layers.internetOutages','Internet Outages'),count:iodaCountries,dot:'network',layer:'network',sub:`IODA · ${iodaActive} ${t('ioda.active','ACTIVE').toLowerCase()}`},
+    {name:t('layers.healthWatch','Health Watch'),count:(D.who.length+(D.supplementalHealth||[]).length),dot:'health',layer:'health',sub:`${t('layers.whoAlerts','WHO alerts')} + ReliefWeb/HDX`},
+    {name:t('layers.worldNews','World News'),count:newsCount,dot:'news',layer:'news',sub:t('layers.rssGeolocated','RSS geolocated')},
+    {name:t('layers.osintFeed','OSINT Feed'),count:D.tg.posts,dot:'incident',layer:'osint',sub:`${D.tg.urgent.length} ${t('badges.urgent','urgent').toLowerCase()}`},
+    {name:t('layers.spaceActivity','Satellites'),count:D.space?.militarySats||0,dot:'space',layer:'space',sub:`${D.space?.totalNewObjects||0} ${t('space.newLast30d','new (30d)')}`}
   ];
-  layers.push({name:t('map.earthquake','Earthquakes'),count:D.earthquakes.length,dot:'thermal',sub:t('earthquakes.scope','USGS significant · last 24h')});
+  layers.push({name:t('map.earthquake','Earthquakes'),count:D.earthquakes.length,dot:'thermal',layer:'earthquake',sub:t('earthquakes.scope','USGS significant · last 24h')});
   return `<div class="g-panel">
     <div class="sec-head"><h3>${t('panels.sensorGrid','Sensor Grid')}</h3><span class="badge">${t('badges.live','LIVE')}</span></div>
-    ${layers.map(l=>`<div class="layer-item"><div class="layer-left"><div class="ldot ${l.dot}"></div><div><div class="layer-name">${l.name}</div><div class="layer-sub">${l.sub}</div></div></div><div class="layer-count">${l.count}</div></div>`).join('')}
+    ${layers.filter(l=>lensAllowsLayer(l.layer)).map(l=>`<div class="layer-item"><div class="layer-left"><div class="ldot ${l.dot}"></div><div><div class="layer-name">${l.name}</div><div class="layer-sub">${l.sub}</div></div></div><div class="layer-count">${l.count}</div></div>`).join('')}
   </div>`;
 }
 
@@ -1332,12 +1343,35 @@ const REGION_COUNTRY_CODES = {
   asiaPacific: new Set(['AF','BD','BT','BN','KH','CN','FJ','IN','ID','JP','KZ','KI','KP','KR','KG','LA','MY','MV','MH','FM','MN','MM','NR','NP','NZ','PK','PW','PG','PH','WS','SG','SB','LK','TJ','TH','TL','TO','TM','TV','UZ','VU','VN','AU','TW'])
 };
 
+// The countries (ISO 3166-1 alpha-2) an item is ABOUT (dashboard/inject.mjs annotateNews: named in its title or summary); the publisher's
+// country only when the item names none.
+const aboutOf=n=>Array.isArray(n?.about)&&n.about.length?n.about.filter(code=>/^[A-Z]{2}$/.test(code)):(n?.country&&/^[A-Z]{2}$/.test(n.country)?[n.country]:[]);
+// The page's one region test: the chosen country, else the chosen region's country table, else everything.
+function countryInScope(code){
+  if(typeof code!=='string')return false;
+  if(currentCountry)return code===currentCountry;
+  if(!currentRegion||currentRegion==='world')return true;
+  return Boolean(REGION_COUNTRY_CODES[currentRegion]?.has(code));
+}
+const scopeActive=()=>!!currentCountry||(!!currentRegion&&currentRegion!=='world');
+function scopeName(){
+  if(currentCountry)return COUNTRY_NAMES[currentCountry]||currentCountry;
+  if(!scopeActive())return '';
+  const region=REGION_DEFINITIONS.find(r=>r.id===currentRegion);
+  return region?t('regions.'+region.id,region.label):currentRegion;
+}
+// A news item in scope: the countries it is about; without any, the older region heuristics below (never under a chosen country).
+function newsInScope(n){
+  if(!scopeActive())return true;
+  const about=aboutOf(n);
+  if(about.length)return about.some(countryInScope);
+  return currentCountry?false:newsItemMatchesRegion(n,currentRegion);
+}
 function newsItemMatchesRegion(n, reg){
   if(!reg || reg === 'world') return true;
-  // If country code is known, it is authoritative:
-  if(n.country && /^[A-Z]{2}$/.test(n.country)) {
-    return Boolean(REGION_COUNTRY_CODES[reg]?.has(n.country));
-  }
+  // The countries the item is about are authoritative (the publisher's own country only when it names none):
+  const about=aboutOf(n);
+  if(about.length) return about.some(code=>REGION_COUNTRY_CODES[reg]?.has(code));
   const regTxt = (n.region || '').toLowerCase();
   const srcTxt = (n.source || '').toLowerCase();
   const headTxt = (n.headline || n.title || '').toLowerCase();
@@ -1430,7 +1464,7 @@ function buildNewsTickerPanel(){
   const isSpecificRegion = currentRegion && currentRegion !== 'world';
   let feed;
   if(currentCountry){
-    const matching = (D.newsFeed || []).filter(n => n.country === currentCountry);
+    const matching = (D.newsFeed || []).filter(n => newsInScope(n) && newsInLens(n));
     matching.sort((a, b) => {
       const aTime = a.timestamp ? Date.parse(a.timestamp) || 0 : 0;
       const bTime = b.timestamp ? Date.parse(b.timestamp) || 0 : 0;
@@ -1438,7 +1472,7 @@ function buildNewsTickerPanel(){
     });
     feed = matching.slice(0, 50);
   } else if(isSpecificRegion){
-    const matching = (D.newsFeed || []).filter(n => newsItemMatchesRegion(n, currentRegion));
+    const matching = (D.newsFeed || []).filter(n => newsInScope(n) && newsInLens(n));
     matching.sort((a, b) => rankNewsItem(a, b, currentRegion));
     // Diverse country representation: max 3 headlines per country so one country cannot crowd out the region
     const countryCounts = new Map();
@@ -1625,7 +1659,7 @@ function buildSignalCorePanel(){
 }
 
 function buildInternetOutagesPanel(){
-  const iodaCountries=(D.ioda?.countries||[]).slice(0,8);
+  const iodaCountries=(D.ioda?.countries||[]).filter(c=>!scopeActive()||countryInScope(c.countryCode)).slice(0,8);
   const iodaRows=iodaCountries.map((country,i)=>{
     const stateColor=country.activeCount>0?'var(--warn)':country.overallScore>2500?'#ffb74d':'var(--accent2)';
     const stateLabel=country.activeCount>0?t('ioda.active','ACTIVE'):'RECENT';
@@ -1635,7 +1669,7 @@ function buildInternetOutagesPanel(){
 }
 
 function buildHealthAlertsPanel(){
-  const whoRows=(D.who||[]).slice(0,10).map((w,i)=>{
+  const whoRows=(D.who||[]).filter(newsInScope).slice(0,10).map((w,i)=>{
     const sev=t('intelligence.severity_'+(w.severity||'monitor'),w.severity||'monitor').toUpperCase();
     const sevColor=w.severity==='critical'?'var(--warn)':w.severity==='high'?'#ffb74d':w.severity==='elevated'?'#b2ff59':'var(--dim)';
     const link=safeExternalUrl(w.url);
@@ -1743,11 +1777,13 @@ function bindMapLifecycleEvents(){
   window.addEventListener('pageshow', () => setTimeout(() => syncResponsiveLayout(true), 150));
 }
 
+// The legend names its layer (mapLayerRegistry id): a layer the active lens does not cover is dimmed and says so.
 function renderMapLegend(){
+  const off=t('lenses.layerOff','Not in this lens');
   document.getElementById('mapLegend').innerHTML=
-    [{c:'#64f0c8',l:t('map.airTraffic','Air Traffic')},{c:'#ff5f63',l:t('map.thermalFire','Thermal/Fire')},{c:'rgba(255,120,80,0.8)',l:t('map.conflict','Conflict')},{c:'#44ccff',l:t('map.sdrReceiver','SDR Receiver')},
-     {c:'#ffe082',l:t('map.nuclearSite','Nuclear Site')},{c:'#b388ff',l:t('map.chokepoint','Chokepoint')},{c:'#ffc400',l:t('map.gnssInterference','GNSS interference')},{c:'#ffa03c',l:t('map.pipelines','Oil and gas pipelines')},{c:'#ce93d8',l:t('map.militaryBases','Military bases')},{c:'#ef9a9a',l:t('map.militaryAreas','Mapped military areas')},{c:'#7986cb',l:t('map.datacenters','Data centres')},{c:'#a1887f',l:t('map.dams','Dams')},{c:'#ffd666',l:t('map.cyclones','Cyclone forecast tracks and cones')},{c:'#f06292',l:t('map.launches','Orbital launches')},{c:'#ffb84c',l:t('map.osintEvent','OSINT Event')},{c:'#69f0ae',l:t('map.healthAlert','Health Alert')},{c:'#9be7b1',l:'Supplemental Health'},{c:'#4dd0e1',l:t('map.internetOutage','Internet Outage')},{c:'#81d4fa',l:t('map.worldNews','World News')},{c:'#ff9800',l:t('map.weatherAlert','Weather Alert')},{c:'#cddc39',l:t('map.epaRadNet','EPA RadNet')},{c:'#ffffff',l:t('map.spaceStation','Space Station')},{c:'#6495ed',l:t('map.gdeltEvent','GDELT Event')},{c:'#ff7043',l:t('map.earthquake','Earthquakes')}]
-    .map(x=>`<div class="leg-item"><div class="leg-dot" style="background:${x.c}"></div>${x.l}</div>`).join('');
+    [{c:'#64f0c8',l:t('map.airTraffic','Air Traffic'),k:'air'},{c:'#ff5f63',l:t('map.thermalFire','Thermal/Fire'),k:'thermal'},{c:'rgba(255,120,80,0.8)',l:t('map.conflict','Conflict'),k:'conflict'},{c:'#44ccff',l:t('map.sdrReceiver','SDR Receiver'),k:'sdr'},
+     {c:'#ffe082',l:t('map.nuclearSite','Nuclear Site'),k:'nuclear'},{c:'#b388ff',l:t('map.chokepoint','Chokepoint'),k:'maritime'},{c:'#ffc400',l:t('map.gnssInterference','GNSS interference'),k:'interference'},{c:'#ffa03c',l:t('map.pipelines','Oil and gas pipelines'),k:'pipelines'},{c:'#ce93d8',l:t('map.militaryBases','Military bases'),k:'bases'},{c:'#ef9a9a',l:t('map.militaryAreas','Mapped military areas'),k:'milareas'},{c:'#7986cb',l:t('map.datacenters','Data centres'),k:'datacenters'},{c:'#a1887f',l:t('map.dams','Dams'),k:'dams'},{c:'#ffd666',l:t('map.cyclones','Cyclone forecast tracks and cones'),k:'cyclones'},{c:'#f06292',l:t('map.launches','Orbital launches'),k:'launches'},{c:'#ffb84c',l:t('map.osintEvent','OSINT Event'),k:'osint'},{c:'#69f0ae',l:t('map.healthAlert','Health Alert'),k:'health'},{c:'#9be7b1',l:'Supplemental Health',k:'health'},{c:'#4dd0e1',l:t('map.internetOutage','Internet Outage'),k:'network'},{c:'#81d4fa',l:t('map.worldNews','World News'),k:'news'},{c:'#ff9800',l:t('map.weatherAlert','Weather Alert'),k:'weather'},{c:'#cddc39',l:t('map.epaRadNet','EPA RadNet'),k:'nuclear'},{c:'#ffffff',l:t('map.spaceStation','Space Station'),k:'space'},{c:'#6495ed',l:t('map.gdeltEvent','GDELT Event'),k:'news'},{c:'#ff7043',l:t('map.earthquake','Earthquakes'),k:'earthquake'}]
+    .map(x=>{const out=!lensAllowsLayer(x.k);return `<div class="leg-item${out?' leg-off':''}"${out?` title="${esc(off)}"`:''}><div class="leg-dot" style="background:${x.c}"></div>${x.l}${out?`<span class="rk-sr"> (${esc(off)})</span>`:''}</div>`;}).join('');
 }
 
 function initMap(){
@@ -1821,6 +1857,11 @@ function initGlobe(){
     .arcDashAnimateTime(2000)
     .arcAltitudeAutoScale(0.3)
     .arcLabel(d => esc(d.label))
+    // Hexbin layer (the global air density grid, airHexData): height and colour by the aircraft in the hex
+    .hexBinPointLat(d=>d.lat).hexBinPointLng(d=>d.lon).hexBinPointWeight(d=>d.count).hexBinResolution(2).hexMargin(0.18)
+    .hexAltitude(d=>airHexAltitude(d.sumWeight)).hexTopColor(d=>airHexColor(d.sumWeight,1)).hexSideColor(d=>airHexColor(d.sumWeight,0.45))
+    .hexLabel(d=>airHexLabel(d)).hexTransitionDuration(0)
+    .onHexClick((hex,ev)=>{const c=airHexCell(hex);showPopup(ev,airCellHead(c),airCellText(c),tFill('layers.airActivity','Air Activity'),c.lat,c.lon,airHexAltitude(hex.sumWeight))})
     // Paths layer (static pipelines, see infrastructure.js)
     .pathPoints('pts').pathPointLat(pt=>pt[0]).pathPointLng(pt=>pt[1]).pathPointAlt(0.004).pathColor(d=>d.color).pathStroke(d=>d.stroke||0.25)
     .pathLabel(d=>'<b>'+esc(d.popHead)+'</b><br><span style="opacity:0.7">'+esc(d.popMeta)+'</span>').pathTransitionDuration(0)
@@ -2001,23 +2042,58 @@ function tFill(path,fallback,values={}){
 // A WHO / ReliefWeb severity word for a popup, like the health panels show it.
 function severityWord(value){return t('intelligence.severity_'+(value||'monitor'),value||'monitor').toUpperCase()}
 
+// === Global air traffic (dashboard/inject.mjs airGrid, airAlerts: one OpenSky state vector per round) ===
+// The grid: airborne aircraft per 2° cell (lat/lon is the cell centre), the busiest 1,500 cells. A sweep from before 2.45 has none.
+const airGrid=()=>Array.isArray(D.airGrid)?D.airGrid:[];
+const airAlerts=()=>Array.isArray(D.airAlerts)?D.airAlerts:[];
+const airPeak=()=>airGrid().reduce((max,c)=>Math.max(max,c.count),1);
+// Colour and height on a log scale, so a busy European cell does not flatten the rest of the world.
+const airShare=count=>Math.min(1,Math.log1p(Math.max(0,count))/Math.log1p(airPeak()));
+function airHexColor(count,alpha){const k=airShare(count);return `rgba(${Math.round(60+160*k)},${Math.round(200+40*k)},${Math.round(190-40*k)},${((0.25+0.6*k)*alpha).toFixed(3)})`}
+// Kept under the other markers (their altitude is 0.01 and up), so a busy hex never hides a fire or a conflict point.
+const airHexAltitude=count=>0.001+0.007*airShare(count);
+// A globe hex merges the cells inside it: their sum, the busiest countries over them.
+function airHexCell(hex){
+  const cells=hex.points||[],countries={};let noCallsign=0,highAlt=0;
+  for(const c of cells){noCallsign+=c.noCallsign||0;highAlt+=c.highAlt||0;for(const [name,n] of c.top||[])countries[name]=(countries[name]||0)+n}
+  return {lat:hex.center?.lat??cells[0]?.lat,lon:hex.center?.lng??cells[0]?.lon,count:hex.sumWeight||0,noCallsign,highAlt,top:Object.entries(countries).sort((a,b)=>b[1]-a[1]).slice(0,3),approx:true};
+}
+const coord=(v,pos,neg)=>Math.abs(Math.round(v))+'°'+(v>=0?pos:neg);
+function airCellHead(c){return tFill('air.cellHead','Air traffic · {lat} {lon}',{lat:coord(c.lat,'N','S'),lon:coord(c.lon,'E','W')})}
+function airCellText(c){
+  return `${tFill('popup.aircraft','{count} aircraft',{count:c.count})}<br>${tFill('popup.noCallsign','No callsign')}: ${c.noCallsign}<br>${tFill('popup.highAlt','High alt')}: ${c.highAlt}`
+    +(c.top.length?`<br>${tFill('popup.top','Top')}: ${c.top.map(r=>esc(r[0])+' ('+r[1]+')').join(', ')}`:'')
+    +`<br><br>${esc(t('air.cellNote','Airborne aircraft with a position, by registration country (OpenSky).'))}`;
+}
+function airHexLabel(hex){const c=airHexCell(hex);return `<b>${esc(airCellHead(c))}</b><br><span style="opacity:0.7">${esc(tFill('popup.aircraft','{count} aircraft',{count:c.count}))}</span>`}
+// Squawk 7500/7600/7700: what the transponder says, not a confirmed event.
+function airAlertHead(a){return tFill('air.squawkHead','Squawk {code}',{code:a.squawk})+(a.callsign?' · '+a.callsign:'')}
+function airAlertText(a){
+  return `${esc(t('air.squawk_'+a.kind,a.kind))}<br>${esc(a.country||'')}${a.altitude!=null?`<br>${tFill('air.altitude','Altitude: {m} m',{m:a.altitude.toLocaleString()})}`:''}<br>ICAO24: ${esc(a.icao24)}`
+    +`<br><br>${esc(t('air.squawkNote','A transponder code, not a confirmed event: test codes and mistyped squawks happen.'))}`;
+}
+// The cells (or squawks) inside the chosen region's map bounds (flatRegionBounds), all of them for the world or a single country.
+function airInScope(rows){
+  try{
+    if(currentCountry||!currentRegion||currentRegion==='world')return rows;
+    const b=flatRegionBounds[currentRegion];if(!b)return rows;
+    return rows.filter(c=>c.lon>=b[0][0]&&c.lon<=b[1][0]&&c.lat>=b[0][1]&&c.lat<=b[1][1]);
+  }catch{return rows}
+}
+
 function plotMarkers(){
   if(!globe) return;
   const points = [];
   const labels = [];
 
-  // === Air hotspots (green) ===
-  const airCoords=[{lat:30,lon:44},{lat:24,lon:120},{lat:49,lon:32},{lat:57,lon:24},{lat:14,lon:114},{lat:37,lon:127},{lat:25,lon:-80},{lat:4,lon:2},{lat:-34,lon:18},{lat:10,lon:51}];
-  if(flightsVisible) D.air.forEach((a,i)=>{
-    const c=airCoords[i]; if(!c) return;
+  // === Air: the density hexes (busiest cells; fewer in low-performance mode) and the emergency squawks (red) ===
+  const airOn=isMarkerTypeVisible('air');
+  globe.hexBinPointsData(airOn?airGrid().slice(0,lowPerfMode?300:900):[]);
+  if(airOn) airAlerts().forEach(a=>{
     points.push({
-      lat:c.lat, lng:c.lon, size:0.25+a.total/200, alt:0.015,
-      color:'rgba(100,240,200,0.8)', type:'air', priority:1,
-      label: a.region.replace(' Region','')+' '+a.total,
-      popHead: a.region, popMeta: tFill('layers.airActivity','Air Activity'),
-      popText: `${tFill('popup.aircraftTracked','{count} aircraft tracked',{count:a.total})}<br>${tFill('popup.noCallsign','No callsign')}: ${a.noCallsign}<br>${tFill('popup.highAltitude','High altitude')}: ${a.highAlt}<br>${tFill('popup.top','Top')}: ${a.top.slice(0,3).map(t=>t[0]+' ('+t[1]+')').join(', ')}`
+      lat:a.lat, lng:a.lon, size:0.45, alt:0.03, color:'rgba(255,72,72,0.95)', type:'air', priority:1,
+      popHead: airAlertHead(a), popMeta: tFill('layers.airActivity','Air Activity'), popText: airAlertText(a)
     });
-    labels.push({type:'air', lat:c.lat, lng:c.lon+2, text:a.region.replace(' Region','')+' '+a.total, size:0.35, color:'rgba(106,138,130,0.8)'});
   });
 
   // === Thermal/fire (red; spike / persistent / elevated clusters recoloured) ===
@@ -2114,7 +2190,7 @@ function plotMarkers(){
 
   // === News markers (light blue) ===
   (D.news||[]).forEach(n=>{
-    if(isGroupedNews(n))return;
+    if(isGroupedNews(n)||!newsInLens(n))return;
     points.push({
       lat:n.lat, lng:n.lon, size:0.2, alt:0.008,
       color:'rgba(129,212,250,0.7)', type:'news', priority:3,
@@ -2156,7 +2232,7 @@ function plotMarkers(){
   });
 
   // === GDELT geo events (steel blue) ===
-  (D.gdelt?.geoPoints||[]).forEach(g=>{
+  if(lensMatchesSource('GDELT'))(D.gdelt?.geoPoints||[]).forEach(g=>{
     points.push({
       lat:g.lat, lng:g.lon, size:0.15+Math.min(g.count/50,0.2), alt:0.007,
       color:'rgba(100,149,237,0.6)', type:'gdelt', priority:3,
@@ -2174,7 +2250,7 @@ function plotMarkers(){
   }));
   const conflictEvents=(D.acled?.deadliestEvents||[]).filter(e=>hasCoordinates(e.lat,e.lon));
   conflictEvents.forEach(e=>points.push({lat:e.lat,lng:e.lon,size:0.25,alt:0.01,color:'rgba(255,120,80,0.8)',type:'conflict',priority:1,popHead:e.type||tFill('map.conflict','Conflict'),popMeta:'ACLED',popText:`${tFill('popup.fatalities','{count} fatalities',{count:e.fatalities})}\n${e.location}, ${e.country}`}));
-  if(groupNews)for(const cluster of visibleEventClusters())points.push({lat:cluster.lat,lng:cluster.lon,size:.4,alt:.015,color:'rgba(129,212,250,0.9)',type:'news',priority:1,cluster,popHead:t('intelligence.cluster','Grouped reports'),popMeta:cluster.count+' '+t('badges.items','ITEMS')});
+  if(groupNews&&currentLens()==='all')for(const cluster of visibleEventClusters())points.push({lat:cluster.lat,lng:cluster.lon,size:.4,alt:.015,color:'rgba(129,212,250,0.9)',type:'news',priority:1,cluster,popHead:t('intelligence.cluster','Grouped reports'),popMeta:cluster.count+' '+t('badges.items','ITEMS')});
   const infra=infraData();
   if(infra&&isMarkerTypeVisible('base'))infra.bases.forEach(b=>points.push({lat:b.lat,lng:b.lon,size:0.2,alt:0.012,color:baseColor(b),type:'base',priority:2,popHead:b.name,popMeta:t('infra.base','Military base'),popText:window.CrucixInfrastructure.baseText(b,infraSay)}));
   globe.pathsData((infra&&isMarkerTypeVisible('pipeline')?globePipelinePaths(infra):[]).concat(globeCyclonePaths()));
@@ -2200,55 +2276,8 @@ function plotMarkers(){
   });
   globe.ringsData(isMarkerTypeVisible('conflict')&&!reducedMotion?conflictRings:[]);
 
-  // === FLIGHT CORRIDORS (3D arcs) ===
+  // The decorative corridors between the old ten boxes are gone: the hexes above show where aircraft actually are.
   const arcs = [];
-  if(flightsVisible){
-  const airCoordsFlight = [
-    {region:'Middle East',lat:30,lon:44}, {region:'Taiwan Strait',lat:24,lon:120},
-    {region:'Ukraine Region',lat:49,lon:32}, {region:'Baltic Region',lat:57,lon:24},
-    {region:'South China Sea',lat:14,lon:114}, {region:'Korean Peninsula',lat:37,lon:127},
-    {region:'Caribbean',lat:25,lon:-80}, {region:'Gulf of Guinea',lat:4,lon:2},
-    {region:'Cape Route',lat:-34,lon:18}, {region:'Horn of Africa',lat:10,lon:51}
-  ];
-  const globalHubs = [
-    {lat:40.6,lon:-73.8},{lat:51.5,lon:-0.5},{lat:25.3,lon:55.4},
-    {lat:1.4,lon:103.8},{lat:-33.9,lon:151.2},{lat:-23.4,lon:-46.5}
-  ];
-  // Inter-hotspot corridors
-  for(let i=0; i<D.air.length; i++){
-    for(let j=i+1; j<D.air.length; j++){
-      const a=D.air[i], b=D.air[j];
-      const from=airCoordsFlight[i], to=airCoordsFlight[j];
-      if(!from||!to) continue;
-      const traffic=a.total+b.total;
-      if(traffic<30) continue;
-      const ncRatio=(a.noCallsign+b.noCallsign)/Math.max(traffic,1);
-      const color = ncRatio>0.15 ? ['rgba(255,95,99,0.6)','rgba(255,95,99,0.15)'] :
-                    ncRatio>0.05 ? ['rgba(255,184,76,0.5)','rgba(255,184,76,0.1)'] :
-                                   ['rgba(100,240,200,0.4)','rgba(100,240,200,0.08)'];
-      arcs.push({
-        startLat:from.lat, startLng:from.lon, endLat:to.lat, endLng:to.lon,
-        color, stroke:Math.max(0.3, Math.min(1.2, traffic/120)),
-        label:tFill('popup.corridor','{from} ↔ {to}: {count} aircraft',{from:from.region,to:to.region,count:traffic})
-      });
-    }
-  }
-  // Hub corridors
-  D.air.forEach((a,i)=>{
-    if(!airCoordsFlight[i]||a.total<25) return;
-    globalHubs.forEach(hub=>{
-      const dLat=Math.abs(airCoordsFlight[i].lat-hub.lat);
-      const dLon=Math.abs(airCoordsFlight[i].lon-hub.lon);
-      if(dLat+dLon<20) return;
-      arcs.push({
-        startLat:airCoordsFlight[i].lat, startLng:airCoordsFlight[i].lon,
-        endLat:hub.lat, endLng:hub.lon,
-        color:['rgba(100,240,200,0.2)','rgba(100,240,200,0.05)'],
-        stroke:0.3
-      });
-    });
-  });
-  }
   globe.arcsData(arcs);
 
   // Zoom-aware marker sizing: scale markers and labels with camera altitude
@@ -2281,7 +2310,7 @@ function lensMatchesSource(name){return !window.CrucixLensCore||window.CrucixLen
 function lensMarkerRows(){return CrucixLiveSources.markerRows(D.liveSources,D.earthquakes).filter(row=>lensMatchesSource(row.source))}
 // A lens change redraws through the normal render path: panels (live groups, source health), the open inspector and the live markers.
 function applyLens(){
-  closePopup();rerenderDashboard();
+  closePopup();rerenderDashboard();renderMapLegend();
   window.CrucixRecordInspector?.refresh();
   plotMarkers();if(flatG){flatG.selectAll('.markers,.corridors-layer').remove();plotFlatMarkers();}
 }
@@ -2533,15 +2562,19 @@ function plotFlatMarkers(){
     g.append('circle').attr('class','marker-circle').attr('r',r).attr('data-base-r',r).attr('fill',fill).attr('stroke',stroke).attr('stroke-width',0.8);
     return g;
   };
-  // Air
-  const airCoords=[{lat:30,lon:44},{lat:24,lon:120},{lat:49,lon:32},{lat:57,lon:24},{lat:14,lon:114},{lat:37,lon:127},{lat:25,lon:-80},{lat:4,lon:2},{lat:-34,lon:18},{lat:10,lon:51}];
-  if(flightsVisible){
-    D.air.forEach((a,i)=>{
-      const c=airCoords[i];if(!c)return;
-      const g=addPt(c.lat,c.lon,4+a.total/40,'rgba(100,240,200,0.7)','rgba(100,240,200,0.3)',
-        ev=>showPopup(ev,a.region,`${tFill('popup.aircraft','{count} aircraft',{count:a.total})}<br>${tFill('popup.noCallsign','No callsign')}: ${a.noCallsign}<br>${tFill('popup.highAlt','High alt')}: ${a.highAlt}`,tFill('layers.airActivity','Air Activity')),1);
-      if(g) g.append('text').attr('class','marker-label').attr('x',10).attr('y',3).attr('fill','var(--dim)').attr('font-size','9px').attr('font-family','var(--mono)').text(a.region.replace(' Region','')+' '+a.total);
+  // Air: the 2° density cells under every other marker (corridors-layer, drawn first), the emergency squawks as red markers
+  if(isMarkerTypeVisible('air')){
+    const cG=flatG.insert('g','.markers').attr('class','corridors-layer').attr('data-layer','air');
+    const half=(D.airMeta?.gridDegrees||2)/2;
+    airGrid().forEach(c=>{
+      const a=proj([c.lon-half,c.lat+half]),b=proj([c.lon+half,c.lat-half]);
+      if(!a||!b||![...a,...b].every(Number.isFinite))return;
+      cG.append('rect').attr('x',Math.min(a[0],b[0])).attr('y',Math.min(a[1],b[1])).attr('width',Math.abs(b[0]-a[0])).attr('height',Math.abs(b[1]-a[1]))
+        .attr('fill',airHexColor(c.count,0.85)).style('cursor','pointer')
+        .on('click',ev=>{ev.stopPropagation();showPopup(ev,airCellHead(c),airCellText(c),tFill('layers.airActivity','Air Activity'))})
+        .append('title').text(airCellHead(c)+' · '+tFill('popup.aircraft','{count} aircraft',{count:c.count}));
     });
+    airAlerts().forEach(a=>addPt(a.lat,a.lon,4.5,'rgba(255,72,72,0.95)','rgba(255,72,72,0.4)',ev=>showPopup(ev,airAlertHead(a),airAlertText(a),tFill('layers.airActivity','Air Activity')),1));
   }
   // Thermal
   flatMarkerType='thermal';
@@ -2583,8 +2616,8 @@ function plotFlatMarkers(){
   (D.ioda?.countries||[]).forEach(c=>{if(c.lat==null||c.lon==null)return;addPt(c.lat,c.lon,3.2+Math.min((c.overallScore||0)/2500,2.2)+(c.activeCount>0?0.8:0),'rgba(77,208,225,0.72)','rgba(77,208,225,0.26)',ev=>showPopup(ev,`${c.country} · ${t('map.internetOutage','Internet Outage')}`,`${t('ioda.events','Events')}: ${c.eventCount}<br>${t('ioda.active','ACTIVE')}: ${c.activeCount}<br>${t('ioda.score','Score')}: ${Math.round(c.overallScore)}`,`IODA · ${c.topDatasource||'overall'}`),2)});
   // News
   flatMarkerType='news';
-  (D.news||[]).forEach(n=>{if(!isGroupedNews(n))addPt(n.lat,n.lon,3,'rgba(129,212,250,0.6)','rgba(129,212,250,0.2)',ev=>showPopup(ev,(n.country ? '['+n.country+'] ' : '')+tFill('popup.news','{source} NEWS',{source:n.source}),cleanText(n.title),n.region),3)});
-  if(groupNews)for(const cluster of visibleEventClusters()){
+  (D.news||[]).forEach(n=>{if(!isGroupedNews(n)&&newsInLens(n))addPt(n.lat,n.lon,3,'rgba(129,212,250,0.6)','rgba(129,212,250,0.2)',ev=>showPopup(ev,(n.country ? '['+n.country+'] ' : '')+tFill('popup.news','{source} NEWS',{source:n.source}),cleanText(n.title),n.region),3)});
+  if(groupNews&&currentLens()==='all')for(const cluster of visibleEventClusters()){
     const marker=addPt(cluster.lat,cluster.lon,8,'rgba(129,212,250,0.85)','rgba(129,212,250,0.4)',()=>CrucixIntelligence.openCluster(cluster),1);
     if(marker){marker.attr('data-cluster-id',cluster.id).attr('role','button').attr('tabindex',0).attr('aria-label',t('intelligence.cluster','Grouped reports')+' '+cluster.count).on('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();CrucixIntelligence.openCluster(cluster);}});marker.append('text').attr('text-anchor','middle').attr('dy','.35em').attr('fill','#020408').attr('font-size','9px').text(cluster.count);}
   }
@@ -2610,7 +2643,7 @@ function plotFlatMarkers(){
   });
   // GDELT geo events
   flatMarkerType='gdelt';
-  (D.gdelt?.geoPoints||[]).forEach(g=>{addPt(g.lat,g.lon,2.5,'rgba(100,149,237,0.5)','rgba(100,149,237,0.2)',ev=>showPopup(ev,tFill('map.gdeltEvent','GDELT Event'),g.name||'','GDELT · '+tFill('popup.reports','{count} reports',{count:g.count})),3)});
+  if(lensMatchesSource('GDELT'))(D.gdelt?.geoPoints||[]).forEach(g=>{addPt(g.lat,g.lon,2.5,'rgba(100,149,237,0.5)','rgba(100,149,237,0.2)',ev=>showPopup(ev,tFill('map.gdeltEvent','GDELT Event'),g.name||'','GDELT · '+tFill('popup.reports','{count} reports',{count:g.count})),3)});
   // ACLED
   flatMarkerType='conflict';
   (D.acled?.deadliestEvents||[]).filter(e=>hasCoordinates(e.lat,e.lon)&&isMarkerTypeVisible('conflict')).forEach(e=>{
@@ -2623,28 +2656,6 @@ function plotFlatMarkers(){
   });
   flatMarkerType='earthquake';
   D.earthquakes.forEach(q=>addPt(q.lat,q.lon,3+Math.min(Number(q.magnitude)||0,8)*0.5,'rgba(255,112,67,0.85)','rgba(255,112,67,0.4)',ev=>showPopup(ev,'M '+(q.magnitude??'?')+' · '+(q.place||t('map.earthquake','Earthquake')),earthquakeDescription(q),t('earthquakes.scope','USGS significant · last 24h')+' · '+getAge(q.time),q.lat,q.lon),1));
-  // Flight corridors
-  if(flightsVisible){
-    const airCoordsFlight=[{lat:30,lon:44},{lat:24,lon:120},{lat:49,lon:32},{lat:57,lon:24},{lat:14,lon:114},{lat:37,lon:127},{lat:25,lon:-80},{lat:4,lon:2},{lat:-34,lon:18},{lat:10,lon:51}];
-    const hubs=[{lat:40.6,lon:-73.8},{lat:51.5,lon:-0.5},{lat:25.3,lon:55.4},{lat:1.4,lon:103.8},{lat:-33.9,lon:151.2},{lat:-23.4,lon:-46.5}];
-    const cG=flatG.append('g').attr('class','corridors-layer').attr('data-layer','air');
-    for(let i=0;i<D.air.length;i++){for(let j=i+1;j<D.air.length;j++){
-      const a=D.air[i],b=D.air[j],from=airCoordsFlight[i],to=airCoordsFlight[j];
-      if(!from||!to)continue;const traffic=a.total+b.total;if(traffic<30)continue;
-      const ncR=(a.noCallsign+b.noCallsign)/Math.max(traffic,1);
-      const clr=ncR>0.15?'rgba(255,95,99,0.4)':ncR>0.05?'rgba(255,184,76,0.35)':'rgba(100,240,200,0.25)';
-      const interp=d3.geoInterpolate([from.lon,from.lat],[to.lon,to.lat]);
-      const coords=[];for(let k=0;k<=40;k++)coords.push(interp(k/40));
-      const feat={type:'Feature',geometry:{type:'LineString',coordinates:coords}};
-      cG.append('path').datum(feat).attr('d',flatPath).attr('fill','none').attr('stroke',clr).attr('stroke-width',Math.max(0.8,Math.min(3,traffic/80)));
-    }}
-    D.air.forEach((a,i)=>{if(!airCoordsFlight[i]||a.total<25)return;hubs.forEach(hub=>{
-      if(Math.abs(airCoordsFlight[i].lat-hub.lat)+Math.abs(airCoordsFlight[i].lon-hub.lon)<20)return;
-      const interp=d3.geoInterpolate([airCoordsFlight[i].lon,airCoordsFlight[i].lat],[hub.lon,hub.lat]);
-      const coords=[];for(let k=0;k<=40;k++)coords.push(interp(k/40));
-      cG.append('path').datum({type:'Feature',geometry:{type:'LineString',coordinates:coords}}).attr('d',flatPath).attr('fill','none').attr('stroke','rgba(100,240,200,0.15)').attr('stroke-width',0.6);
-    })});
-  }
   const infraFlat=infraData();
   if(infraFlat)plotFlatInfrastructure(infraFlat);
   plotFlatCyclones();
@@ -2665,7 +2676,8 @@ function setRegion(r){
   if(sel) sel.value = '';
   document.querySelectorAll('.region-btn').forEach(b=>b.classList.toggle('active',b.dataset.region===r));
   closePopup();
-  renderLower();
+  // Every panel with a location follows the region (ticker, threads, country risk, outages, health), not the ticker alone.
+  rerenderDashboard();
   if(isFlat && flatSvg && flatZoom){
     if(r==='world'){flatSvg.transition().duration(750).call(flatZoom.transform,d3.zoomIdentity);return;}
     const bounds=flatRegionBounds[r];
@@ -2705,7 +2717,7 @@ function setCountry(c){
   });
 
   closePopup();
-  renderLower();
+  rerenderDashboard();
 
   const coords = COUNTRY_COORDINATES[currentCountry];
   if(coords){
@@ -3512,9 +3524,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Country risk: the panel reads the snapshot's own risk; the country sheet and the briefing read the live store (GET /api/countries/:iso3,
   // POST /api/briefing), so like the archive hooks they are left out on file pages and in the offline shell, and are off during a replay.
   const replayOn=()=>!!window.CrucixReplay?.active();
-  window.CrucixRisk?.mount({t,locale:uiLocale(),getRisk:()=>D.risk,isReplay:replayOn,fetchJson:archiveApi?fetchJsonNoStore:undefined});
+  window.CrucixRisk?.mount({t,locale:uiLocale(),getRisk:()=>D.risk,isReplay:replayOn,fetchJson:archiveApi?fetchJsonNoStore:undefined,inScope:countryInScope,scopeName});
   // Story threads: the panel reads the snapshot's own threads; the thread sheet reads the live graph (GET /api/threads/:id, /api/entities/:id).
-  window.CrucixThreads?.mount({t,locale:uiLocale(),now:clockNow,getThreads:()=>D.threads,isReplay:replayOn,fetchJson:archiveApi?fetchJsonNoStore:undefined,
+  window.CrucixThreads?.mount({t,locale:uiLocale(),now:clockNow,getThreads:()=>D.threads,isReplay:replayOn,fetchJson:archiveApi?fetchJsonNoStore:undefined,inScope:countryInScope,scopeName,
     openEvent:id=>window.CrucixIntelligence?.openEvent(id),openCountry:iso3=>window.CrucixCountry?.open(iso3)});
   if(archiveApi){
     window.CrucixCountry?.mount({t,locale:uiLocale(),now:clockNow,fetchJson:fetchJsonNoStore,isReplay:replayOn,openEvent:id=>window.CrucixIntelligence?.openEvent(id)});

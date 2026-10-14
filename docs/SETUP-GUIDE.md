@@ -157,7 +157,7 @@ The following optional free API keys increase request limits and resolution:
 - **Availability:** ACLED's API is not available to private persons: a personal myACLED account is on the Open tier (aggregated data and tools, no API) and the data call answers `403 Access denied`. ACLED also restricts personal-project use under its Terms and EULA. Crucix targets free sources and does not need it; without API access the source shows as disabled and is not retried for 24 hours.
 - **If your organisation has API access:** `ACLED_EMAIL=...` and `ACLED_PASSWORD=...`; `node scripts/acled-token.mjs` signs in and saves the tokens.
 
-### 5. OpenSky (ADS-B flight hotspots)
+### 5. OpenSky (global ADS-B air traffic)
 - **Sign up:** [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → create an API client → `clientId` / `clientSecret` from `credentials.json`
 - **Cost:** Free. Anonymous 400 credits/day; OAuth2 client 4000/day (refresh every 15 min).
 - **Config:** `OPENSKY_CLIENT_ID=...` and `OPENSKY_CLIENT_SECRET=...`

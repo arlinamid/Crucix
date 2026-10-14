@@ -161,7 +161,7 @@ Az alábbi ingyenes regisztrációkkal növelheted az adatfrissítés sebesség�
 - **Elérhetőség:** az ACLED API-ja magánszemélynek nem érhető el: a személyes myACLED-fiók az Open szinten van (összesített adatok és eszközök, API nélkül), az adatlekérés `403 Access denied`-ot ad. Az ACLED a személyes projektben való használatot a Terms és az EULA alapján is korlátozza. A Crucix ingyenes forrásokat céloz, és nincs rá szüksége; API-hozzáférés nélkül a forrás letiltottként jelenik meg, és 24 óráig nem próbálkozik újra.
 - **Ha a szervezetednek van API-hozzáférése:** `ACLED_EMAIL=...` és `ACLED_PASSWORD=...`; a `node scripts/acled-token.mjs` bejelentkezik és elmenti a tokeneket.
 
-### 5. OpenSky (ADS-B repülési hotspotok)
+### 5. OpenSky (globális ADS-B légi forgalom)
 - **Hol kérhető:** [opensky-network.org/my-opensky/account](https://opensky-network.org/my-opensky/account) → új API client → `clientId` / `clientSecret` a `credentials.json`-ból
 - **Ár:** Ingyenes. Anonim 400 credit/nap; OAuth2 klienssel 4000/nap (frissítés 15 percenként).
 - **Konfiguráció:** `OPENSKY_CLIENT_ID=...` és `OPENSKY_CLIENT_SECRET=...`

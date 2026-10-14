@@ -1107,7 +1107,9 @@
     "moreSources": "és még {count}",
     "noLiveSources": "Ebben a témában nincs élő forrás.",
     "noSources": "Ebben a lekérdezésben nem jelentett forrás ebből a témából.",
-    "status": "Témalencse: {name}"
+    "status": "Témalencse: {name}",
+    "layerOff": "Nem tartozik ehhez a lencséhez",
+    "regionFiltered": "Szűrve: {name}"
   },
   "replay": {
     "button": "Visszajátszás",
@@ -1668,10 +1670,8 @@
     }
   },
   "popup": {
-    "aircraftTracked": "{count} követett légi jármű",
     "aircraft": "{count} légi jármű",
     "noCallsign": "Hívójel nélkül",
-    "highAltitude": "Nagy magasságon",
     "highAlt": "Nagy mag.",
     "top": "Leggyakoribb",
     "firmsSatellite": "FIRMS műhold",
@@ -1706,7 +1706,6 @@
     "fatalities": "{count} halálos áldozat",
     "acledData": "ACLED konfliktusadatok",
     "date": "Dátum",
-    "corridor": "{from} ↔ {to}: {count} légi jármű",
     "globeLoading": "A 3D-s földgömb betöltése",
     "zoomIn": "Nagyítás",
     "zoomOut": "Kicsinyítés",
@@ -1793,5 +1792,16 @@
     "source": "Forrás",
     "noFx": "Ebben a körben nincs árfolyamadat",
     "providers": "Árfolyamok: {providers}"
+  },
+  "air": {
+    "cellHead": "Légi forgalom · {lat} {lon}",
+    "cellNote": "Levegőben lévő, pozíciót sugárzó gépek, lajstromozó ország szerint (OpenSky).",
+    "gridSub": "{cells} cella · {alerts} squawk-riasztás",
+    "squawkHead": "Squawk {code}",
+    "squawk_hijack": "7500: jogellenes beavatkozás (eltérítés)",
+    "squawk_radio": "7600: rádióhiba",
+    "squawk_emergency": "7700: általános vészhelyzet",
+    "altitude": "Magasság: {m} m",
+    "squawkNote": "Transzponderkód, nem megerősített esemény: előfordul tesztkód és elgépelt squawk is."
   }
 }

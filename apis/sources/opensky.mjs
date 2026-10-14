@@ -1,7 +1,7 @@
 // OpenSky Network — Real-time flight tracking
 // Free for research. Tracks all aircraft with ADS-B transponders including many military.
 // API credits per day: 400 anonymous, 4,000 with an account, 8,000 for active feeders.
-// A /states/all box costs 1-4 credits by area; one round over the hotspots below costs 28.
+// A /states/all box costs 1-4 credits by area; the global vector one round now asks for costs 4 (it was 28 for the ten boxes).
 // Authentication is OAuth2 client credentials only (basic auth was removed on 2026-03-18):
 // https://opensky-network.org/my-opensky/account -> "Create a new API client" -> the
 // clientId/clientSecret of credentials.json go into OPENSKY_CLIENT_ID/OPENSKY_CLIENT_SECRET.
@@ -15,8 +15,8 @@ const TOKEN_URL = 'https://auth.opensky-network.org/auth/realms/opensky-network/
 const MINUTE = 60000;
 const TOKEN_MARGIN_MS = 30000; // refresh a token 30 s before it expires
 // Minimum time between rounds, less INTERVAL_SLACK_MS so a sweep timer firing a little early still refreshes.
-// With the 15-minute sweep: 96 rounds = 2,688 credits/day (of 4,000) and 12 rounds = 336 (of 400);
-// even back-to-back at interval - slack: at most 103 rounds = 2,884 and 13 rounds = 364.
+// With the 15-minute sweep: 96 rounds = 384 credits/day (of 4,000) and anonymous 12 rounds = 48 (of 400);
+// even back-to-back at interval - slack: at most 103 rounds = 412 and 13 rounds = 52.
 const MIN_INTERVAL_MS = { authenticated: 15 * MINUTE, anonymous: 120 * MINUTE };
 const INTERVAL_SLACK_MS = MINUTE;
 const MAX_STALE_MS = 180 * MINUTE; // oldest result served as stale while requests are blocked
@@ -24,17 +24,28 @@ const MAX_BLOCK_MS = 24 * 60 * MINUTE; // credits reset daily; a larger retry he
 // A round must end before the orchestrator's 30 s source race.
 const ROUND_BUDGET_MS = 25000;
 const TOKEN_TIMEOUT_MS = 5000;
-const HOTSPOT_TIMEOUT_MS = 20000;
+const REQUEST_TIMEOUT_MS = 20000;
+// The global state vector: ~10-15k aircraft, a few MB of JSON.
+const GLOBAL_MAX_BYTES = 25 * 1024 * 1024;
+// The density grid of the map: airborne aircraft per GRID_DEGREES cell, the busiest MAX_CELLS cells.
+const GRID_DEGREES = 2;
+const MAX_CELLS = 1500;
+// Emergency transponder codes: unlawful interference, radio failure, general emergency.
+const SQUAWKS = Object.freeze({ '7500': 'hijack', '7600': 'radio', '7700': 'emergency' });
+const MAX_ALERTS = 50;
 const MIN_REQUEST_MS = 2000; // a request is not started with less time than this left
 
 let tokenCache = { token: null, expiresAt: 0 };
-let tokenRequest = null;                  // in-flight token request shared by the parallel hotspots
+let tokenRequest = null;                  // in-flight token request, shared by concurrent callers
 let lastRound = { at: 0, result: null };  // last round that got data (and so spent credits)
 let blockedUntil = 0;                     // set by HTTP 429 from X-Rate-Limit-Retry-After-Seconds
 let hydrated = false;
 
 function persistQuota() {
-  writeQuota('opensky', { blockedUntil, lastRound });
+  if (writeQuota('opensky', { blockedUntil, lastRound })) return;
+  // Over the quota cache's size limit: the block and the interval matter more than the cached map grid.
+  const result = lastRound.result ? { ...lastRound.result, grid: [] } : null;
+  writeQuota('opensky', { blockedUntil, lastRound: { at: lastRound.at, result } });
 }
 
 function hydrateQuota() {
@@ -97,9 +108,9 @@ function getToken(creds, now, timeout) {
   return tokenRequest;
 }
 
-// Get all current flights (global state vector)
-export async function getAllFlights() {
-  return safeFetch(`${BASE}/states/all`, { timeout: 30000 });
+// Get all current flights (global state vector); one request costs 4 credits whatever the hour.
+export async function getAllFlights(opts = {}) {
+  return safeFetch(`${BASE}/states/all`, { timeout: 30000, maxBytes: GLOBAL_MAX_BYTES, ...opts });
 }
 
 // Get flights in a bounding box (lat/lon)
@@ -154,12 +165,12 @@ const HOTSPOTS = {
   hornOfAfrica: { lamin: 5, lomin: 40, lamax: 15, lomax: 55, label: 'Horn of Africa' },
 };
 
-// One hotspot; on HTTP 401 the token is replaced once (shared by all hotspots) and the hotspot retried once,
-// if the round's remaining time allows it. No request may run past the deadline.
-async function fetchHotspot(box, creds, token, now, deadline) {
+// The global state vector; on HTTP 401 the token is replaced once and the request retried once, if the round's remaining time allows
+// it. No request may run past the deadline.
+async function fetchGlobal(creds, token, now, deadline) {
   const remaining = () => deadline - Date.now();
-  const get = bearer => getFlightsInArea(box.lamin, box.lomin, box.lamax, box.lomax, {
-    timeout: Math.max(1, Math.min(HOTSPOT_TIMEOUT_MS, remaining())), retries: 0, retryAfterHeader: 'x-rate-limit-retry-after-seconds',
+  const get = bearer => getAllFlights({
+    timeout: Math.max(1, Math.min(REQUEST_TIMEOUT_MS, remaining())), retries: 0, retryAfterHeader: 'x-rate-limit-retry-after-seconds',
     ...(bearer ? { headers: { Authorization: `Bearer ${bearer}` } } : {}),
   });
   const data = await get(token);
@@ -170,6 +181,48 @@ async function fetchHotspot(box, creds, token, now, deadline) {
   const session = await getToken(creds, now, TOKEN_TIMEOUT_MS);
   if (session.error) return { error: `HTTP 401; token refresh failed: ${session.error}` };
   return remaining() < MIN_REQUEST_MS ? noTime : get(session.token);
+}
+
+// What the global state vector says (OpenSky state vector fields: 0 icao24, 1 callsign, 2 origin country, 5 longitude, 6 latitude,
+// 7 barometric altitude m, 8 on ground, 9 velocity m/s, 10 track, 13 geometric altitude, 14 squawk):
+//   hotspots  the legacy theatre boxes, counted from the same vector (the air panel, the delta engine and memory keep their shape)
+//   grid      airborne aircraft per 2° cell, the busiest 1,500 cells: the map's density layer
+//   alerts    aircraft squawking 7500/7600/7700
+export function summarizeStates(states) {
+  const list = Array.isArray(states) ? states.filter(Array.isArray) : [];
+  const positioned = list.filter(s => Number.isFinite(s[5]) && Number.isFinite(s[6]));
+  const airborne = positioned.filter(s => !s[8]);
+  // The boxes count aircraft on the ground too, as the per-box requests before 2.45 did: the delta engine's air_total stays comparable.
+  const hotspots = Object.entries(HOTSPOTS).map(([key, box]) => {
+    const inside = positioned.filter(s => s[6] >= box.lamin && s[6] <= box.lamax && s[5] >= box.lomin && s[5] <= box.lomax);
+    return {
+      region: box.label, key, totalAircraft: inside.length,
+      byCountry: inside.reduce((acc, s) => { const country = s[2] || 'Unknown'; acc[country] = (acc[country] || 0) + 1; return acc; }, {}),
+      noCallsign: inside.filter(s => !String(s[1] || '').trim()).length,
+      highAltitude: inside.filter(s => s[7] > 12000).length,
+    };
+  });
+  const cells = new Map();
+  for (const s of airborne) {
+    const y = Math.floor(s[6] / GRID_DEGREES), x = Math.floor(s[5] / GRID_DEGREES);
+    const key = `${y}|${x}`;
+    let cell = cells.get(key);
+    if (!cell) { cell = { lat: (y + 0.5) * GRID_DEGREES, lon: (x + 0.5) * GRID_DEGREES, count: 0, noCallsign: 0, highAlt: 0, countries: {} }; cells.set(key, cell); }
+    cell.count++;
+    if (!String(s[1] || '').trim()) cell.noCallsign++;
+    if (s[7] > 12000) cell.highAlt++;
+    const country = s[2] || 'Unknown';
+    cell.countries[country] = (cell.countries[country] || 0) + 1;
+  }
+  const grid = [...cells.values()].sort((a, b) => b.count - a.count).slice(0, MAX_CELLS).map(cell => ({
+    lat: cell.lat, lon: cell.lon, count: cell.count, noCallsign: cell.noCallsign, highAlt: cell.highAlt,
+    top: Object.entries(cell.countries).sort((a, b) => b[1] - a[1]).slice(0, 3),
+  }));
+  const alerts = airborne.filter(s => Object.hasOwn(SQUAWKS, String(s[14] || ''))).slice(0, MAX_ALERTS).map(s => ({
+    icao24: String(s[0] || '').slice(0, 6), callsign: String(s[1] || '').trim().slice(0, 8), country: String(s[2] || '').slice(0, 60),
+    lat: s[6], lon: s[5], altitude: Number.isFinite(s[7]) ? Math.round(s[7]) : null, squawk: String(s[14]), kind: SQUAWKS[String(s[14])],
+  }));
+  return { total: list.length, airborne: airborne.length, onGround: list.filter(s => s[8]).length, hotspots, grid, gridDegrees: GRID_DEGREES, alerts };
 }
 
 // A result for the whole source without any request.
@@ -192,7 +245,7 @@ function blocked(now) {
   return lastRound.result && age >= 0 && age <= MAX_STALE_MS ? cached(message) : failure(message, now);
 }
 
-// Briefing — check hotspot regions for flight activity
+// Briefing — the global flight picture: density grid, emergency squawks and the legacy hotspot counts
 export async function briefing({ now = Date.now() } = {}) {
   hydrateQuota();
   if (now < blockedUntil) return blocked(now);
@@ -212,56 +265,25 @@ export async function briefing({ now = Date.now() } = {}) {
     token = session.token;
   }
 
-  const limits = []; // waits requested by HTTP 429 answers
-  const hotspotEntries = Object.entries(HOTSPOTS);
-  const results = await Promise.all(
-    hotspotEntries.map(async ([key, box]) => {
-      const data = await fetchHotspot(box, creds, token, now, deadline);
-      if (data?.status === 429) limits.push(data.retryAfterMs ?? interval);
-      const error = data?.error || null;
-      const states = data?.states || [];
-      return {
-        region: box.label,
-        key,
-        totalAircraft: states.length,
-        // states format: [icao24, callsign, origin_country, ...]
-        byCountry: states.reduce((acc, s) => {
-          const country = s[2] || 'Unknown';
-          acc[country] = (acc[country] || 0) + 1;
-          return acc;
-        }, {}),
-        // Flag potentially interesting (military often have no callsign or specific patterns)
-        noCallsign: states.filter(s => !s[1]?.trim()).length,
-        highAltitude: states.filter(s => s[7] && s[7] > 12000).length, // >12km altitude
-        ...(error ? { error } : {}),
-      };
-    })
-  );
-
-  const hotspotErrors = results
-    .filter(r => r.error)
-    .map(r => ({ region: r.region, error: r.error }));
-
+  // One global state vector per round (4 credits) instead of a request per theatre box: every aircraft, not ten boxes.
+  const data = await fetchGlobal(creds, token, now, deadline);
+  if (data?.status === 429) {
+    blockedUntil = now + Math.min(MAX_BLOCK_MS, data.retryAfterMs ?? interval);
+    persistQuota();
+    return blocked(now);
+  }
+  const error = data?.error || (!Array.isArray(data?.states) ? 'OpenSky answered without a state vector' : null);
+  if (error) return failure(`OpenSky unavailable: ${error}`, now);
+  const summary = summarizeStates(data.states);
   const result = {
     source: 'OpenSky',
     timestamp: new Date(now).toISOString(),
-    hotspots: results,
-    ...(hotspotErrors.length ? {
-      error: hotspotErrors.length === results.length
-        ? `OpenSky unavailable across all hotspots: ${hotspotErrors[0].error}`
-        : `OpenSky unavailable for ${hotspotErrors.length}/${results.length} hotspots`,
-      hotspotErrors,
-    } : {}),
+    ...(Number.isFinite(data.time) ? { observedAt: new Date(data.time * 1000).toISOString() } : {}),
+    ...summary,
     ...(creds.warning ? { message: creds.warning } : {}),
   };
-  if (hotspotErrors.length < results.length) lastRound = { at: now, result };
-  if (limits.length) {
-    blockedUntil = now + Math.min(MAX_BLOCK_MS, Math.max(...limits));
-    persistQuota();
-    if (hotspotErrors.length === results.length) return blocked(now);
-  } else if (hotspotErrors.length < results.length) {
-    persistQuota();
-  }
+  lastRound = { at: now, result };
+  persistQuota();
   return result;
 }
 

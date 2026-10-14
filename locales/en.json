@@ -1107,7 +1107,9 @@
     "moreSources": "+{count} more",
     "noLiveSources": "No live source belongs to this domain.",
     "noSources": "No source of this domain reported in this sweep.",
-    "status": "Domain lens: {name}"
+    "status": "Domain lens: {name}",
+    "layerOff": "Not in this lens",
+    "regionFiltered": "Filtered: {name}"
   },
   "replay": {
     "button": "Replay",
@@ -1668,10 +1670,8 @@
     }
   },
   "popup": {
-    "aircraftTracked": "{count} aircraft tracked",
     "aircraft": "{count} aircraft",
     "noCallsign": "No callsign",
-    "highAltitude": "High altitude",
     "highAlt": "High alt",
     "top": "Top",
     "firmsSatellite": "FIRMS Satellite",
@@ -1706,7 +1706,6 @@
     "fatalities": "{count} fatalities",
     "acledData": "ACLED Conflict Data",
     "date": "Date",
-    "corridor": "{from} ↔ {to}: {count} aircraft",
     "globeLoading": "Initializing 3D Globe",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
@@ -1793,5 +1792,16 @@
     "source": "Source",
     "noFx": "No exchange rates in this sweep",
     "providers": "Quotes: {providers}"
+  },
+  "air": {
+    "cellHead": "Air traffic · {lat} {lon}",
+    "cellNote": "Airborne aircraft with a position, by registration country (OpenSky).",
+    "gridSub": "{cells} cells · {alerts} squawk alerts",
+    "squawkHead": "Squawk {code}",
+    "squawk_hijack": "7500: unlawful interference (hijack)",
+    "squawk_radio": "7600: radio failure",
+    "squawk_emergency": "7700: general emergency",
+    "altitude": "Altitude: {m} m",
+    "squawkNote": "A transponder code, not a confirmed event: test codes and mistyped squawks happen."
   }
 }

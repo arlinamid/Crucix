@@ -79,7 +79,7 @@
     const change=typeof item.change24h==='number'&&Number.isFinite(item.change24h)?Math.round(item.change24h):null;
     const coverage=typeof item.coverage==='number'&&Number.isFinite(item.coverage)&&item.coverage>=0&&item.coverage<=1?Math.round(item.coverage*100):null;
     const conv=isObject(item.convergence)&&item.convergence.active===true&&Array.isArray(item.convergence.kinds)?item.convergence.kinds.filter(kind=>typeof kind==='string'&&kind).slice(0,12).map(kind=>kind.slice(0,40)):null;
-    return {iso3:item.iso3,name:shownName(item),english:cleanName(item.name,item.iso3),score,change,coverage,kinds:conv};
+    return {iso3:item.iso3,iso2:typeof item.iso2==='string'&&/^[A-Z]{2}$/.test(item.iso2)?item.iso2:null,name:shownName(item),english:cleanName(item.name,item.iso3),score,change,coverage,kinds:conv};
   }
   // The trending terms and the unusual-activity list of the summary (2.23; absent in older sweeps): every field checked and cut.
   const TERM=/^[\p{L}\p{N}][\p{L}\p{N}-]{2,29}$/u,LEVEL_WORDS=['moderate','high','critical'];
@@ -104,7 +104,8 @@
   function readConflict(value){
     if(!isObject(value))return null;
     const num=entry=>typeof entry==='number'&&Number.isFinite(entry);
-    const items=(Array.isArray(value.top)?value.top:[]).filter(item=>isObject(item)&&typeof item.iso3==='string'&&ISO3.test(item.iso3)&&Number.isSafeInteger(item.stories)&&item.stories>0&&num(item.value))
+    const scope=item=>{try{return !opts||typeof opts.inScope!=='function'||typeof item.iso2!=='string'||opts.inScope(item.iso2);}catch{return true;}};
+    const items=(Array.isArray(value.top)?value.top:[]).filter(item=>isObject(item)&&typeof item.iso3==='string'&&ISO3.test(item.iso3)&&Number.isSafeInteger(item.stories)&&item.stories>0&&num(item.value)&&scope(item))
       .slice(0,8).map(item=>({iso3:item.iso3,name:shownName(item),stories:item.stories,usual:num(item.usual)?item.usual:0,sources:Number.isSafeInteger(item.sources)?item.sources:0,
         casualties:item.casualties===true,escalation:num(item.escalation)?item.escalation:null,value:item.value}));
     return {ready:value.ready===true,observedDays:Number.isSafeInteger(value.observedDays)?value.observedDays:0,items};
@@ -125,7 +126,9 @@
   // null when `risk` is not an object (no sweep yet, RISK_ENABLED=false or a failed step).
   function read(risk){
     if(!isObject(risk))return null;
-    const top=Array.isArray(risk.top)?risk.top.filter(item=>isObject(item)&&typeof item.iso3==='string'&&ISO3.test(item.iso3)&&typeof item.score==='number'&&Number.isFinite(item.score)).slice(0,TOP).map(row):[];
+    // The page's region filter (opts.inScope(iso2)): a row outside it is left out; a row without iso2 (an older sweep) stays.
+    const inScope=item=>{try{return !opts||typeof opts.inScope!=='function'||typeof item.iso2!=='string'||opts.inScope(item.iso2);}catch{return true;}};
+    const top=Array.isArray(risk.top)?risk.top.filter(item=>isObject(item)&&typeof item.iso3==='string'&&ISO3.test(item.iso3)&&typeof item.score==='number'&&Number.isFinite(item.score)&&inScope(item)).slice(0,TOP).map(row):[];
     const counts=isObject(risk.counts)?risk.counts:{},count=value=>Number.isSafeInteger(value)&&value>=0?value:null;
     return {version:Number.isSafeInteger(risk.version)?risk.version:null,top,scored:count(counts.scored),high:count(counts.high),calibration:isObject(risk.calibration)?risk.calibration:null,spikes:readSpikes(risk.spikes),anomalies:readAnomalies(risk.anomalies),conflict:readConflict(risk.conflict),thermal:readThermal(risk.thermal),timeline:readTimeline(risk.timeline)};
   }
@@ -221,8 +224,10 @@
     if(!data)main=`<p class="rk-calm" data-risk-state="unavailable">${esc(say('unavailable'))}</p>`;
     else{
       const summary=data.scored!==null&&data.high!==null?`<p class="rk-sum">${esc(say('summary',{scored:data.scored,high:data.high}))}</p>`:'';
+      let scopeName='';try{scopeName=opts&&typeof opts.scopeName==='function'?String(opts.scopeName()||''):'';}catch{scopeName='';}
+      const scoped=scopeName?`<p class="rk-calm" data-risk-state="scoped">${esc(fill(tx('lenses.regionFiltered','Filtered: {name}'),{name:scopeName}))}</p>`:'';
       const list=data.top.length?`<ol class="rk-list" aria-label="${esc(say('rankLabel'))}">${data.top.map((item,index)=>rowHtml(item,index,replay)).join('')}</ol>`:`<p class="rk-calm" data-risk-state="empty">${esc(say('empty'))}</p>`;
-      main=`<p class="rk-intro">${esc(say('intro'))}</p>${summary}${list}${conflict(data.conflict,replay)}${anomalies(data.anomalies,replay)}${timeline(data.timeline)}${spikes(data.spikes)}${thermal(data.thermal)}${track(data.calibration)}`;
+      main=`<p class="rk-intro">${esc(say('intro'))}</p>${summary}${scoped}${list}${conflict(data.conflict,replay)}${anomalies(data.anomalies,replay)}${timeline(data.timeline)}${spikes(data.spikes)}${thermal(data.thermal)}${track(data.calibration)}`;
     }
     return `<div class="g-panel risk-panel" id="countryRiskPanel" role="region" aria-labelledby="countryRiskTitle"${replay?' data-replay="true"':''}>${head}${note}${main}</div>`;
   }

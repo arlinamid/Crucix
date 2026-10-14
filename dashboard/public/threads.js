@@ -57,6 +57,7 @@
     return {id:item.id,title:text(item.title,300),status:STATUSES.includes(item.status)?item.status:'active',first:isoMs(item.first),last:isoMs(item.last),members:count(item.memberCount),
       sources:count(item.sources),observations:count(item.observations),level:levelOf(item.maxLevel),conflict:count(item.conflictReports)>0,
       topic:TOPICS.includes(item.topic)?item.topic:null,
+      iso2:(Array.isArray(item.countries)?item.countries:[]).map(row=>isObject(row)&&typeof row.iso2==='string'&&/^[A-Z]{2}$/.test(row.iso2)?row.iso2:null).filter(Boolean),
       kinds:(Array.isArray(item.kinds)?item.kinds:[]).filter(kind=>typeof kind==='string'&&/^[a-z-]{2,40}$/.test(kind)).slice(0,8),
       countries:(Array.isArray(item.countries)?item.countries:[]).filter(row=>isObject(row)&&typeof row.iso3==='string'&&ISO3.test(row.iso3)).slice(0,4).map(row=>row.iso3),
       entities:(Array.isArray(item.entities)?item.entities:[]).filter(row=>isObject(row)&&typeof row.id==='string'&&ENTITY.test(row.id)).slice(0,4).map(row=>({id:row.id,type:row.id.split(':')[0],label:text(row.label,120)}))};
@@ -86,8 +87,12 @@
       const chosen=topicFilter==='all'||counts[topicFilter]?topicFilter:'all';
       const chip=(value,label,n)=>`<button type="button" class="th-chip" data-thread-topic="${value}" aria-pressed="${chosen===value}">${esc(label)}${n!==null?` <span class="th-n">${n}</span>`:''}</button>`;
       const chips=data.top.length?`<div class="th-filter" role="group" aria-label="${esc(say('filterLabel'))}">${chip('all',say('filterAll'),null)}${TOPICS.filter(topic=>counts[topic]).map(topic=>chip(topic,say('topic_'+topic),counts[topic])).join('')}</div>`:'';
-      const shown=data.top.filter(item=>chosen==='all'||item.topic===chosen).slice(0,TOP);
-      main=`<p class="rk-intro">${esc(say('intro'))}</p>${data.count?`<p class="rk-sum">${esc(say('summary',{count:data.count}))}</p>`:''}${chips}${shown.length?`<ul class="th-list">${shown.map(item=>rowHtml(item,replay)).join('')}</ul>`:`<p class="rk-calm" data-threads-state="empty">${esc(say(data.top.length?'filterEmpty':'empty'))}</p>`}`;
+      // The page's region filter (opts.inScope(iso2)): a thread naming no country in the region is left out while a region is chosen.
+      let scopeName='';try{scopeName=opts&&typeof opts.scopeName==='function'?String(opts.scopeName()||''):'';}catch{scopeName='';}
+      const inScope=item=>{if(!scopeName||!opts||typeof opts.inScope!=='function')return true;try{return item.iso2.some(code=>opts.inScope(code));}catch{return true;}};
+      const shown=data.top.filter(item=>(chosen==='all'||item.topic===chosen)&&inScope(item)).slice(0,TOP);
+      const scoped=scopeName?`<p class="rk-calm" data-threads-state="scoped">${esc(fill(tx('lenses.regionFiltered','Filtered: {name}'),{name:scopeName}))}</p>`:'';
+      main=`<p class="rk-intro">${esc(say('intro'))}</p>${data.count?`<p class="rk-sum">${esc(say('summary',{count:data.count}))}</p>`:''}${scoped}${chips}${shown.length?`<ul class="th-list">${shown.map(item=>rowHtml(item,replay)).join('')}</ul>`:`<p class="rk-calm" data-threads-state="empty">${esc(say(data.top.length?'filterEmpty':'empty'))}</p>`}`;
     }
     return `<div class="g-panel threads-panel" id="storyThreadsPanel" role="region" aria-labelledby="storyThreadsTitle"${replay?' data-replay="true"':''}>${head}${note}${main}</div>`;
   }

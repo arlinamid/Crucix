@@ -176,7 +176,7 @@ A self-contained Jarvis-style HUD with:
 - **3D WebGL globe** (Globe.gl) with atmosphere glow, star field, and smooth rotation — plus a classic flat map toggle
 - **Shared layer controls** across both views (22 layers): fire, air, radiation, maritime references, SDR, OSINT, health, inferred news, conflict, internet outages, weather, earthquakes, natural events, space stations, GNSS interference, cyclone forecast tracks and cones, orbital launches and (off by default) oil and gas pipelines, military bases, mapped military areas, data centres and dams. Located live records take the colour of their layer
 - **Globe basemap button** — night lights or the daily NASA GIBS satellite image of yesterday; the **©** button lists the credits and licences of what is on screen
-- **Animated 3D flight corridor arcs** between air traffic hotspots and global hubs
+- **Global air traffic** — every aircraft OpenSky sees, as a 2° density grid (hexes on the globe, cells on the flat map) with red markers for emergency squawks (7500/7600/7700)
 - **14 Geopolitical Region filters & Country selector** — 14 regions (`World`, `Americas`, `North America`, `Latin America`, `Europe`, `Eastern Europe`, `Middle East`, `Africa`, `Asia Pacific`, `Central Asia`, `South Asia`, `East Asia`, `Southeast Asia`, `Oceania`) plus an interactive country dropdown showing active story counts (e.g. `[UA] Ukraine (8)`) with targeted zoom
 - **Live market data** — indexes, world indexes, equities, FX crosses, crypto, energy and commodities. Yahoo needs no key; optional `FMP_API_KEY` and `FINNHUB_API_KEY` take priority. The FX base is `CRUCIX_BASE_CURRENCY` (default USD) or the dashboard dropdown
 - **Risk gauges** — VIX, high-yield spread, supply chain pressure index
