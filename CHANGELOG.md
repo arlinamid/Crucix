@@ -1,5 +1,6 @@
 # Changelog / Változásnapló
 
+- [2.44.0 — Tematikus hírforrások / Specialist news feeds](docs/releases/v2.44.0.md) — 2026-10-14
 - [2.43.0 — Politikai és technológiai szálak / Political and technology threads](docs/releases/v2.43.0.md) — 2026-10-14
 - [2.42.0 — Fegyveres konfliktus és eszkaláció / Armed conflict and escalation](docs/releases/v2.42.0.md) — 2026-10-14
 - [2.41.0 — Entitásgráf és történetszálak / Entity graph and story threads](docs/releases/v2.41.0.md) — 2026-10-14
