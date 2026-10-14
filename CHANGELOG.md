@@ -1,5 +1,6 @@
 # Changelog / Változásnapló
 
+- [2.46.0 — Háttérkarbantartás, 30 napos history és korábbi szálak / Background maintenance, a 30-day history and past threads](docs/releases/v2.46.0.md) — 2026-10-14
 - [2.45.0 — Lencse, régió és globális légi forgalom / Lenses, regions and global air traffic](docs/releases/v2.45.0.md) — 2026-10-14
 - [2.44.0 — Tematikus hírforrások / Specialist news feeds](docs/releases/v2.44.0.md) — 2026-10-14
 - [2.43.0 — Politikai és technológiai szálak / Political and technology threads](docs/releases/v2.43.0.md) — 2026-10-14
