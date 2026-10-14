@@ -112,3 +112,21 @@ test('the Country risk panel shows the armed-conflict section, escaped, with the
   assert.ok(html.includes('2 so far'), 'the first week says why there is no escalation yet');
   assert.ok(!window.CrucixRisk.panelHtml({ top: [], counts: { scored: 0, high: 0 } }).includes('countryRiskConflict'), 'an older summary has no section');
 });
+
+test('threads: only an armed-conflict thread escalates; a fast aftershock sequence stays active', async t => {
+  const { ThreadStore } = await import('../lib/intelligence/threads.mjs');
+  const { graph, dir } = graphOf(t);
+  const at = hours => NOW - hours * HOUR;
+  const war = ['Shelling hits Kharkiv, Ukraine', 'Kharkiv shelling kills three, Ukraine says', 'Missile strike on Kharkiv, Ukraine', 'Kharkiv hit by missiles overnight, Ukraine']
+    .map((title, n) => report(title, { at: n === 0 ? at(30) : at(2 + n) }));
+  const quake = [0, 1, 2, 3].map(n => ({ id: `event-ab${n}`, kind: 'earthquake', title: 'M4.7 PANAMA', summary: '', location: { lat: 7.5, lon: -80.5, method: 'provider' },
+    source: { name: 'EMSC', hostname: `emsc${n}.example` }, observedAt: new Date(n === 0 ? at(30) : at(2 + n)).toISOString(), severity: 'moderate', relatedSources: [] }));
+  graph.ingest(graphRecordsOf([...war, ...quake]), { now: NOW });
+  const chain = list => list.slice(1).map((item, n) => ({ a: list[n].id, b: item.id, type: 'same-story', s: 0.9, m: 'rule' }));
+  graph.link([...chain(war), ...chain(quake).map(edge => ({ ...edge, type: 'co-occurs' }))], { now: NOW });
+  const threads = new ThreadStore(dir, { now: () => NOW }).compute(graph, { now: NOW });
+  assert.equal(threads.find(thread => thread.members.includes(war[0].id)).status, 'escalating');
+  assert.equal(threads.find(thread => thread.members.includes('event-ab0')).status, 'active');
+  assert.equal(reads('Container ship sinks after hitting mine in Strait of Hormuz — IRGC'), false, 'a mine alone stays out (a coal mine)');
+  assert.equal(reads('IRGC navy seizes tanker in the Strait of Hormuz'), true);
+});
