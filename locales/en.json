@@ -1418,7 +1418,18 @@
     "type_cve": "Vulnerability",
     "untitled": "Title unavailable",
     "open": "Open the thread",
-    "replayNote": "The thread sheet reads the live graph, so it is off during the replay. The list shown is the replayed sweep’s own."
+    "replayNote": "The thread sheet reads the live graph, so it is off during the replay. The list shown is the replayed sweep’s own.",
+    "viewLabel": "Current or past threads",
+    "viewCurrent": "Current",
+    "viewPast": "Past",
+    "showAll": "Show all ({count})",
+    "showLess": "Show fewer",
+    "listLoading": "Loading the threads…",
+    "listError": "Could not load the threads. Try again later.",
+    "pastIntro": "Threads that ended earlier, computed from the history in the background (kept for 30 days).",
+    "pastEmpty": "No past thread yet: a day’s threads are archived once 72 hours have passed after it.",
+    "pastUnavailable": "Past threads come from the live server.",
+    "pastDay": "Ended {day}"
   },
   "briefing": {
     "title": "Briefing",

@@ -25,3 +25,8 @@ button.th-row:focus-visible{outline:2px solid var(--accent,#64f0c8);outline-offs
 .th-type{font-family:var(--mono,monospace);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim,#8aa0a8)}
 @media(max-width:700px){button.th-row{min-height:44px;padding:8px 4px 8px 8px}}
 @media(forced-colors:active){button.th-row:focus-visible{outline-color:Highlight}.th-row{border-left-color:CanvasText}}
+/* The view switch (current / past), the day headings of the past threads and "Show all". */
+.th-views{margin-top:2px}
+.th-view-chip{font-weight:600}
+.th-day{margin:8px 0 2px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim,#8aa0a8)}
+.th-more{margin:6px 0 0}

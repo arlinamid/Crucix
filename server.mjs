@@ -21,7 +21,10 @@ import { EntityStore } from './lib/intelligence/entities.mjs';
 import { PredictionJournal } from './lib/intelligence/predictions.mjs';
 import { runRiskStep } from './lib/intelligence/risk-step.mjs';
 import { GraphStore } from './lib/intelligence/graph.mjs';
-import { ThreadStore } from './lib/intelligence/threads.mjs';
+import { ThreadStore, summarizeThreads } from './lib/intelligence/threads.mjs';
+import { ThreadArchive, backfillGraph } from './lib/intelligence/thread-archive.mjs';
+import { createDictionaries } from './lib/intelligence/extract.mjs';
+import { Maintenance } from './lib/maintenance.mjs';
 import { LinkCache, linkWithModel } from './lib/llm/linker.mjs';
 import { KeywordStore } from './lib/intelligence/keywords.mjs';
 import { ThermalStore } from './lib/intelligence/thermal.mjs';
@@ -88,6 +91,9 @@ const memory = new MemoryManager(RUNS_DIR);
 const ideaCadence = new IdeaCadence({ everyNSweeps: config.llm.everyNSweeps });
 const history = new HistoryStore(RUNS_DIR);
 let historyStatus = 'ok';
+// The background maintenance (lib/maintenance.mjs): saving the risk stores after a sweep, the history's retention and daily backup, the
+// graph backfill from the history and the past-thread archive. None of it runs in a sweep's critical path or in a request.
+const maintenance = new Maintenance();
 function recordSnapshotEvents(snapshot) {
   if (Array.isArray(snapshot.liveSources)) snapshot.liveSources = stampLiveEventIds(snapshot.liveSources);
   snapshot.events = buildEvents(snapshot);
@@ -107,6 +113,50 @@ const riskThreads = config.risk.enabled ? new ThreadStore(RUNS_DIR) : null;
 riskStore?.load();
 riskGraph?.load();
 riskThreads?.load();
+const threadArchive = config.risk.enabled ? new ThreadArchive(RUNS_DIR) : null;
+// The stores a sweep changed, saved by one background job after it (the graph's big file off the main thread).
+const dirtyStores = new Map();
+async function saveDirtyStores(ctx) {
+  for (const [name, target] of [...dirtyStores]) {
+    dirtyStores.delete(name);
+    if (typeof target.saveAsync === 'function') await target.saveAsync(console);
+    else target.save(console);
+    await ctx.slice();
+  }
+}
+function persistStore(name, target) {
+  dirtyStores.set(name, target);
+  maintenance.schedule('save', saveDirtyStores, { delayMs: 1000 });
+}
+// History records of the thread window that the graph lacks (it started later than the history): added in time order, then the threads.
+async function backfillThreads(ctx) {
+  if (!riskGraph || !riskThreads) return;
+  const added = await backfillGraph(riskGraph, history, { slice: ctx.slice, dictionaries: createDictionaries({ actors: riskLatest?.inputs?.actors }) });
+  if (!added) return;
+  const now = Date.now();
+  riskThreads.compute(riskGraph, { now });
+  if (currentData) currentData.threads = summarizeThreads(riskThreads.threads, now);
+  persistStore('graph', riskGraph);
+  persistStore('threads', riskThreads);
+  console.log(`[Maintenance] Graph backfill: ${added} history record(s) added, ${riskThreads.threads.length} thread(s)`);
+}
+// The finished days' threads, computed once each; then the days past the 30 kept go.
+async function archiveThreads(ctx) {
+  if (!threadArchive) return;
+  const dictionaries = createDictionaries({ actors: riskLatest?.inputs?.actors });
+  for (const day of threadArchive.pendingDays(history)) {
+    const count = await threadArchive.computeDay(day, history, { dictionaries, slice: ctx.slice });
+    console.log(`[Maintenance] Thread archive ${day}: ${count} thread(s)`);
+  }
+  threadArchive.prune();
+}
+// The history's retention (by days) and its daily backup.
+let lastHistoryBackup = 0;
+async function keepHistory() {
+  const removed = history.prune();
+  if (removed) console.log(`[Maintenance] History: ${removed} record(s) past the retention removed`);
+  if (Date.now() - lastHistoryBackup > 24 * 3600000 && history.backup()) lastHistoryBackup = Date.now();
+}
 // RISK_LLM_LINKING=true: the model's answers on borderline report pairs, kept for the life of the server.
 const linkCache = new LinkCache();
 riskJournal?.load();
@@ -117,7 +167,7 @@ let riskLatest = null; // the last successful step: {at, scores, inputs}
 // Never throws: on a failure the snapshot goes on without `risk` and /api/health says 'unavailable'.
 function recordRisk(snapshot, raw) {
   if (!riskStore) return;
-  const result = runRiskStep({ store: riskStore, journal: riskJournal, keywords: riskKeywords, thermal: riskThermal, graph: riskGraph, threads: riskThreads, snapshot, raw, now: Date.now(), language: currentLanguage });
+  const result = runRiskStep({ store: riskStore, journal: riskJournal, keywords: riskKeywords, thermal: riskThermal, graph: riskGraph, threads: riskThreads, snapshot, raw, now: Date.now(), language: currentLanguage, persist: persistStore });
   riskStatus = result.ok ? 'ok' : 'unavailable';
   if (result.ok) riskLatest = result;
 }
@@ -323,7 +373,7 @@ installIntelligenceRoutes(app, { getSnapshot: () => freshLiveSnapshot(currentDat
 if (riskStore) {
   const briefing = createBriefingService({ provider: llmProvider, language: currentLanguage, store: riskStore, history,
     getSnapshot: () => currentData, getScores: () => riskLatest?.scores ?? null });
-  installRiskRoutes(app, { store: riskStore, journal: riskJournal, getSnapshot: () => currentData, getState: () => riskLatest, history, briefing, graph: riskGraph, threads: riskThreads, language: currentLanguage,
+  installRiskRoutes(app, { store: riskStore, journal: riskJournal, getSnapshot: () => currentData, getState: () => riskLatest, history, briefing, graph: riskGraph, threads: riskThreads, archive: threadArchive, language: currentLanguage,
     security: { publicUrl: config.alerts.publicUrl, allowedHosts: config.alerts.allowedHosts } });
 }
 // After an operator action the dashboards get the new summary; the next /api/data and page load carry it too.
@@ -359,7 +409,9 @@ app.get('/api/health', (req, res) => {
     refreshIntervalMinutes: config.refreshIntervalMinutes,
     language: currentLanguage,
     historyStatus,
+    historyEngine: history.engine,
     riskStatus,
+    maintenance: maintenance.status(),
     archiveStatus: sweepArchive.status,
     archivedSweeps: archivedSweepCount(),
   });
@@ -500,14 +552,26 @@ async function runSweepCycle() {
     // 1. Run the full briefing sweep
     const rawData = await fullBriefing();
 
+    // How long each step after the sources holds the server (they run on the main thread): logged at the end of the sweep. Between two
+    // steps the sweep yields to the event loop, so a request waits for one step at most, never for the whole post-processing.
+    const steps = [];
+    let stepStart = performance.now();
+    const step = async name => {
+      steps.push(`${name} ${Math.round(performance.now() - stepStart)}`);
+      await new Promise(resolve => setImmediate(resolve));
+      stepStart = performance.now();
+    };
+
     // 2. Save to runs/latest.json
     saveSnapshot(RUNS_DIR, rawData);
+    await step('save');
     lastSweepTime = new Date().toISOString();
 
     // 3. Synthesize into dashboard format
     console.log('[Crucix] Synthesizing dashboard data...');
     const synthesized = await synthesize(rawData);
     enrichNewsFeed(synthesized);
+    await step('synthesize');
 
     // Calculate against the prior run; persist only after ideas have been resolved.
     const previous = memory.getLastRun();
@@ -517,6 +581,7 @@ async function runSweepCycle() {
     Object.assign(synthesized, await ideaCadence.resolve(llmProvider, synthesized, delta,
       previous?.ideas || [], config.llm.tradeIdeasLang));
     memory.addRun(synthesized, config.delta.thresholds);
+    await step('delta+ideas');
     if (discordAlerter.isConfigured && synthesized.ideasSource === 'llm' && !synthesized.ideasCached) {
       discordAlerter.sendActionableIdeas(synthesized.ideas).catch(error =>
         console.error('[Discord] Idea delivery failed:', error.message));
@@ -540,23 +605,32 @@ async function runSweepCycle() {
     memory.pruneAlertedSignals();
 
     recordSnapshotEvents(synthesized);
+    await step('events+history');
     // Country risk: sets synthesized.risk before the alert metrics read it and before the sweep is archived; never throws.
     recordRisk(synthesized, rawData);
+    await step('risk+graph+threads');
     // The optional model help for the entity graph runs in the background: its links show in the next sweep's threads.
     if (riskGraph && config.risk.llmLinking && llmProvider?.isConfigured) {
       linkWithModel({ graph: riskGraph, provider: llmProvider, now: Date.now(), limit: config.risk.llmLinkingPairs, cache: linkCache })
-        .then(edges => { if (edges.length) { riskGraph.link(edges); riskGraph.save(); console.log(`[Linker] ${edges.length} model link(s) added`); } })
+        .then(edges => { if (edges.length) { riskGraph.link(edges); persistStore('graph', riskGraph); console.log(`[Linker] ${edges.length} model link(s) added`); } })
         .catch(error => console.warn('[Linker] Failed:', error?.message || error));
     }
     // Alert engine: never throws and does not wait for the notifications it sends.
     runAlertStep(synthesized, { engine: alertEngine, notifier: alertNotifier, delta });
+    await step('alerts');
     // Sets synthesized.changes and stores the sweep; never throws. After a failed write the next changes are counted from
     // the last sweep on disk, so the next archived sweep also covers this one.
     if (!archiveSweep({ archive: sweepArchive, snapshot: synthesized, timing: rawData.timing, previous: previousArchived }).error) previousArchived = synthesized;
     currentData = synthesized;
+    await step('archive');
+    // After the sweep, in the background: the history's retention and backup, a day that has just finished goes into the thread archive.
+    maintenance.schedule('history', keepHistory, { delayMs: 5000 });
+    maintenance.schedule('thread-archive', archiveThreads, { delayMs: 10000 });
 
     // 6. Push to all connected browsers
     broadcast({ type: 'update', data: currentData });
+    await step('broadcast');
+    console.log(`[Crucix] Post-processing (ms): ${steps.join(' · ')}`);
 
     console.log(`[Crucix] Sweep complete — ${currentData.meta.sourcesOk}/${currentData.meta.sourcesQueried} sources OK`);
     console.log(`[Crucix] ${currentData.ideas.length} ideas (${synthesized.ideasSource}) | ${currentData.news.length} news | ${currentData.newsFeed.length} feed items`);
@@ -573,7 +647,8 @@ async function runSweepCycle() {
 
 // === Startup ===
 async function start() {
-  const lock = holdInstanceLock(RUNS_DIR);
+  // On Ctrl+C or a stop signal the stores a sweep changed but the background has not saved yet are written before the process leaves.
+  const lock = holdInstanceLock(RUNS_DIR, { beforeExit: () => { for (const [name, target] of dirtyStores) { try { target.save(console); } catch { /* leaving */ } dirtyStores.delete(name); } } });
   if (lock.error) {
     console.error(alreadyRunningMessage(lock, { port: config.port, lang: currentLanguage }));
     process.exit(1);
@@ -664,6 +739,11 @@ async function start() {
 
     // Schedule recurring sweeps
     setInterval(runSweepCycle, config.refreshIntervalMinutes * 60 * 1000);
+    // The background maintenance's start-up work, after the first sweep has had time to finish: the history's retention and backup, the
+    // graph backfill from the history (the records of the thread window the graph never saw), the past-thread archive.
+    maintenance.schedule('history', keepHistory, { delayMs: 60000 });
+    maintenance.schedule('graph-backfill', backfillThreads, { delayMs: 90000 });
+    maintenance.schedule('thread-archive', archiveThreads, { delayMs: 120000 });
 
     // Start 30-minute background world RSS runner (539 feeds)
     startWorldRssScheduler(30);

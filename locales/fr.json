@@ -1418,7 +1418,18 @@
     "type_cve": "Vulnérabilité",
     "untitled": "Titre indisponible",
     "open": "Ouvrir le fil",
-    "replayNote": "La fiche du fil lit le graphe en direct ; elle est donc désactivée pendant la relecture. La liste affichée est celle du balayage rejoué."
+    "replayNote": "La fiche du fil lit le graphe en direct ; elle est donc désactivée pendant la relecture. La liste affichée est celle du balayage rejoué.",
+    "viewLabel": "Fils actuels ou passés",
+    "viewCurrent": "Actuels",
+    "viewPast": "Passés",
+    "showAll": "Tout afficher ({count})",
+    "showLess": "Afficher moins",
+    "listLoading": "Chargement des fils…",
+    "listError": "Impossible de charger les fils. Réessayez plus tard.",
+    "pastIntro": "Fils terminés plus tôt, calculés en arrière-plan à partir de l’historique (conservés 30 jours).",
+    "pastEmpty": "Pas encore de fil passé : les fils d’une journée sont archivés 72 heures après sa fin.",
+    "pastUnavailable": "Les fils passés viennent du serveur en direct.",
+    "pastDay": "Terminé le {day}"
   },
   "briefing": {
     "title": "Synthèse",

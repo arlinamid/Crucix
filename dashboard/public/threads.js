@@ -28,8 +28,14 @@
     entities:'Named in the thread',countries:'Countries',entity:'Entity',entityEvents:'Records in the last 7 days',neighbors:'Named together with',neighborCount:'{count} records',entityThreads:'Threads',
     entityNone:'No record names this entity in the last 7 days.',back:'Back to the thread',type_country:'Country',type_chokepoint:'Chokepoint',type_site:'Military area',type_actor:'Threat actor',type_cve:'Vulnerability',
     rel_located:'located',rel_near:'nearby','rel_located-in':'located',rel_mentions:'named',rel_involves:'named',untitled:'Title unavailable',open:'Open the thread',
-    replayNote:'The thread sheet reads the live graph, so it is off during the replay. The list shown is the replayed sweep’s own.'};
+    replayNote:'The thread sheet reads the live graph, so it is off during the replay. The list shown is the replayed sweep’s own.',
+    viewLabel:'Current or past threads',viewCurrent:'Current',viewPast:'Past',showAll:'Show all ({count})',showLess:'Show fewer',listLoading:'Loading the threads…',listError:'Could not load the threads. Try again later.',
+    pastIntro:'Threads that ended earlier, computed from the history in the background (kept for 30 days).',pastEmpty:'No past thread yet: a day’s threads are archived once 72 hours have passed after it.',
+    pastUnavailable:'Past threads come from the live server.',pastDay:'Ended {day}'};
   let opts=null,nodes=null,seq=0,opener=null,finished=true,current=null;
+  // The panel's view: the current threads of the snapshot ('current') or the past ones of the archive ('past'); 'all' lists every current
+  // thread from the API instead of the snapshot's top rows. Fetched lists are kept per snapshot time (`at`) and dropped when it changes.
+  let view='current',expanded=false,fetched={at:null,all:null,past:null,loading:null,error:null};
   const log=error=>{try{console.error('[threads]',error);}catch{}};
   const guarded=fn=>(...args)=>{try{return fn(...args);}catch(error){log(error);}};
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -64,8 +70,11 @@
   }
   function read(threads){
     if(!isObject(threads))return null;
-    return {count:count(threads.count),top:(Array.isArray(threads.top)?threads.top:[]).map(readRow).filter(Boolean).slice(0,60)};
+    const counts={};
+    if(isObject(threads.topicCounts))for(const topic of TOPICS)if(Number.isSafeInteger(threads.topicCounts[topic])&&threads.topicCounts[topic]>0)counts[topic]=threads.topicCounts[topic];
+    return {at:typeof threads.at==='string'?threads.at:null,count:count(threads.count),counts:Object.keys(counts).length?counts:null,top:(Array.isArray(threads.top)?threads.top:[]).map(readRow).filter(Boolean).slice(0,60)};
   }
+  const dayRow=item=>{const row=readRow(item);if(row)row.day=typeof item.day==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(item.day)?item.day:null;return row;};
 
   // ===== The panel =====
   function rowHtml(item,off){
@@ -82,17 +91,40 @@
     let main;
     if(!data)main=`<p class="rk-calm" data-threads-state="unavailable">${esc(say('unavailable'))}</p>`;
     else{
-      // The topic filter: a chip per topic that has threads, with its count; the list shows the first TOP of the chosen topic.
-      const counts={};for(const item of data.top)if(item.topic)counts[item.topic]=(counts[item.topic]||0)+1;
+      if(fetched.at!==data.at)fetched={at:data.at,all:null,past:null,loading:null,error:null};
+      const past=view==='past';
+      // The rows of the view: the past threads of the archive, every current thread from the API once fetched, or the snapshot's top rows.
+      const rows=past?(fetched.past||[]):fetched.all||data.top;
+      // The topic filter: a chip per topic that has threads, with its count (of EVERY current thread when the summary carries the counts);
+      // the list shows the first TOP of the chosen topic.
+      let counts={};
+      if(!past&&data.counts)counts={...data.counts};
+      else for(const item of rows)if(item.topic)counts[item.topic]=(counts[item.topic]||0)+1;
       const chosen=topicFilter==='all'||counts[topicFilter]?topicFilter:'all';
       const chip=(value,label,n)=>`<button type="button" class="th-chip" data-thread-topic="${value}" aria-pressed="${chosen===value}">${esc(label)}${n!==null?` <span class="th-n">${n}</span>`:''}</button>`;
-      const chips=data.top.length?`<div class="th-filter" role="group" aria-label="${esc(say('filterLabel'))}">${chip('all',say('filterAll'),null)}${TOPICS.filter(topic=>counts[topic]).map(topic=>chip(topic,say('topic_'+topic),counts[topic])).join('')}</div>`:'';
+      const chips=rows.length||data.top.length?`<div class="th-filter" role="group" aria-label="${esc(say('filterLabel'))}">${chip('all',say('filterAll'),null)}${TOPICS.filter(topic=>counts[topic]).map(topic=>chip(topic,say('topic_'+topic),counts[topic])).join('')}</div>`:'';
+      const viewChip=(value,label)=>`<button type="button" class="th-chip th-view-chip" data-thread-view="${value}" aria-pressed="${view===value}">${esc(label)}</button>`;
+      const views=live()&&!replay?`<div class="th-filter th-views" role="group" aria-label="${esc(say('viewLabel'))}">${viewChip('current',say('viewCurrent'))}${viewChip('past',say('viewPast'))}</div>`:'';
       // The page's region filter (opts.inScope(iso2)): a thread naming no country in the region is left out while a region is chosen.
       let scopeName='';try{scopeName=opts&&typeof opts.scopeName==='function'?String(opts.scopeName()||''):'';}catch{scopeName='';}
       const inScope=item=>{if(!scopeName||!opts||typeof opts.inScope!=='function')return true;try{return item.iso2.some(code=>opts.inScope(code));}catch{return true;}};
-      const shown=data.top.filter(item=>(chosen==='all'||item.topic===chosen)&&inScope(item)).slice(0,TOP);
+      const matching=rows.filter(item=>(chosen==='all'||item.topic===chosen)&&inScope(item));
+      const shown=past||expanded?matching:matching.slice(0,TOP);
       const scoped=scopeName?`<p class="rk-calm" data-threads-state="scoped">${esc(fill(tx('lenses.regionFiltered','Filtered: {name}'),{name:scopeName}))}</p>`:'';
-      main=`<p class="rk-intro">${esc(say('intro'))}</p>${data.count?`<p class="rk-sum">${esc(say('summary',{count:data.count}))}</p>`:''}${scoped}${chips}${shown.length?`<ul class="th-list">${shown.map(item=>rowHtml(item,replay)).join('')}</ul>`:`<p class="rk-calm" data-threads-state="empty">${esc(say(data.top.length?'filterEmpty':'empty'))}</p>`}`;
+      // How many current threads the chosen topic has in all (the summary's counts), so "Show all" says what it will list.
+      const available=chosen==='all'?data.count:(data.counts?.[chosen]??matching.length);
+      const more=!past&&live()&&!replay?(expanded?`<p class="th-more"><button type="button" class="th-chip" data-thread-more="less">${esc(say('showLess'))}</button></p>`
+        :available>shown.length?`<p class="th-more"><button type="button" class="th-chip" data-thread-more="all">${esc(say('showAll',{count:available}))}</button></p>`:''):'';
+      const state=fetched.loading?`<p class="rk-calm" role="status">${esc(say('listLoading'))}</p>`:fetched.error?`<p class="rk-calm" role="status">${esc(say(fetched.error))}</p>`:'';
+      let list;
+      if(past){
+        // Grouped by the day a thread ended, newest first.
+        const groups=new Map();for(const item of shown){const key=item.day||'';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(item);}
+        list=fetched.past===null?'':shown.length?[...groups].map(([day,items])=>`<p class="th-day">${esc(day?say('pastDay',{day:clock(Date.parse(day+'T12:00:00Z')).replace(/,?\s*\d{1,2}:\d{2}.*$/,'')}):'')}</p><ul class="th-list">${items.map(item=>rowHtml(item,replay)).join('')}</ul>`).join('')
+          :`<p class="rk-calm" data-threads-state="past-empty">${esc(say('pastEmpty'))}</p>`;
+      }else list=shown.length?`<ul class="th-list">${shown.map(item=>rowHtml(item,replay)).join('')}</ul>`:`<p class="rk-calm" data-threads-state="empty">${esc(say(data.top.length?'filterEmpty':'empty'))}</p>`;
+      const intro=past?`<p class="rk-intro">${esc(say('pastIntro'))}</p>`:`<p class="rk-intro">${esc(say('intro'))}</p>${data.count?`<p class="rk-sum">${esc(say('summary',{count:data.count}))}</p>`:''}`;
+      main=`${intro}${views}${scoped}${chips}${state}${list}${more}`;
     }
     return `<div class="g-panel threads-panel" id="storyThreadsPanel" role="region" aria-labelledby="storyThreadsTitle"${replay?' data-replay="true"':''}>${head}${note}${main}</div>`;
   }
@@ -250,13 +282,50 @@
       const value=chip.getAttribute('data-thread-topic');
       topicFilter=TOPICS.includes(value)?value:'all';
       try{window.localStorage?.setItem(FILTER_KEY,topicFilter);}catch{}
-      const panel=document.getElementById('storyThreadsPanel');
-      if(panel&&typeof opts.getThreads==='function'){panel.outerHTML=panelHtml(opts.getThreads());document.querySelector?.(`#storyThreadsPanel [data-thread-topic="${topicFilter}"]`)?.focus?.();}
+      // The snapshot carries the top rows only: a topic with more threads than those loads every current thread (once per snapshot).
+      const data=read(opts.getThreads());
+      const inTop=data?data.top.filter(item=>item.topic===topicFilter).length:0;
+      if(live()&&!inReplay()&&topicFilter!=='all'&&fetched.all===null&&data?.counts?.[topicFilter]>inTop)fetchList('all',`[data-thread-topic="${topicFilter}"]`);
+      else redraw(`[data-thread-topic="${topicFilter}"]`);
+      return;
+    }
+    const switcher=target.closest('#storyThreadsPanel [data-thread-view]');
+    if(switcher){
+      view=switcher.getAttribute('data-thread-view')==='past'?'past':'current';
+      if(view==='past'&&fetched.past===null)fetchList('past');else redraw('[data-thread-view="'+view+'"]');
+      return;
+    }
+    const more=target.closest('#storyThreadsPanel [data-thread-more]');
+    if(more){
+      expanded=more.getAttribute('data-thread-more')==='all';
+      if(expanded&&fetched.all===null)fetchList('all');else redraw(expanded?'[data-thread-more="less"]':'[data-thread-more="all"]');
       return;
     }
     const row=target.closest('#storyThreadsPanel [data-thread-open]');
     if(!row||inReplay()||row.getAttribute('aria-disabled')==='true')return;
     open(row.getAttribute('data-thread-open')).catch(log);
+  }
+  // Re-draws the panel in place and puts the focus back on the control that matches `focus` (a selector inside the panel).
+  function redraw(focus){
+    const panel=document.getElementById('storyThreadsPanel');
+    if(!panel||!opts||typeof opts.getThreads!=='function')return;
+    panel.outerHTML=panelHtml(opts.getThreads());
+    if(focus)document.querySelector?.('#storyThreadsPanel '+focus)?.focus?.();
+  }
+  // Every current thread (GET /api/threads) or the past ones (GET /api/threads/archive), once per snapshot time.
+  async function fetchList(which,focus){
+    if(!live())return;
+    const at=fetched.at;
+    fetched.loading=which;fetched.error=null;redraw();
+    try{
+      const data=await opts.fetchJson(which==='past'?'/api/threads/archive?limit=200':'/api/threads?limit=200');
+      if(fetched.at!==at)return;
+      const rows=(Array.isArray(data?.threads)?data.threads:[]).map(which==='past'?dayRow:readRow).filter(Boolean);
+      fetched[which]=rows;
+    }catch(error){log(error);if(fetched.at===at)fetched.error=which==='past'?'pastUnavailable':'listError';if(which==='all')expanded=false;}
+    if(fetched.at!==at)return;
+    fetched.loading=null;
+    redraw(focus||(which==='past'?'[data-thread-view="past"]':'[data-thread-more="less"]'));
   }
   function mount(options){
     if(opts||!options||typeof options!=='object')return false;

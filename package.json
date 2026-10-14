@@ -73,7 +73,7 @@
   "author": "Crucix",
   "license": "AGPL-3.0-only",
   "engines": {
-    "node": ">=22",
+    "node": ">=22.13",
     "npm": ">=10"
   },
   "dependencies": {

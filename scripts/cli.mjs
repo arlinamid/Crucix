@@ -18,6 +18,7 @@ import { loadWorldRssCache, getWorldNewsByCountry, getWorldNews } from '../lib/w
 import { fullBriefing } from '../apis/briefing.mjs';
 import { synthesize } from '../dashboard/inject.mjs';
 import { countryByIso2, countryByIso3 } from '../lib/intelligence/countries.mjs';
+import { SqliteHistoryStore, loadSqlite } from '../lib/intelligence/history.mjs';
 import { saveSnapshot } from '../lib/snapshots.mjs';
 import { createSweepPipeline } from '../lib/sweep-pipeline.mjs';
 import { currentLanguage } from '../lib/i18n.mjs';
@@ -806,10 +807,14 @@ function newestFirst(records) {
   return [...records].sort((a, b) => (recordTimeMs(b) ?? 0) - (recordTimeMs(a) ?? 0));
 }
 
+// The event history of the profile, read only: the server's SQLite store when it exists (runs/intelligence/history.db), else the JSON file
+// of an older version (the server moves it into the database; the CLI never does).
 function loadFromDisk() {
+  if (existsSync(join(runsDir, 'intelligence', 'history.db')) && loadSqlite()) {
+    try { return new SqliteHistoryStore(runsDir).all(); } catch { /* fall back to the JSON file */ }
+  }
   const data = readJsonSafe(historyFile);
-  if (!data || !Array.isArray(data.records)) return [];
-  return data.records;
+  return data && Array.isArray(data.records) ? data.records : [];
 }
 
 function loadLiveFromDisk() {

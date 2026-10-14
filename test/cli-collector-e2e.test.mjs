@@ -33,7 +33,7 @@ test('e2e collector: one round fills the stores, a second copy is refused, SIGTE
     });
     assert.match(stdout, /Processed: synthesize, worldNews, delta, events, risk, alerts, archive/);
     assert.ok(existsSync(join(runsDir, 'instance.lock')), 'the lock is held while it runs');
-    for (const file of ['latest.json', 'intelligence/history.json', 'alerts/alerts.json', 'sweeps/index.json', 'memory/hot.json']) {
+    for (const file of ['latest.json', 'intelligence/history.db', 'alerts/alerts.json', 'sweeps/index.json', 'memory/hot.json']) {
       assert.ok(existsSync(join(runsDir, file)), file);
     }
 

@@ -24,7 +24,8 @@ function store(t, options = {}) {
   assert.equal(typeof module.HistoryStore, 'function', 'HistoryStore is implemented');
   const dir = mkdtempSync(join(tmpdir(), 'crucix-history-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  return { dir, history: new module.HistoryStore(dir, { now: () => NOW, ...options }) };
+  // This file tests the JSON-file store (history.json and its .bak); test/history-sqlite.test.mjs tests the SQLite store.
+  return { dir, history: new module.HistoryStore(dir, { now: () => NOW, engine: 'json', ...options }) };
 }
 
 test('history survives restart and leaves raw and archived files untouched', t => {
@@ -33,7 +34,7 @@ test('history survives restart and leaves raw and archived files untouched', t =
   writeFileSync(join(dir, 'archive', 'operator.json'), '{"private":"keep"}');
   writeFileSync(join(dir, 'raw.json'), '{"raw":"keep"}');
   history.add([event(1)]);
-  const restarted = new module.HistoryStore(dir, { now: () => NOW });
+  const restarted = new module.HistoryStore(dir, { engine: 'json', now: () => NOW });
   assert.equal(restarted.get(id(1)).title, 'Article 1');
   assert.equal(restarted.get(id(1)).firstSeenAt, '2026-10-01T11:00:00.000Z');
   assert.equal(restarted.get(id(1)).lastSeenAt, '2026-10-01T11:00:00.000Z');
@@ -87,7 +88,7 @@ test('ID and URL collisions coalesce with earliest identity and newest content a
   assert.equal(record.lastSeenAt, '2026-10-01T10:00:00.000Z');
   assert.equal(record.title, 'Updated A at B URL');
   assert.equal(record.source.url, event(2).source.url);
-  const restarted = new module.HistoryStore(dir, { now: () => NOW });
+  const restarted = new module.HistoryStore(dir, { engine: 'json', now: () => NOW });
   assert.equal(restarted.query().total, 1);
   assert.deepEqual(restarted.get(id(1)), record);
   restarted.add([event(2, { title: 'Stale B', collectedAt: '2026-09-30T10:00:00.000Z' })]);
@@ -110,7 +111,7 @@ test('URL collision keeps newer existing content and earliest identity regardles
   assert.equal(record.title, 'Newest B');
   assert.equal(record.firstSeenAt, '2026-09-27T10:00:00.000Z');
   assert.equal(record.lastSeenAt, '2026-10-01T11:00:00.000Z');
-  assert.equal(new module.HistoryStore(dir, { now: () => NOW }).get(id(2)).title, 'Newest B');
+  assert.equal(new module.HistoryStore(dir, { engine: 'json', now: () => NOW }).get(id(2)).title, 'Newest B');
 });
 
 test('an older ID update cannot merge current unrelated source URLs', t => {
@@ -151,7 +152,7 @@ test('query and get expire records when the injected clock advances without anot
 test('default record cap applies to valid oversized loaded data', t => {
   const { dir } = store(t);
   writeFileSync(join(dir, 'intelligence', 'history.json'), JSON.stringify({ version: 1, records: Array.from({ length: 10003 }, (_, n) => event(n + 1)) }));
-  const history = new module.HistoryStore(dir, { now: () => NOW });
+  const history = new module.HistoryStore(dir, { engine: 'json', now: () => NOW });
   assert.equal(history.query().total, 10000);
   assert.ok(statSync(join(dir, 'intelligence', 'history.json')).size <= 20 * 1024 * 1024);
 });
@@ -187,7 +188,7 @@ test('loaded over-cap journal is normalized and bounded before it becomes querya
   const { dir } = store(t);
   const records = Array.from({ length: 7 }, (_, n) => event(n + 1));
   writeFileSync(join(dir, 'intelligence', 'history.json'), JSON.stringify({ version: 1, records }));
-  const reloaded = new module.HistoryStore(dir, { now: () => NOW, maxRecords: 2, maxBytes: 2200 });
+  const reloaded = new module.HistoryStore(dir, { engine: 'json', now: () => NOW, maxRecords: 2, maxBytes: 2200 });
   assert.ok(reloaded.query().total <= 2);
   assert.ok(statSync(join(dir, 'intelligence', 'history.json')).size <= 2200);
   assert.ok(reloaded.query().stats.retainedBytes <= 2200);
@@ -201,7 +202,7 @@ test('corrupt primary recovers the valid backup without copying corrupt bytes in
   const backup = `${path}.bak`;
   JSON.parse(readFileSync(backup, 'utf8'));
   writeFileSync(path, '{broken');
-  const restarted = new module.HistoryStore(dir, { now: () => NOW });
+  const restarted = new module.HistoryStore(dir, { engine: 'json', now: () => NOW });
   assert.ok(restarted.get(id(1)));
   JSON.parse(readFileSync(path, 'utf8'));
   JSON.parse(readFileSync(backup, 'utf8'));
@@ -212,7 +213,7 @@ test('valid backup also recovers a semantically invalid primary', t => {
   const { dir, history } = store(t);
   history.add([event(1)]);
   writeFileSync(join(dir, 'intelligence', 'history.json'), JSON.stringify({ version: 1, records: 'not-an-array' }));
-  const reloaded = new module.HistoryStore(dir, { now: () => NOW });
+  const reloaded = new module.HistoryStore(dir, { engine: 'json', now: () => NOW });
   assert.equal(reloaded.get(id(1)).title, 'Article 1');
 });
 
@@ -220,7 +221,7 @@ test('valid backup recovers a parsed journal containing no usable collection rec
   const { dir, history } = store(t);
   history.add([event(1)]);
   writeFileSync(join(dir, 'intelligence', 'history.json'), JSON.stringify({ version: 1, records: [{ id: 'garbage', token: 'private' }] }));
-  const reloaded = new module.HistoryStore(dir, { now: () => NOW });
+  const reloaded = new module.HistoryStore(dir, { engine: 'json', now: () => NOW });
   assert.ok(reloaded.get(id(1)), 'valid backup record survives unusable primary data');
 });
 
@@ -229,12 +230,12 @@ test('valid backup survives a primary containing only future collection records'
   history.add([event(1)]);
   const path = join(dir, 'intelligence', 'history.json');
   writeFileSync(path, JSON.stringify({ version: 1, records: [event(2, { collectedAt: '2027-01-01T00:00:00.000Z' })] }));
-  const reloaded = new module.HistoryStore(dir, { now: () => NOW });
+  const reloaded = new module.HistoryStore(dir, { engine: 'json', now: () => NOW });
   assert.ok(reloaded.get(id(1)), 'valid backup record survives a future-only primary');
   assert.equal(reloaded.get(id(2)), null);
   const backup = JSON.parse(readFileSync(`${path}.bak`, 'utf8'));
   assert.ok(backup.records.some(record => record.id === id(1)), 'recovery never replaces a usable backup with an empty journal');
-  assert.equal(new module.HistoryStore(dir, { now: () => NOW }).get(id(1)).title, 'Article 1');
+  assert.equal(new module.HistoryStore(dir, { engine: 'json', now: () => NOW }).get(id(1)).title, 'Article 1');
 });
 
 test('unknown location provenance cannot be upgraded during history normalization', t => {
@@ -290,7 +291,7 @@ test('filters use collection dates inclusively and pagination and timeline refle
 test('malformed query filters produce controlled validation errors', t => {
   const { history } = store(t);
   for (const filters of [
-    { limit: 0 }, { limit: 201 }, { limit: '1e2' }, { offset: -1 }, { offset: 10001 },
+    { limit: 0 }, { limit: 201 }, { limit: '1e2' }, { offset: -1 }, { offset: 1_000_001 },
     { q: ['array'] }, { q: 'x'.repeat(301) }, { source: {} }, { kind: 'invalid-kind' },
     { from: '2026-02-30' }, { to: '10/01/2026' }, { from: '2026-10-01', to: '2026-09-01' },
     { from: '2026-10-01T12:00:00' }, { to: '2026-10-01T25:00:00Z' },

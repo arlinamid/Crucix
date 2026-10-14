@@ -1418,7 +1418,18 @@
     "type_cve": "Sérülékenység",
     "untitled": "A cím nem érhető el",
     "open": "A szál megnyitása",
-    "replayNote": "A szál-lap az élő gráfot olvassa, ezért a visszajátszás alatt nem érhető el. A látható lista a visszajátszott sweep saját listája."
+    "replayNote": "A szál-lap az élő gráfot olvassa, ezért a visszajátszás alatt nem érhető el. A látható lista a visszajátszott sweep saját listája.",
+    "viewLabel": "Aktuális vagy korábbi szálak",
+    "viewCurrent": "Most",
+    "viewPast": "Korábbi",
+    "showAll": "Mind mutatása ({count})",
+    "showLess": "Kevesebb",
+    "listLoading": "Szálak betöltése…",
+    "listError": "Nem sikerült betölteni a szálakat. Próbáld újra később.",
+    "pastIntro": "Korábban lezárult szálak, a historyból számolva a háttérben (30 napig megőrizve).",
+    "pastEmpty": "Még nincs korábbi szál: egy nap szálai 72 órával a nap vége után kerülnek az archívumba.",
+    "pastUnavailable": "A korábbi szálak az élő szerverről jönnek.",
+    "pastDay": "Lezárult: {day}"
   },
   "briefing": {
     "title": "Összefoglaló",

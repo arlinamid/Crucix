@@ -2,7 +2,7 @@
 
 > **Language note / Nyelvi megjegyzés:** Ez a dokumentum magyar nyelvű. For English documentation, please refer to the main [README.md](../README.md), [CONFIGURATION.md](CONFIGURATION.md), and [API.md](API.md).
 
-Ez a fork Node.js 22 vagy 24 alatt, natív Windows/Linux környezetben és Dockerben ellenőrzött. A [teljes audit](audit/full-review-2026-10-01.md) és a [változásnapló](../CHANGELOG.md) részletezi a javításokat.
+Ez a fork Node.js 22.13+ vagy 24 alatt (az eseménynapló a beépített `node:sqlite`-ot használja), natív Windows/Linux környezetben és Dockerben ellenőrzött. A [teljes audit](audit/full-review-2026-10-01.md) és a [változásnapló](../CHANGELOG.md) részletezi a javításokat.
 
 ## Indítás és hozzáférés
 
@@ -69,7 +69,7 @@ Discord sweep/mute/unmute: megfelelő guild és channel, valamint Manage Server/
 
 Az **Események** listából, hírszalagból vagy támogatott térképjelölőből nyitható a részletező: eredeti link, observed/published/collected idő, helymeghatározás és forrásállapot. Az ismeretlen idő/hely ismeretlen marad. A kapcsolódó beszámolók és térképes csoportok rendezési segítségek; nem igazolják automatikusan az eseményt.
 
-Az **Előzmények** szöveget, típust, forrást és UTC gyűjtési dátumot szűr. A napló `runs/intelligence/history.json` és `.bak`, legfeljebb 30 nap / 10 000 rekord / 20 MiB. Az utolsó snapshot és a későbbi sweep-ek kerülnek be; a meglévő archívumot nem tölti vissza tömegesen. A napló írási hibája külön látszik a health válaszban, a friss adatközlést nem állítja le. A keresés és export a meglévő hitelesítés alatt, no-store API-val működik. Az export a szűrést követi, maximum 2000 rekord, csonkolásjelzéssel. PDF: nyomtatható HTML → böngésző Nyomtatás → Mentés PDF-ként.
+Az **Előzmények** szöveget, típust, forrást és UTC gyűjtési dátumot szűr. A napló `runs/intelligence/history.db` (SQLite, WAL), 30 napos megőrzéssel, rekordszám-korlát nélkül; naponta `history.db.bak` másolat készül, sérült adatbázis esetén abból áll helyre. Egy korábbi `history.json` az első induláskor átkerül az adatbázisba, a fájl `history.json.migrated` néven megmarad. Node 22.13 alatt (nincs `node:sqlite`) a régi JSON-napló működik tovább. Az utolsó snapshot és a későbbi sweep-ek kerülnek be; a meglévő archívumot nem tölti vissza tömegesen. A napló írási hibája külön látszik a health válaszban, a friss adatközlést nem állítja le. A keresés és export a meglévő hitelesítés alatt, no-store API-val működik. Az export a szűrést követi, maximum 2000 rekord, csonkolásjelzéssel. PDF: nyomtatható HTML → böngésző Nyomtatás → Mentés PDF-ként.
 
 **Profilok:** kutatás, piac, infrastruktúra; saját panel/réteg/régió állapot legfeljebb 12 néven menthető. Saját profil átnevezhető és törölhető. A váltás előtti egyéni állapot visszaállítható. A mentés böngésző/origin függő; tiltott localStorage esetén csak az adott munkamenetben él.
 
@@ -178,7 +178,7 @@ A Crucix nemcsak böngészős felületen és botokon keresztül használható, h
 
 A CLI kétféle módban képes működni:
 1. **Szerverhez kapcsolódva (alapértelmezett):** Ha fut a helyi Crucix szerver (`http://localhost:3117`), a CLI az API végpontokból kérdezi le az adatokat.
-2. **Szerver nélküli (Standalone / Offline, `--no-server`, `-S`):** Nem igényel futó web szervert! Közvetlenül a helyi lemezen lévő archívumból (`runs/latest.json`, `runs/intelligence/history.json`, `runs/intelligence/countries.json`, `runs/world-rss-cache.json`, `runs/alerts/alerts.json`) dolgozik, vagy közvetlen RSS hálózati letöltést hajt végre.
+2. **Szerver nélküli (Standalone / Offline, `--no-server`, `-S`):** Nem igényel futó web szervert! Közvetlenül a helyi lemezen lévő archívumból (`runs/latest.json`, `runs/intelligence/history.db` (régebbi profilban `history.json`), `runs/intelligence/countries.json`, `runs/world-rss-cache.json`, `runs/alerts/alerts.json`) dolgozik, vagy közvetlen RSS hálózati letöltést hajt végre.
 
 ### Főbb CLI parancsok
 

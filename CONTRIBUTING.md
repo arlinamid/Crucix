@@ -21,7 +21,7 @@ Open an issue before writing code if your change would:
 
 ## Development Baseline
 
-- Node.js 22+
+- Node.js 22.13+ (the event history uses the built-in `node:sqlite`)
 - Pure ESM
 - Keep the zero-extra-dependency approach unless there is a strong reason not to
 - Do not commit secrets, `.env` files, or generated runtime data

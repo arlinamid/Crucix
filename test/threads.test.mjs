@@ -71,7 +71,7 @@ test('threads: members older than 72 hours drop out; the status follows the memb
   assert.equal(threadStatus(NOW - 30 * HOUR, NOW - 2 * HOUR, NOW), 'active');
   assert.equal(threadStatus(NOW - 60 * HOUR, NOW - 30 * HOUR, NOW), 'fading');
   const summary = summarizeThreads([], NOW);
-  assert.deepEqual(summary, { at: new Date(NOW).toISOString(), count: 0, top: [] });
+  assert.deepEqual(summary, { at: new Date(NOW).toISOString(), count: 0, topicCounts: {}, top: [] });
 });
 
 test('the risk step builds the graph and the threads, marks member events and adds snapshot.threads', t => {
