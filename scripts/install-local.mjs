@@ -4,7 +4,7 @@
 // user profile only contains configuration (.env) and runtime data (runs/).
 // Usage: node scripts/install-local.mjs
 
-import { existsSync, mkdirSync, cpSync, copyFileSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, cpSync, copyFileSync, writeFileSync, rmSync, chmodSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { execSync, execFileSync } from 'node:child_process';
@@ -101,13 +101,17 @@ if (existsSync(srcDashboardPublic)) {
   console.log('   • Dashboard webes felület (HTML, CSS, JS) szinkronizálva');
 }
 
-// Copy initial seed data to runs/ if user profile runs/ is empty
+// Copy initial seed data to runs/ only if the user profile runs/ is empty: an existing profile holds the live database (history,
+// risk store, alerts, archive), which the checkout's older copy must never overwrite.
 const srcRuns = join(ROOT, 'runs');
-if (existsSync(srcRuns)) {
+const profileHasData = readdirSync(userRunsDir).length > 0;
+if (existsSync(srcRuns) && !profileHasData) {
   try {
     cpSync(srcRuns, userRunsDir, { recursive: true });
     console.log('   • Alapértelmezett adatbázisok és sweep gyorsítótár szinkronizálva a runs/ mappába');
   } catch {}
+} else if (profileHasData) {
+  console.log('   • A meglévő runs/ adatbázis érintetlen marad (nem írjuk felül a forrásmappa másolatával)');
 }
 
 // 3. Copy standalone executable and shims to .local/bin
