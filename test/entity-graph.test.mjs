@@ -191,3 +191,47 @@ test('the risk step links a graph made by older rules again, once', t => withGra
   reloaded.load();
   assert.equal(reloaded.rules, LINK_RULES_VERSION, 'the version is saved with the graph');
 }));
+
+test('a rules change drops the old rule edges before linking again; model links stay', t => withGraph(t, (graph, dir) => {
+  const a = news('Ivanti flaw exploited in attacks on Norway ministries', { host: 'a.example' });
+  const b = news('Football results', { host: 'b.example' });
+  graph.ingest(graphRecordsOf([a, b]), { now: NOW });
+  graph.ingest([{ id: b.id, kind: 'news', entities: [{ id: 'country:NOR', rel: 'mentions', s: 0.5 }] }], { now: NOW });
+  graph.link([{ a: a.id, b: b.id, type: 'co-occurs', s: 0.9, m: 'rule' }, { a: a.id, b: b.id, type: 'same-story', s: 0.6, m: 'llm' }], { now: NOW });
+  graph.rules = 1;
+  runRiskStep({ store: new EntityStore(dir, { now: () => NOW }), graph, snapshot: { events: [] }, raw: null, now: NOW, log: { warn() {}, error() {} } });
+  assert.deepEqual(graph.edgesOf(a.id).map(edge => edge.m), ['llm'], 'the stale rule edge is gone, the model link is kept');
+}));
+
+test('topicsOf: politics, technology, economy and the kinds; a soft word alone does not decide', async () => {
+  const { topicsOf, leadingTopic, isTopicWord } = await import('../lib/intelligence/topics.mjs');
+  const of = (title, kind) => [...topicsOf(tokensOf(title), kind)].sort();
+  assert.deepEqual(of('Turkish police raid opposition TV station'), ['politics']);
+  assert.deepEqual(of('Ivanti flaw exploited by Chinese hackers'), ['technology']);
+  assert.deepEqual(of('Inflation edged up in September'), ['economy']);
+  assert.deepEqual(of('A party at the beach'), [], '"party" alone is not politics');
+  assert.deepEqual(of('Bank of England: policy rate 3.75%', 'economic'), ['economy']);
+  assert.deepEqual(of('US OFAC SDN list updated', 'sanctions'), ['politics']);
+  assert.deepEqual(of('Israeli air strike kills a woman in Gaza'), ['conflict']);
+  assert.equal(leadingTopic({ politics: 2, conflict: 2, technology: 1 }), 'conflict');
+  assert.equal(leadingTopic({}), null);
+  assert.equal(isTopicWord('exploited'), true);
+  assert.equal(isTopicWord('grindr'), false);
+});
+
+test('linkers: the topic rule links a report and an observation through a rare name, never through a topic word, a date or a busy name', t => withGraph(t, graph => {
+  const breach = { id: 'event-b1', kind: 'cyber', title: 'Grindr: 1,200,000 accounts exposed', summary: '', location: {}, source: { name: 'HIBP', hostname: 'hibp.example' },
+    observedAt: new Date(NOW - 2 * HOUR).toISOString(), severity: 'moderate', relatedSources: [] };
+  const kev = { id: 'event-b2', kind: 'cyber', title: 'CVE-2026-1234: Ivanti Connect Secure Authentication Bypass Vulnerability exploited', summary: '', location: {},
+    source: { name: 'CISA-KEV', hostname: 'kev.example' }, observedAt: new Date(NOW - 2 * HOUR).toISOString(), severity: 'high', relatedSources: [] };
+  const grindr = news('Norway fines Microsoft subsidiary for sharing Grindr user data', { host: 'n1.example' });
+  const coup = news('The West African coups and anti-French feelings exploited by rivals', { host: 'n2.example' });
+  const busy = Array.from({ length: 8 }, (_, n) => news(`Trump speech number ${n} on markets`, { host: `t${n}.example` }));
+  const market = { id: 'event-b3', kind: 'market', title: 'Will Trump win the 2028 election?', summary: '', location: {}, source: { name: 'Manifold', hostname: 'manifold.example' },
+    observedAt: new Date(NOW - 2 * HOUR).toISOString(), severity: 'info', relatedSources: [] };
+  const edges = build(graph, [breach, kev, grindr, coup, market, ...busy]);
+  const linked = (a, b) => edges.some(edge => [edge.a, edge.b].includes(a.id) && [edge.a, edge.b].includes(b.id));
+  assert.ok(linked(breach, grindr), 'Grindr is capitalised inside a sentence: a name');
+  assert.ok(!linked(kev, coup), '"exploited" is the topic, not a name');
+  assert.ok(!busy.some(item => linked(market, item)), 'a name in many reports of the window links nothing alone');
+}));

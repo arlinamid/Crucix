@@ -14,10 +14,14 @@
   //   now()                      the page clock of the age labels
   const THREAD=/^thread-[a-f0-9]{16}$/,EVENT_ID=/^event-[0-9a-f]{32}$/,ISO3=/^[A-Z]{3}$/,ENTITY=/^(?:country|chokepoint|site|actor|cve):[A-Za-z0-9_.-]{1,80}$/;
   const ISO_TIME=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
-  const LEVELS=['critical','high','watch','info'],STATUSES=['emerging','escalating','active','fading'],TYPES=['country','chokepoint','site','actor','cve'],TOP=8;
+  const LEVELS=['critical','high','watch','info'],STATUSES=['emerging','escalating','active','fading'],TYPES=['country','chokepoint','site','actor','cve'],TOP=8,
+    TOPICS=['conflict','politics','technology','disaster','health','economy'],FILTER_KEY='crucix_threads_topic_v1';
+  // The panel's topic filter: 'all' or one of TOPICS, remembered on this browser (a convenience; storage may be blocked).
+  let topicFilter=(()=>{try{const saved=window.localStorage?.getItem(FILTER_KEY);return TOPICS.includes(saved)?saved:'all';}catch{return 'all';}})();
   const COPY={title:'Story threads',intro:'Records the entity graph links: one story from several outlets, a report and an observation of the same strait, site or CVE, or observations of different kinds at one place. Linked is not confirmed.',
     unavailable:'Story threads are not available.',empty:'No linked story in the last 72 hours.',summary:'{count} threads in the last 72 hours',
-    status_emerging:'Emerging',status_active:'Active',status_fading:'Fading',status_escalating:'Escalating',conflict:'Armed conflict',meta:'{members} records · {sources} sources',observations:'{count} observations',
+    status_emerging:'Emerging',status_active:'Active',status_fading:'Fading',status_escalating:'Escalating',conflict:'Armed conflict',filterLabel:'Show threads by topic',filterAll:'All',filterEmpty:'No thread of this topic in the last 72 hours.',
+    topic_conflict:'Conflict',topic_politics:'Politics',topic_technology:'Technology',topic_disaster:'Disaster',topic_health:'Health',topic_economy:'Economy',meta:'{members} records · {sources} sources',observations:'{count} observations',
     sheet:'Story thread',close:'Close',loading:'Loading the thread…',error:'Could not load the thread. Close and reopen it to try again.',notFound:'This thread is no longer in the last 72 hours.',
     span:'{first} – {last}',records:'Records',links:'Links',linksSummary:'{story} same-story links · {cooccurs} co-occurrence links',
     linkHelp:'A same-story link joins reports with alike titles from different outlets; a co-occurrence joins records naming the same strait, site, actor or CVE, or observations within 100 km and a day. Syndicated copies of one wire story are one source.',
@@ -52,20 +56,22 @@
     if(!isObject(item)||typeof item.id!=='string'||!THREAD.test(item.id))return null;
     return {id:item.id,title:text(item.title,300),status:STATUSES.includes(item.status)?item.status:'active',first:isoMs(item.first),last:isoMs(item.last),members:count(item.memberCount),
       sources:count(item.sources),observations:count(item.observations),level:levelOf(item.maxLevel),conflict:count(item.conflictReports)>0,
+      topic:TOPICS.includes(item.topic)?item.topic:null,
       kinds:(Array.isArray(item.kinds)?item.kinds:[]).filter(kind=>typeof kind==='string'&&/^[a-z-]{2,40}$/.test(kind)).slice(0,8),
       countries:(Array.isArray(item.countries)?item.countries:[]).filter(row=>isObject(row)&&typeof row.iso3==='string'&&ISO3.test(row.iso3)).slice(0,4).map(row=>row.iso3),
       entities:(Array.isArray(item.entities)?item.entities:[]).filter(row=>isObject(row)&&typeof row.id==='string'&&ENTITY.test(row.id)).slice(0,4).map(row=>({id:row.id,type:row.id.split(':')[0],label:text(row.label,120)}))};
   }
   function read(threads){
     if(!isObject(threads))return null;
-    return {count:count(threads.count),top:(Array.isArray(threads.top)?threads.top:[]).map(readRow).filter(Boolean).slice(0,TOP)};
+    return {count:count(threads.count),top:(Array.isArray(threads.top)?threads.top:[]).map(readRow).filter(Boolean).slice(0,60)};
   }
 
   // ===== The panel =====
   function rowHtml(item,off){
     const tags=[...item.countries,...item.entities.filter(row=>row.type!=='country').map(entityLabel)].slice(0,5).map(name=>`<span class="th-tag">${esc(name)}</span>`).join('');
     const meta=[say('meta',{members:item.members,sources:item.sources}),item.observations?say('observations',{count:item.observations}):'',item.kinds.map(kindName).join(', ')].filter(Boolean).join(' · ');
-    const inner=`<span class="th-status" data-status="${item.status}">${esc(say('status_'+item.status))}${item.conflict?` · <span class="th-conflict">${esc(say('conflict'))}</span>`:''}</span><span class="th-title">${esc(item.title||say('untitled'))}</span><span class="th-meta">${esc(meta)}</span>${tags?`<span class="th-tags">${tags}</span>`:''}`;
+    const topic=item.topic&&!(item.topic==='conflict'&&item.conflict)?` · <span class="th-topic" data-topic="${item.topic}">${esc(say('topic_'+item.topic))}</span>`:'';
+    const inner=`<span class="th-status" data-status="${item.status}">${esc(say('status_'+item.status))}${item.conflict?` · <span class="th-conflict">${esc(say('conflict'))}</span>`:''}${topic}</span><span class="th-title">${esc(item.title||say('untitled'))}</span><span class="th-meta">${esc(meta)}</span>${tags?`<span class="th-tags">${tags}</span>`:''}`;
     return `<li class="th-item">${live()||off?`<button type="button" class="th-row" data-thread-open="${item.id}" data-level="${item.level}"${off?' aria-disabled="true" aria-describedby="storyThreadsReplay"':''}>${inner}</button>`:`<div class="th-row" data-level="${item.level}">${inner}</div>`}</li>`;
   }
   function build(threads,options){
@@ -74,7 +80,15 @@
     const note=replay?`<p class="rk-note rk-replay" id="storyThreadsReplay">${esc(say('replayNote'))}</p>`:'';
     let main;
     if(!data)main=`<p class="rk-calm" data-threads-state="unavailable">${esc(say('unavailable'))}</p>`;
-    else main=`<p class="rk-intro">${esc(say('intro'))}</p>${data.count?`<p class="rk-sum">${esc(say('summary',{count:data.count}))}</p>`:''}${data.top.length?`<ul class="th-list">${data.top.map(item=>rowHtml(item,replay)).join('')}</ul>`:`<p class="rk-calm" data-threads-state="empty">${esc(say('empty'))}</p>`}`;
+    else{
+      // The topic filter: a chip per topic that has threads, with its count; the list shows the first TOP of the chosen topic.
+      const counts={};for(const item of data.top)if(item.topic)counts[item.topic]=(counts[item.topic]||0)+1;
+      const chosen=topicFilter==='all'||counts[topicFilter]?topicFilter:'all';
+      const chip=(value,label,n)=>`<button type="button" class="th-chip" data-thread-topic="${value}" aria-pressed="${chosen===value}">${esc(label)}${n!==null?` <span class="th-n">${n}</span>`:''}</button>`;
+      const chips=data.top.length?`<div class="th-filter" role="group" aria-label="${esc(say('filterLabel'))}">${chip('all',say('filterAll'),null)}${TOPICS.filter(topic=>counts[topic]).map(topic=>chip(topic,say('topic_'+topic),counts[topic])).join('')}</div>`:'';
+      const shown=data.top.filter(item=>chosen==='all'||item.topic===chosen).slice(0,TOP);
+      main=`<p class="rk-intro">${esc(say('intro'))}</p>${data.count?`<p class="rk-sum">${esc(say('summary',{count:data.count}))}</p>`:''}${chips}${shown.length?`<ul class="th-list">${shown.map(item=>rowHtml(item,replay)).join('')}</ul>`:`<p class="rk-calm" data-threads-state="empty">${esc(say(data.top.length?'filterEmpty':'empty'))}</p>`}`;
+    }
     return `<div class="g-panel threads-panel" id="storyThreadsPanel" role="region" aria-labelledby="storyThreadsTitle"${replay?' data-replay="true"':''}>${head}${note}${main}</div>`;
   }
   function panelHtml(threads,options){try{return build(threads,options);}catch(error){log(error);return '';}}
@@ -225,6 +239,16 @@
   function onPageClick(event){
     const target=event.target&&typeof event.target.closest==='function'?event.target:null;
     if(!target||!opts)return;
+    // A topic chip re-draws the panel in place (the page's next render keeps the choice).
+    const chip=target.closest('#storyThreadsPanel [data-thread-topic]');
+    if(chip){
+      const value=chip.getAttribute('data-thread-topic');
+      topicFilter=TOPICS.includes(value)?value:'all';
+      try{window.localStorage?.setItem(FILTER_KEY,topicFilter);}catch{}
+      const panel=document.getElementById('storyThreadsPanel');
+      if(panel&&typeof opts.getThreads==='function'){panel.outerHTML=panelHtml(opts.getThreads());document.querySelector?.(`#storyThreadsPanel [data-thread-topic="${topicFilter}"]`)?.focus?.();}
+      return;
+    }
     const row=target.closest('#storyThreadsPanel [data-thread-open]');
     if(!row||inReplay()||row.getAttribute('aria-disabled')==='true')return;
     open(row.getAttribute('data-thread-open')).catch(log);

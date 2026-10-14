@@ -71,7 +71,7 @@ test('the panel lists the threads escaped, says when there are none or no summar
   assert.ok(window.CrucixThreads.panelHtml({ top: [{ id: 'thread-x', title: 'bad id' }, 'junk'] }).includes('data-threads-state="empty"'), 'malformed rows are dropped');
   const offline = realm(['threads.js']).window;
   offline.CrucixThreads.mount({ t: t('en'), getThreads: () => summary });
-  assert.ok(!offline.CrucixThreads.panelHtml(summary).includes('<button'), 'without the API the rows are plain text');
+  assert.ok(!offline.CrucixThreads.panelHtml(summary).includes('class="th-row" data-thread-open'), 'without the API the rows are plain text (the topic chips still filter)');
 });
 
 test('a panel row opens the thread sheet; an entity opens in place, a record in the inspector and a country in its sheet', async () => {
@@ -125,4 +125,27 @@ test('the country sheet lists its threads and a thread row hands over to the thr
   assert.ok(html.includes(`data-country-thread="${THREAD}"`) && html.includes('3 records · 3 sources'));
   assert.equal((html.match(/data-country-thread=/g) || []).length, 1, 'a malformed thread is dropped');
   assert.ok(!window.CrucixCountry.render({ iso3: 'IRN', name: 'Iran', score: null }).includes('cs-threads'), 'no threads, no section');
+});
+
+
+test('the topic filter: a chip per topic with its count; a chip click re-draws the panel with that topic only and remembers it', () => {
+  const { window, document } = realm(['threads.js']);
+  const stored = {};
+  window.localStorage = { getItem: key => stored[key] ?? null, setItem: (key, value) => { stored[key] = value; } };
+  const politics = { ...summary.top[0], id: 'thread-00000000000000aa', title: 'Turkish police raid opposition TV station', topic: 'politics', conflictReports: 0 };
+  const tech = { ...summary.top[0], id: 'thread-00000000000000bb', title: 'Ivanti flaw exploited', topic: 'technology', conflictReports: 0 };
+  const data = { count: 3, top: [{ ...summary.top[0], topic: 'conflict', conflictReports: 2 }, politics, tech] };
+  const listeners = [];
+  document.addEventListener = (type, fn) => listeners.push(fn);
+  window.CrucixThreads.mount({ t: t('hu'), getThreads: () => data, isReplay: () => false, fetchJson: () => Promise.resolve({}) });
+  const html = window.CrucixThreads.panelHtml(data);
+  assert.ok(html.includes('data-thread-topic="all" aria-pressed="true"') && html.includes('>Politika <span class="th-n">1</span>') && html.includes('>Technológia <span class="th-n">1</span>'));
+  assert.ok(html.includes('class="th-topic" data-topic="politics">Politika'), 'a row says its topic');
+  const panel = { outerHTML: html };
+  document.getElementById = id => id === 'storyThreadsPanel' ? panel : null;
+  const chip = { getAttribute: name => name === 'data-thread-topic' ? 'technology' : null, closest: selector => selector.includes('[data-thread-topic]') ? chip : null };
+  for (const fn of listeners) fn({ target: chip });
+  assert.equal(stored.crucix_threads_topic_v1, 'technology');
+  assert.ok(panel.outerHTML.includes('Ivanti flaw exploited') && !panel.outerHTML.includes('Turkish police'), 'only technology threads');
+  assert.ok(panel.outerHTML.includes('data-thread-topic="technology" aria-pressed="true"'));
 });
