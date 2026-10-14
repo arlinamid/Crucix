@@ -348,7 +348,9 @@ export function loadOpenSkyFallback(currentTimestamp, runsDir = config.runsDir |
 
 // === RSS Fetching ===
 let lastCoreNews = [];
-export function resetNewsCache() { lastCoreNews = []; }
+export function resetNewsCache() { lastCoreNews = []; lastTopicNews = []; }
+/** The specialist feeds' quota of the last live fetch (snapshot.topicNews). */
+export const topicHeadlines = () => lastTopicNews.slice();
 
 async function fetchRSS(url, source, meta = {}) {
   try {
@@ -359,7 +361,7 @@ async function fetchRSS(url, source, meta = {}) {
     const items = [];
     for (const item of parseFeed(response.rawText)) {
       const link = sanitizeExternalUrl(item.link);
-      if (item.title !== source) items.push({ title: item.title, ...(item.summary ? { summary: item.summary } : {}), date: item.date, source, url: link || undefined, ...(meta.tier ? { tier: meta.tier } : {}), ...(meta.lang && meta.lang !== 'en' ? { lang: meta.lang } : {}), ...(meta.state ? { state: true } : {}), ...(meta.country ? { country: meta.country } : {}) });
+      if (item.title !== source) items.push({ title: item.title, ...(item.summary ? { summary: item.summary } : {}), date: item.date, source, url: link || undefined, ...(meta.tier ? { tier: meta.tier } : {}), ...(meta.lang && meta.lang !== 'en' ? { lang: meta.lang } : {}), ...(meta.state ? { state: true } : {}), ...(meta.country ? { country: meta.country } : {}), ...(meta.topic ? { topic: meta.topic } : {}) });
     }
     return { source, items: items.slice(0, MAX_PER_FEED), error: null };
   } catch (e) {
@@ -372,10 +374,16 @@ const REGIONAL_NEWS_SOURCES = ['MercoPress', 'Indian Express', 'The Hindu', 'SBS
 const MAX_PER_FEED = 15;
 const NEWS_LIMIT = 100;
 const PER_SOURCE_LIMIT = 5;
+// Specialist feeds (news-feeds.mjs `topic`: technology, health, politics, economy, conflict) reach the event layer through their own quota:
+// the newest TOPIC_PER_FEED headlines of each from the last TOPIC_HOURS, at most TOPIC_LIMIT, in snapshot.topicNews (not in the ticker).
+const TOPIC_PER_FEED = 4;
+const TOPIC_HOURS = 48;
+const TOPIC_LIMIT = 160;
+let lastTopicNews = [];
 
 // `customFeeds` takes [url, source] pairs (tests, local overrides); the default is the tiered registry minus the feeds
 // switched off in the dashboard, plus the operator's own feeds (the profile feeds.json, lib/news/feed-store.mjs).
-export async function fetchAllNews(customFeeds, { now = Date.now(), concurrency = RSS_CONCURRENCY, budgetMs = 20000 } = {}) {
+export async function fetchAllNews(customFeeds, { now = Date.now(), concurrency = RSS_CONCURRENCY, budgetMs = 30000 } = {}) {
   const feeds = customFeeds ? customFeeds.map(([url, source]) => ({ ...feedBySource(source), url, source })) : activeNewsFeeds();
   const deadline = now + budgetMs;
   const results = await mapLimited(feeds, concurrency, async feed => {
@@ -411,6 +419,7 @@ export async function fetchAllNews(customFeeds, { now = Date.now(), concurrency 
         ...(item.lang ? { lang: item.lang } : {}),
         ...(item.state ? { state: true } : {}),
         ...(item.country ? { country: item.country } : {}),
+        ...(item.topic ? { topic: item.topic } : {}),
         ...(geo ? { lat: geo.lat, lon: geo.lon, region: geo.region, locationMethod: 'headline-keyword', locationPrecision: 'approximate' }
           : (item.country && iodaCountryGeo[item.country]) ? { lat: iodaCountryGeo[item.country][0], lon: iodaCountryGeo[item.country][1], region: iodaCountryGeo[item.country][2], locationMethod: 'source-country', locationPrecision: 'approximate' }
           : { region: 'Global', locationMethod: 'unknown' }),
@@ -448,6 +457,17 @@ export async function fetchAllNews(customFeeds, { now = Date.now(), concurrency 
   }
   selected.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
   const next = selected.slice(0, NEWS_LIMIT);
+  // The specialist quota (filtered is newest first): a few recent headlines of every topical feed, whatever the general selection kept.
+  const topicCutoff = now - TOPIC_HOURS * 3600000;
+  const perFeed = new Map();
+  const topical = [];
+  for (const item of filtered) {
+    if (!item.topic || topical.length >= TOPIC_LIMIT || !(Date.parse(item.date) >= topicCutoff)) continue;
+    if ((perFeed.get(item.source) || 0) >= TOPIC_PER_FEED) continue;
+    perFeed.set(item.source, (perFeed.get(item.source) || 0) + 1);
+    topical.push(item);
+  }
+  if (topical.length) lastTopicNews = topical;
   if (next.length) {
     lastCoreNews = next;
     return next;
@@ -806,6 +826,8 @@ export async function synthesize(data, options = {}) {
   // Fetch RSS
   const allNews = options.news ?? await fetchAllNews();
   const news = allNews.filter(n => Number.isFinite(n.lat) && Number.isFinite(n.lon));
+  // Specialist headlines for the event layer (only from a live fetch: a re-synthesized stored sweep has none).
+  const topicNews = options.news ? [] : topicHeadlines();
 
   const V2 = {
     meta: data.crucix, air, thermal, tSignals, chokepoints, aisVessels, nuke, nukeSignals, liveSources, cyclones,
@@ -827,6 +849,7 @@ export async function synthesize(data, options = {}) {
     ideas: [], ideasSource: 'rules',
     // newsFeed for ticker (merged RSS + GDELT + Telegram)
     newsFeed: buildNewsFeed(allNews, gdeltData, tgUrgent, tgTop),
+    topicNews,
   };
 
   V2.ideas = generateIdeas(V2);

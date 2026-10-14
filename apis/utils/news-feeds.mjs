@@ -5,7 +5,9 @@ import { createWorldFeeds } from '../../data/world-rss/world-feeds.js';
 // 4 = aggregators and blogs. A tier ranks a source, it does not say a headline is true. `state` marks an outlet that a
 // government owns or funds, `lang` the language of its headlines (shown as a tag, headlines are never translated).
 // Reachability of every URL was measured from Hungary on 2026-10-08 (HTTP 200).
-const feed = (source, url, tier, extra = {}) => Object.freeze({ source, url, tier, lang: 'en', state: false, ...extra });
+// `topic` (lib/intelligence/topics.mjs: conflict, politics, technology, health, economy) marks a specialist feed: its headlines count as that
+// topic even when a title has none of the topic's words, and they reach the event layer through their own quota (dashboard/inject.mjs topicNews).
+const feed = (source, url, tier, extra = {}) => Object.freeze({ source, url, tier, lang: 'en', state: false, topic: null, ...extra });
 
 export const NEWS_FEEDS = Object.freeze([
   // Global and wires
@@ -58,18 +60,61 @@ export const NEWS_FEEDS = Object.freeze([
   feed('Mexico News Daily', 'https://mexiconewsdaily.com/feed/', 3, { country: 'MX' }),
   feed('InSight Crime', 'https://insightcrime.org/feed/', 3),
   // Defence, security and think tanks
-  feed('Defense One', 'https://www.defenseone.com/rss/all/', 3, { country: 'US' }),
-  feed('The War Zone', 'https://www.twz.com/feed', 3, { country: 'US' }),
-  feed('Breaking Defense', 'https://breakingdefense.com/feed/', 3, { country: 'US' }),
-  feed('War on the Rocks', 'https://warontherocks.com/feed/', 3, { country: 'US' }),
-  feed('Foreign Policy', 'https://foreignpolicy.com/feed/', 3, { country: 'US' }),
-  feed('Crisis Group', 'https://www.crisisgroup.org/rss', 3),
-  feed('Oryx', 'https://www.oryxspioenkop.com/feeds/posts/default?alt=rss', 3),
+  feed('Defense One', 'https://www.defenseone.com/rss/all/', 3, { country: 'US', topic: 'conflict' }),
+  feed('The War Zone', 'https://www.twz.com/feed', 3, { country: 'US', topic: 'conflict' }),
+  feed('Breaking Defense', 'https://breakingdefense.com/feed/', 3, { country: 'US', topic: 'conflict' }),
+  feed('War on the Rocks', 'https://warontherocks.com/feed/', 3, { country: 'US', topic: 'conflict' }),
+  feed('Foreign Policy', 'https://foreignpolicy.com/feed/', 3, { country: 'US', topic: 'politics' }),
+  feed('Crisis Group', 'https://www.crisisgroup.org/rss', 3, { topic: 'politics' }),
+  feed('Oryx', 'https://www.oryxspioenkop.com/feeds/posts/default?alt=rss', 3, { topic: 'conflict' }),
   feed('IAEA', 'https://www.iaea.org/feeds/topnews', 1, { country: 'AT' }),
-  feed('WHO News', 'https://www.who.int/rss-feeds/news-english.xml', 1, { country: 'CH' }),
-  feed('Krebs', 'https://krebsonsecurity.com/feed/', 3, { country: 'US' }),
-  feed('OilPrice', 'https://oilprice.com/rss/main', 4, { country: 'US' }),
+  feed('WHO News', 'https://www.who.int/rss-feeds/news-english.xml', 1, { country: 'CH', topic: 'health' }),
+  feed('Krebs', 'https://krebsonsecurity.com/feed/', 3, { country: 'US', topic: 'technology' }),
+  feed('OilPrice', 'https://oilprice.com/rss/main', 4, { country: 'US', topic: 'economy' }),
+  // Technology and cyber security (measured from Hungary on 2026-10-14 with the Crucix User-Agent: HTTP 200, fresh items; Rest of World
+  // answers 403 and Wired is mostly culture, so both were left out)
+  feed('Ars Technica', 'https://feeds.arstechnica.com/arstechnica/index', 2, { country: 'US', topic: 'technology' }),
+  feed('The Verge', 'https://www.theverge.com/rss/index.xml', 2, { country: 'US', topic: 'technology' }),
+  feed('TechCrunch', 'https://techcrunch.com/feed/', 2, { country: 'US', topic: 'technology' }),
+  feed('The Register', 'https://www.theregister.com/headlines.atom', 2, { country: 'GB', topic: 'technology' }),
+  feed('MIT Technology Review', 'https://www.technologyreview.com/feed/', 2, { country: 'US', topic: 'technology' }),
+  feed('BleepingComputer', 'https://www.bleepingcomputer.com/feed/', 3, { country: 'US', topic: 'technology' }),
+  feed('The Record', 'https://therecord.media/feed', 3, { country: 'US', topic: 'technology' }),
+  feed('SecurityWeek', 'https://www.securityweek.com/feed/', 3, { country: 'US', topic: 'technology' }),
+  feed('The Hacker News', 'https://feeds.feedburner.com/TheHackersNews', 3, { topic: 'technology' }),
+  feed('CyberScoop', 'https://cyberscoop.com/feed/', 3, { country: 'US', topic: 'technology' }),
+  feed('Dark Reading', 'https://www.darkreading.com/rss.xml', 3, { country: 'US', topic: 'technology' }),
+  feed('HWSW', 'https://www.hwsw.hu/xml/latest_news_rss.xml', 3, { lang: 'hu', country: 'HU', topic: 'technology' }),
+  // Health and medicine (same measurement; the CIDRAP feed has not changed since 2021, Fierce Healthcare's is empty, The Lancet is weekly)
+  feed('STAT', 'https://www.statnews.com/feed/', 2, { country: 'US', topic: 'health' }),
+  feed('KFF Health News', 'https://kffhealthnews.org/feed/', 2, { country: 'US', topic: 'health' }),
+  feed('Health Policy Watch', 'https://healthpolicy-watch.news/feed/', 3, { country: 'CH', topic: 'health' }),
+  feed('Medical Xpress', 'https://medicalxpress.com/rss-feed/', 3, { topic: 'health' }),
+  feed('MedPage Today', 'https://www.medpagetoday.com/rss/headlines.xml', 3, { country: 'US', topic: 'health' }),
+  // Politics and policy (same measurement; Euractiv and Lawfare answer 403)
+  feed('Politico', 'https://rss.politico.com/politics-news.xml', 2, { country: 'US', topic: 'politics' }),
+  feed('Politico Europe', 'https://www.politico.eu/feed/', 2, { country: 'BE', topic: 'politics' }),
+  feed('The Hill', 'https://thehill.com/news/feed/', 2, { country: 'US', topic: 'politics' }),
+  feed('Foreign Affairs', 'https://www.foreignaffairs.com/rss.xml', 3, { country: 'US', topic: 'politics' }),
+  feed('Al-Monitor', 'https://www.al-monitor.com/rss', 3, { country: 'US', topic: 'politics' }),
+  feed('Just Security', 'https://www.justsecurity.org/feed/', 3, { country: 'US', topic: 'politics' }),
+  // Business and markets (same measurement; Yahoo Finance answers 404, Les Echos 403, Nikkei Asia's items carry no date)
+  feed('Financial Times', 'https://www.ft.com/rss/home', 2, { country: 'GB', topic: 'economy' }),
+  feed('CNBC', 'https://www.cnbc.com/id/100003114/device/rss/rss.html', 2, { country: 'US', topic: 'economy' }),
+  feed('MarketWatch', 'https://feeds.marketwatch.com/marketwatch/topstories/', 2, { country: 'US', topic: 'economy' }),
+  feed('BBC Business', 'https://feeds.bbci.co.uk/news/business/rss.xml', 2, { country: 'GB', topic: 'economy' }),
+  feed('Guardian Business', 'https://www.theguardian.com/business/rss', 2, { country: 'GB', topic: 'economy' }),
+  feed('NYT Business', 'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml', 2, { country: 'US', topic: 'economy' }),
+  feed('The Economist', 'https://www.economist.com/business/rss.xml', 2, { country: 'GB', topic: 'economy' }),
+  feed('Fortune', 'https://fortune.com/feed/', 3, { country: 'US', topic: 'economy' }),
+  feed('Business Insider', 'https://feeds.businessinsider.com/custom/all', 3, { country: 'US', topic: 'economy' }),
+  feed('Forbes Business', 'https://www.forbes.com/business/feed/', 3, { country: 'US', topic: 'economy' }),
+  feed('Handelsblatt', 'https://www.handelsblatt.com/contentexport/feed/top-themen', 2, { lang: 'de', country: 'DE', topic: 'economy' }),
+  feed('Világgazdaság', 'https://www.vg.hu/feed', 2, { lang: 'hu', country: 'HU', topic: 'economy' }),
 ]);
+
+/** The topics a specialist feed may carry (topics.mjs TOPICS without disaster). */
+export const FEED_TOPICS = Object.freeze(['conflict', 'politics', 'technology', 'health', 'economy']);
 
 const BY_SOURCE = new Map(NEWS_FEEDS.map(item => [item.source, item]));
 

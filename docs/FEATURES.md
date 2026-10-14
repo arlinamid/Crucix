@@ -171,3 +171,8 @@ See the [release notes](releases/v2.39.0.md) and [v2.39.4](releases/v2.39.4.md).
 
 - **Topics** for every record and thread (conflict, politics, technology, disaster, health, economy) from a multilingual word list and the record kind; the threads panel filters by topic and shows each thread's topic.
 - **Topic links**: a report and an observation of the same topic that share a rare name (in at most 6 reports of the window, capitalised inside a sentence-case title: "Grindr", "Ivanti"); topic words, busy names, months, continents and institution words never link. Reports with a topic but no entity now enter the graph. A rules change drops the old rule edges before linking again. See the [release notes](releases/v2.43.0.md).
+
+## Specialist news feeds (v2.44)
+
+- **35 new feeds** in technology and cyber security, health and medicine, politics, and business and markets, each measured with the Crucix User-Agent; specialist feeds carry a topic that their headlines inherit.
+- **An own quota**: the newest 4 headlines of each specialist feed from the last 48 hours (at most 160) reach the event layer in `snapshot.topicNews`, outside the 100-item ticker; the RSS fetch budget is 30 s. See the [release notes](releases/v2.44.0.md).

@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { parseFeed } from '../apis/utils/rss.mjs';
 import { NEWS_FEEDS, HUNGARIAN_SOURCES, feedBySource } from '../apis/utils/news-feeds.mjs';
-import { fetchAllNews, resetNewsCache } from '../dashboard/inject.mjs';
+import { fetchAllNews, resetNewsCache, topicHeadlines } from '../dashboard/inject.mjs';
+import { buildEvents } from '../lib/intelligence/events.mjs';
+import { graphRecordsOf } from '../lib/intelligence/linkers.mjs';
+import { topicsOf } from '../lib/intelligence/topics.mjs';
 import { mapLimited } from '../apis/utils/rss-pool.mjs';
 
 test('parseFeed reads RSS, RDF and Atom and cuts every field', () => {
@@ -48,7 +51,10 @@ test('the registry has unique https feeds with valid tiers, Hungarian sources an
     assert.ok([1, 2, 3, 4].includes(feed.tier), feed.source);
     assert.match(feed.lang, /^[a-z]{2}$/);
   }
-  assert.equal(HUNGARIAN_SOURCES.length, 7);
+  assert.equal(HUNGARIAN_SOURCES.length, 9);
+  for (const feed of NEWS_FEEDS) assert.ok(feed.topic === null || ['conflict', 'politics', 'technology', 'health', 'economy'].includes(feed.topic), feed.source);
+  assert.ok(NEWS_FEEDS.filter(feed => feed.topic === 'technology').length >= 10 && NEWS_FEEDS.filter(feed => feed.topic === 'health').length >= 5
+    && NEWS_FEEDS.filter(feed => feed.topic === 'politics').length >= 6 && NEWS_FEEDS.filter(feed => feed.topic === 'economy').length >= 10, 'specialist feeds of each topic');
   assert.equal(feedBySource('Telex').lang, 'hu');
   assert.equal(feedBySource('Al Jazeera').state, true);
   assert.equal(feedBySource('Nope'), undefined);
@@ -93,4 +99,28 @@ test('fetchAllNews carries the tier, language and state flag and limits one busy
   const other = await fetchAllNews([[url, 'Al Jazeera']]);
   assert.equal(other[0].state, true);
   assert.equal(other[0].lang, undefined);
+});
+
+
+test('specialist feeds: headlines carry the feed topic, a quota of 4 recent ones per feed reaches snapshot.topicNews, and the topic reaches the graph', async t => {
+  resetNewsCache();
+  t.after(() => resetNewsCache());
+  const stamp = hours => new Date(Date.now() - hours * 3600000).toUTCString();
+  const items = Array.from({ length: 8 }, (_, index) => `<item><title>Startup raises funds round ${index}</title><link>https://tc.example/${index}</link><pubDate>${stamp(index + 1)}</pubDate></item>`).join('')
+    + `<item><title>Old story</title><link>https://tc.example/old</link><pubDate>${stamp(80)}</pubDate></item>`;
+  const server = http.createServer((_req, res) => res.end(`<rss><channel>${items}</channel></rss>`));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => server.close());
+  const news = await fetchAllNews([[`http://127.0.0.1:${server.address().port}`, 'TechCrunch']]);
+  assert.equal(news[0].topic, 'technology');
+  const quota = topicHeadlines();
+  assert.equal(quota.length, 4, 'four per feed, none older than 48 hours');
+  assert.ok(quota.every(item => item.topic === 'technology' && item.source === 'TechCrunch'));
+  const events = buildEvents({ meta: { timestamp: new Date().toISOString() }, topicNews: quota, newsFeed: [{ headline: quota[0].title, url: quota[0].url, source: 'TechCrunch', type: 'rss', timestamp: quota[0].date }] });
+  const first = events.find(event => event.title === quota[0].title);
+  assert.equal(first.topic, 'technology', 'the ticker copy (no topic) and the quota copy merge, the topic stays');
+  assert.equal(events.filter(event => event.kind === 'news').length, 4);
+  const [record] = graphRecordsOf([first]);
+  assert.equal(record.topic, 'technology');
+  assert.ok(topicsOf(record.tokens, 'news', record.topic).has('technology'), 'a title without any technology word still counts as technology');
 });
