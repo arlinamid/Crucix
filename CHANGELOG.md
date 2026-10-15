@@ -1,5 +1,6 @@
 # Changelog / Változásnapló
 
+- [2.51.0 — Légi incidensek a hír előtt / Air incidents before the news](docs/releases/v2.51.0.md) — 2026-10-15
 - [2.50.0 — Munkafolyamat a nehéz háttérmunkához / A worker process for the heavy background work](docs/releases/v2.50.0.md) — 2026-10-15
 - [2.49.0 — Teljes szöveges keresés (FTS5), kisebb history és témaelemzés / Full-text search (FTS5), a smaller history and theme analysis](docs/releases/v2.49.0.md) — 2026-10-15
 - [2.48.1 — Aszinkron history-mentés és hibás források a health-ben / Asynchronous history backup and failing sources in health](docs/releases/v2.48.1.md) — 2026-10-15
