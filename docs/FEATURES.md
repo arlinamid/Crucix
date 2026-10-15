@@ -203,3 +203,9 @@ See the [release notes](releases/v2.39.0.md) and [v2.39.4](releases/v2.39.4.md).
 - **gzip** for the snapshot, the page and the static files (the snapshot ~3.4 MB → ~0.8 MB); the dashboard's live stream (`/events?lean=1`) announces a new snapshot instead of carrying it.
 - **A log file** (`runs/logs/crucix-YYYY-MM-DD.log`, 14 days) and, in `/api/health`, the post-processing step times of the last 24 hours and the last warnings and errors. See the [release notes](releases/v2.48.0.md).
 
+## Full-text search, a smaller history and theme analysis (v2.49)
+
+- **FTS5 search** of the history: words as word starts, quoted phrases, accents optional (10–35 ms instead of ~400 ms); covering index for the statistics.
+- **A smaller history**: compact rows (deflated, without the derived quality) and a gzipped daily backup (on the live data 65 MB → 49 MB, the backup 65 MB → 28 MB).
+- **Theme analysis** (`GET /api/history/themes`, `crucix --themes`): the most frequent words and phrases per topic and kind and the rising ones. The first report ([docs/audit/themes-2026-10.md](audit/themes-2026-10.md)) found that 82% of the news gets no topic. See the [release notes](releases/v2.49.0.md).
+

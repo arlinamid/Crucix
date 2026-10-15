@@ -19,6 +19,7 @@ import { fullBriefing } from '../apis/briefing.mjs';
 import { synthesize } from '../dashboard/inject.mjs';
 import { countryByIso2, countryByIso3 } from '../lib/intelligence/countries.mjs';
 import { SqliteHistoryStore, loadSqlite } from '../lib/intelligence/history.mjs';
+import { themeAnalysis } from '../lib/intelligence/themes.mjs';
 import { saveSnapshot } from '../lib/snapshots.mjs';
 import { createSweepPipeline } from '../lib/sweep-pipeline.mjs';
 import { currentLanguage } from '../lib/i18n.mjs';
@@ -207,6 +208,10 @@ function parseArgs(argv = process.argv.slice(2)) {
       opts.lang = arg.slice(7).toLowerCase().slice(0, 2);
     } else if (arg === '-H' || arg === '--history') {
       opts.history = true;
+    } else if (arg === '--themes') {
+      opts.themes = true;
+    } else if (arg === '--all-kinds') {
+      opts.allKinds = true;
     } else if (arg === '-c' || arg === '--category' || arg === '-k' || arg === '--kind') {
       opts.category = valueOf(arg) ?? opts.category;
     } else if (arg === '--country' || arg === '--co') {
@@ -1914,6 +1919,25 @@ async function main() {
   if (opts.air) {
     const synData = await getSynthesizedData(opts);
     showAir(synData, opts);
+    return;
+  }
+
+  // The themes of the history (offline, from runs/intelligence/history.db): --themes [--days N] [--all-kinds] [--json]
+  if (opts.themes) {
+    if (!existsSync(join(runsDir, 'intelligence', 'history.db')) || !loadSqlite()) {
+      console.log(opts.lang === 'hu' ? '❌ Nincs SQLite-history (runs/intelligence/history.db).' : '❌ No SQLite history (runs/intelligence/history.db).');
+      process.exitCode = 1;
+      return;
+    }
+    const days = Math.min(30, Math.max(1, Math.round((opts.sinceMs || 7 * 86400000) / 86400000)));
+    const result = await themeAnalysis(new SqliteHistoryStore(runsDir), { days, kinds: opts.allKinds ? null : ['news', 'osint'] });
+    if (opts.json) { console.log(JSON.stringify(result, null, 2)); return; }
+    const line = rows => rows.slice(0, 15).map(([text, count]) => `${text} (${count})`).join(', ');
+    console.log(`\nThemes · ${days} day(s) · ${result.records} record(s)${opts.allKinds ? '' : ' (news, OSINT)'}`);
+    console.log(`Topics: ${Object.entries(result.topics).map(([topic, n]) => `${topic} ${n}`).join(' · ')}`);
+    console.log(`\nPhrases: ${line(result.phrases)}`);
+    for (const [topic, row] of Object.entries(result.byTopic)) console.log(`\n[${topic}] ${row.records}: ${line(row.phrases)}`);
+    if (result.rising.length) console.log(`\nRising today: ${result.rising.slice(0, 15).map(r => `${r.word} ${r.today} (usual ${r.usual})`).join(', ')}`);
     return;
   }
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { HistoryStore, SqliteHistoryStore, loadSqlite } from '../lib/intelligence/history.mjs';
+import { HistoryStore, SqliteHistoryStore, ftsQuery, loadSqlite } from '../lib/intelligence/history.mjs';
 
 const NOW = Date.parse('2026-10-14T12:00:00.000Z');
 const MINUTE = 60000, DAY = 86400000;
@@ -80,7 +80,8 @@ test('retention is by days, not by a total record count; prune and the backup ru
   assert.equal(history.query().total, 1, 'records past 30 days are no longer served');
   assert.equal(history.prune(), 12000);
   assert.equal(await history.backup(), true);
-  assert.ok(existsSync(join(dir, 'intelligence', 'history.db.bak')));
+  assert.ok(existsSync(join(dir, 'intelligence', 'history.db.bak.gz')), 'a gzipped backup');
+  assert.ok(!existsSync(join(dir, 'intelligence', 'history.db.bak')));
 });
 
 test('an older history.json moves into the database once and is kept as .migrated', { skip }, t => {
@@ -128,4 +129,46 @@ test('the CLI reads the history from the SQLite database when there is one', { s
   const { code, stdout } = await runCli(['--history', '--no-server', '--json'], { workdir, runsDir });
   assert.equal(code, 0);
   assert.deepEqual(JSON.parse(stdout).map(row => row.title), ['Stored in SQLite']);
+});
+
+test('full-text search: words as prefixes, a quoted phrase, no accents needed; the source filter still matches inside names', { skip }, t => {
+  const clock = { now: NOW };
+  const { history } = store(t, clock);
+  history.add([
+    event(1, { title: 'Árvíz Mexikóban: három halott' }),
+    event(2, { title: 'Earthquake strikes northern Chile', source: { name: 'Reuters Wire', url: 'https://reuters.com/a', status: 'ok' } }),
+    event(3, { title: 'Chilean copper output falls' }),
+  ]);
+  const titles = q => history.query({ q }).items.map(row => row.title).sort();
+  assert.deepEqual(titles('arviz'), ['Árvíz Mexikóban: három halott']);
+  assert.deepEqual(titles('chile'), ['Chilean copper output falls', 'Earthquake strikes northern Chile'], 'a word start');
+  assert.deepEqual(titles('chile earthquake'), ['Earthquake strikes northern Chile'], 'every word');
+  assert.deepEqual(titles('"northern chile"'), ['Earthquake strikes northern Chile']);
+  assert.deepEqual(titles('"chile northern"'), []);
+  assert.deepEqual(titles('ile'), [], 'not a substring inside a word any more');
+  assert.equal(history.query({ q: `"'*;--` }).total, 3, 'punctuation only: no text filter, never an SQL error');
+  assert.equal(history.query({ source: 'wire' }).total, 1);
+  assert.equal(ftsQuery('Árvíz "Mexikó city" x-y'), '"mexiko city" AND "arviz"* AND "x"* AND "y"*');
+});
+
+test('rows stored by an older version are read as they were and rewritten compact; a gzipped backup restores a corrupt file', { skip }, async t => {
+  const clock = { now: NOW };
+  const { dir, history } = store(t, clock);
+  history.add([event(1), event(2)]);
+  const { DatabaseSync } = loadSqlite();
+  const db = new DatabaseSync(join(dir, 'intelligence', 'history.db'));
+  // A 2.48 row: the body as JSON text with the quality object in it.
+  const old = { ...event(2), quality: { level: 'partial', checks: {}, explanationCodes: ['legacy'] } };
+  delete old.collectedAt;
+  db.prepare('UPDATE records SET body = ? WHERE id = ?').run(JSON.stringify(old), id(2));
+  db.close();
+  assert.equal(history.get(id(2)).quality.explanationCodes[0], 'legacy', 'the old row reads as stored');
+  assert.equal(history.get(id(1)).quality.level, 'complete', 'a compact row gets its quality derived again');
+  assert.equal(history.compact(), 1); assert.equal(history.compact(), 0);
+  assert.equal(history.get(id(2)).title, 'Árvíz Mexikóban 2');
+  assert.equal(history.query({ q: 'mexikoban' }).total, 2, 'the index follows the rewrite');
+  await history.backup();
+  writeFileSync(join(dir, 'intelligence', 'history.db'), 'not a database, only text long enough to look like a header to sqlite');
+  const restored = new HistoryStore(dir, { now: () => clock.now });
+  assert.equal(restored.query({ q: 'arviz' }).total, 2);
 });

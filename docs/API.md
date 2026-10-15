@@ -89,6 +89,7 @@ Threat level: 1 = no firing alert, 2 = info, 3 = watch, 4 = high, 5 = critical.
 | Endpoint | Returns |
 |----------|---------|
 | `GET /api/history` | The stored event records, newest first: `{items, total, limit, offset, stats}`. Filters: `q` (text), `kind` (`news`, `osint`, `health`, `outage`, `conflict`, `signal` or a live-source kind), `source`, `from`, `to` (ISO timestamps), `limit` 1–200 (default 50), `offset`. |
+| `GET /api/history/themes` | `?days=1|3|7|14|30` (default 7), `?scope=news|all` (default news: news and OSINT only): the most frequent title words and two-word phrases overall, per topic (`none` for no topic) and per kind, and the words rising today (`{word, today, usual}`). Computed in the background at most hourly; `202 {pending:true}` until the first result. |
 | `GET /api/events/:id` | One event record (from the current snapshot or the history) with its source, location and quality checks |
 | `GET /api/export` | The same filters, up to 2,000 records, as a download. `format` = `json` (default), `csv`, `html` or `stix` (STIX 2.1 bundle of context notes). Headers `X-Export-Total`, `X-Export-Count`, `X-Export-Truncated` tell whether it was cut. |
 
@@ -177,5 +178,7 @@ curl -u owner:secret https://crucix.example.com/api/alerts/summary
 - There is no write API for data: Crucix collects public sources itself, so there is nothing to push in.
 - Source data keeps its original licence; see the credits panel in the app and the [data sources](DATA-SOURCES.md) when
   you republish what the API returns.
+
+The history text filter `q` is a full-text search (since 2.49): every word as a word start, `"a phrase"` in quotes, accents optional; `source` still matches inside source names. The stats add `firstSeenDays`.
 
 Responses of at least 4 KB (JSON, HTML, scripts, styles) are gzipped for a client that sends `Accept-Encoding: gzip` (since 2.48): the snapshot goes from ~3.4 MB to ~0.8 MB.

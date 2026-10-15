@@ -28,6 +28,7 @@ import { importStatePath, importSweepArchives, sweepArchiveDirs } from './lib/in
 import { createDictionaries } from './lib/intelligence/extract.mjs';
 import { Maintenance } from './lib/maintenance.mjs';
 import { installFileLog, SweepTimings } from './lib/logger.mjs';
+import { themeAnalysis } from './lib/intelligence/themes.mjs';
 import { LinkCache, linkWithModel } from './lib/llm/linker.mjs';
 import { KeywordStore } from './lib/intelligence/keywords.mjs';
 import { ThermalStore } from './lib/intelligence/thermal.mjs';
@@ -172,11 +173,35 @@ async function importSweeps(ctx) {
   maintenance.schedule('graph-backfill', backfillThreads, { delayMs: 1000 });
   maintenance.schedule('thread-archive', archiveThreads, { delayMs: 2000 });
 }
+// Rows stored as JSON text before 2.49 rewritten in the compact form (deflated body without the derived quality), a few hundred at a time.
+async function compactHistory(ctx) {
+  if (typeof history.compact !== 'function') return;
+  let total = 0, count;
+  while ((count = history.compact({ limit: 150 })) > 0) { total += count; await ctx.slice(); }
+  if (!total) return;
+  // Once: the file shrinks to its data and switches to incremental vacuuming (the daily trim then gives back free pages a little at a time).
+  const started = Date.now();
+  history.vacuum();
+  console.log(`[Maintenance] History compaction: ${total} record(s) rewritten in the compact form; file vacuumed in ${Date.now() - started} ms`);
+}
+// The themes of the history (lib/intelligence/themes.mjs) for GET /api/history/themes: computed in the background, at most hourly per
+// window and scope, never in a request. `scope` news = the reports only (news, OSINT), all = every kind.
+const THEME_DAYS = [1, 3, 7, 14, 30];
+const themesCache = new Map(); // `${days}|${scope}` -> { at, result }
+function scheduleThemes(days = 7, scope = 'news') {
+  const key = `${days}|${scope}`;
+  if (Date.now() - (themesCache.get(key)?.at ?? 0) < 3600000) return;
+  maintenance.schedule(`themes-${key}`, async ctx => {
+    const result = await themeAnalysis(history, { days, slice: ctx.slice, kinds: scope === 'news' ? ['news', 'osint'] : null });
+    themesCache.set(key, { at: Date.now(), result });
+  }, { delayMs: 30000 });
+}
 // The history's retention (by days) and its daily backup.
 let lastHistoryBackup = 0;
 async function keepHistory() {
   const removed = history.prune();
   if (removed) console.log(`[Maintenance] History: ${removed} record(s) past the retention removed`);
+  if (typeof history.trim === 'function') history.trim(2000);
   if (Date.now() - lastHistoryBackup > 24 * 3600000 && await history.backup()) lastHistoryBackup = Date.now();
 }
 // RISK_LLM_LINKING=true: the model's answers on borderline report pairs, kept for the life of the server.
@@ -379,6 +404,20 @@ app.get('/api/air', (req, res) => {
   if (!list) return res.status(503).json({ error: 'No aircraft list yet — it is written by the next successful OpenSky round' });
   res.set('Cache-Control', 'no-store');
   res.json(list);
+});
+
+// API: the most frequent words and phrases of the history, overall, per topic and per kind, and today's rising ones.
+app.get('/api/history/themes', (req, res) => {
+  const query = req.query ?? {};
+  if (Object.keys(query).some(key => key !== 'days' && key !== 'scope')) return res.status(400).json({ error: 'Unknown query parameter', code: 'INVALID_QUERY' });
+  const days = query.days === undefined ? 7 : Number(query.days), scope = query.scope === undefined ? 'news' : String(query.scope);
+  if (!THEME_DAYS.includes(days)) return res.status(400).json({ error: `days must be one of ${THEME_DAYS.join(', ')}`, code: 'INVALID_DAYS', field: 'days' });
+  if (scope !== 'news' && scope !== 'all') return res.status(400).json({ error: 'scope must be news or all', code: 'INVALID_SCOPE', field: 'scope' });
+  const cached = themesCache.get(`${days}|${scope}`);
+  scheduleThemes(days, scope);
+  if (!cached) return res.status(202).json({ pending: true, days, scope });
+  res.set('Cache-Control', 'no-store');
+  res.json({ computedAt: new Date(cached.at).toISOString(), scope, ...cached.result });
 });
 
 // API: the daily globe basemap (NASA GIBS VIIRS true colour of yesterday, cached; see lib/basemap.mjs)
@@ -660,6 +699,7 @@ async function runSweepCycle() {
     // After the sweep, in the background: the history's retention and backup, a day that has just finished goes into the thread archive.
     maintenance.schedule('history', keepHistory, { delayMs: 5000 });
     maintenance.schedule('thread-archive', archiveThreads, { delayMs: 10000 });
+    scheduleThemes(7, 'news');
 
     // 6. Push to all connected browsers
     broadcast({ type: 'update', data: currentData });
@@ -802,6 +842,7 @@ async function start() {
     maintenance.schedule('history-import', importSweeps, { delayMs: 75000 });
     maintenance.schedule('graph-backfill', backfillThreads, { delayMs: 90000 });
     maintenance.schedule('thread-archive', archiveThreads, { delayMs: 120000 });
+    maintenance.schedule('history-compact', compactHistory, { delayMs: 150000 });
 
     // Start 30-minute background world RSS runner (539 feeds)
     startWorldRssScheduler(30);
