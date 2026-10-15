@@ -1,5 +1,6 @@
 # Changelog / Változásnapló
 
+- [2.48.1 — Aszinkron history-mentés és hibás források a health-ben / Asynchronous history backup and failing sources in health](docs/releases/v2.48.1.md) — 2026-10-15
 - [2.48.0 — Gyors publikálás, gzip, naplófájl és az LLM-ötletek felülvizsgálata / Fast publishing, gzip, a log file and the LLM ideas reviewed](docs/releases/v2.48.0.md) — 2026-10-15
 - [2.47.0 — A régi sweepek a historyban, azonnal kitöltött szálarchívum / Old sweeps in the history, a past-thread archive filled at once](docs/releases/v2.47.0.md) — 2026-10-15
 - [2.46.0 — Háttérkarbantartás, 30 napos history és korábbi szálak / Background maintenance, a 30-day history and past threads](docs/releases/v2.46.0.md) — 2026-10-14
