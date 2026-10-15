@@ -2,6 +2,9 @@
 // Free for research. Tracks all aircraft with ADS-B transponders including many military.
 // API credits per day: 400 anonymous, 4,000 with an account, 8,000 for active feeders.
 // A /states/all box costs 1-4 credits by area; the global vector one round now asks for costs 4 (it was 28 for the ten boxes).
+// The air watch (lib/air/watch.mjs, in the worker process) asks for the global vector every few minutes with an account (5 minutes: 288
+// rounds, 1,152 credits a day) and writes each round to CRUCIX_HOME/cache/opensky-round.json; while that round is fresh the sweep serves
+// it instead of asking, so the two never spend credits twice.
 // Authentication is OAuth2 client credentials only (basic auth was removed on 2026-03-18):
 // https://opensky-network.org/my-opensky/account -> "Create a new API client" -> the
 // clientId/clientSecret of credentials.json go into OPENSKY_CLIENT_ID/OPENSKY_CLIENT_SECRET.
@@ -51,6 +54,10 @@ const MIN_FLOW = 2;
 // The full aircraft list for the map's detail views (GET /api/air), written each good round; never part of the source result.
 const AIRCRAFT_FILE = 'opensky-aircraft.json';
 const AIRCRAFT_MAX_BYTES = 8 * 1024 * 1024;
+// The air watch's latest round (the sweep's result plus the watch's incidents): served by briefing() while younger than WATCH_FRESH_MS.
+const WATCH_FILE = 'opensky-round.json';
+const WATCH_MAX_BYTES = 8 * 1024 * 1024;
+const WATCH_FRESH_MS = 20 * MINUTE;
 const ROUTE_BUDGET_MS = 15000;
 const MIN_REQUEST_MS = 2000; // a request is not started with less time than this left
 
@@ -67,13 +74,15 @@ function persistQuota() {
   writeQuota('opensky', { blockedUntil, lastRound: { at: lastRound.at, result } });
 }
 
-function hydrateQuota() {
-  if (hydrated) return;
+// Read once at start, and again on each round while the air watch may be writing it from the other process: a newer block or round
+// there counts here too.
+function hydrateQuota({ again = false } = {}) {
+  if (hydrated && !again) return;
   hydrated = true;
   const saved = readQuota('opensky');
   if (!saved) return;
-  if (Number(saved.blockedUntil) > 0) blockedUntil = Number(saved.blockedUntil);
-  if (Number(saved.lastRound?.at) > 0 && saved.lastRound.result) lastRound = saved.lastRound;
+  if (Number(saved.blockedUntil) > blockedUntil) blockedUntil = Number(saved.blockedUntil);
+  if (Number(saved.lastRound?.at) > lastRound.at && saved.lastRound.result) lastRound = saved.lastRound;
 }
 
 export function resetState({ disk = true } = {}) {
@@ -307,6 +316,27 @@ export function readAircraft(options) {
   } catch { return null; }
 }
 
+const watchPath = options => join(crucixHome(options), 'cache', WATCH_FILE);
+/** Writes the air watch's round ({ at, result }) for the sweep. */
+export function writeWatchRound(value, options) {
+  try {
+    mkdirSync(join(crucixHome(options), 'cache'), { recursive: true });
+    const file = watchPath(options), tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(value));
+    renameSync(tmp, file);
+    return true;
+  } catch { return false; }
+}
+/** The air watch's latest round ({ at, result }), or null. */
+export function readWatchRound(options) {
+  try {
+    const raw = readFileSync(watchPath(options), 'utf8');
+    if (raw.length > WATCH_MAX_BYTES) return null;
+    const data = JSON.parse(raw);
+    return Number.isFinite(data?.at) && data.result && typeof data.result === 'object' ? data : null;
+  } catch { return null; }
+}
+
 // A result for the whole source without any request.
 function failure(error, now) {
   const hotspots = Object.entries(HOTSPOTS).map(([key, box]) => ({
@@ -328,8 +358,11 @@ function blocked(now) {
 }
 
 // Briefing — the global flight picture: density grid, emergency squawks and the legacy hotspot counts
-export async function briefing({ now = Date.now() } = {}) {
-  hydrateQuota();
+export async function briefing({ now = Date.now(), options } = {}) {
+  hydrateQuota({ again: true });
+  // The air watch's round, while fresh: the same request, made a few minutes ago in the worker process, with its incidents.
+  const watched = readWatchRound(options);
+  if (watched && now - watched.at >= 0 && now - watched.at <= WATCH_FRESH_MS) return { ...watched.result, via: 'air-watch' };
   if (now < blockedUntil) return blocked(now);
   const deadline = Date.now() + ROUND_BUDGET_MS;
   const creds = credentials();
@@ -347,15 +380,37 @@ export async function briefing({ now = Date.now() } = {}) {
     token = session.token;
   }
 
-  // One global state vector per round (4 credits) instead of a request per theatre box: every aircraft, not ten boxes.
+  const round = await fetchRound({ creds, token, now, deadline, interval });
+  if (round.blocked) return blocked(now);
+  if (round.error) return failure(`OpenSky unavailable: ${round.error}`, now);
+  return round.result;
+}
+
+/**
+ * One round for the air watch (lib/air/watch.mjs): the global vector now, whatever the sweep's interval (the watch keeps its own), with an
+ * account only. `{ result, states, observedAt }` (the sweep's result and the raw state vectors), or `{ error, blocked? }`. Never throws.
+ */
+export async function watchRound({ now = Date.now() } = {}) {
+  hydrateQuota({ again: true });
+  if (now < blockedUntil) return { error: `OpenSky credit limit reached; retry after ${new Date(blockedUntil).toISOString()}`, blocked: true };
+  const creds = credentials();
+  if (!creds.secret) return { error: 'the air watch needs OPENSKY_CLIENT_ID and OPENSKY_CLIENT_SECRET (anonymous credits allow one round in two hours)', disabled: true };
+  const session = await getToken(creds, now, TOKEN_TIMEOUT_MS);
+  if (session.error) return { error: `OpenSky authentication failed (${session.error})` };
+  return fetchRound({ creds, token: session.token, now, deadline: Date.now() + ROUND_BUDGET_MS, interval: MIN_INTERVAL_MS.authenticated });
+}
+
+// One global state vector per round (4 credits) instead of a request per theatre box: every aircraft, not ten boxes. Its summary, the
+// routes, the aircraft list for the map; the round becomes lastRound. `{ result, states, observedAt }` or `{ error, blocked? }`.
+async function fetchRound({ creds, token, now, deadline, interval }) {
   const data = await fetchGlobal(creds, token, now, deadline);
   if (data?.status === 429) {
     blockedUntil = now + Math.min(MAX_BLOCK_MS, data.retryAfterMs ?? interval);
     persistQuota();
-    return blocked(now);
+    return { error: `OpenSky credit limit reached; retry after ${new Date(blockedUntil).toISOString()}`, blocked: true };
   }
   const error = data?.error || (!Array.isArray(data?.states) ? 'OpenSky answered without a state vector' : null);
-  if (error) return failure(`OpenSky unavailable: ${error}`, now);
+  if (error) return { error };
   const { aircraft, ...summary } = summarizeStates(data.states);
   // Routes of the airline callsigns (cached a day; a few hundred new ones a round), then the arcs: the busiest airport pairs.
   const routeDeadline = Math.min(deadline - 1000, Date.now() + ROUTE_BUDGET_MS);
@@ -381,7 +436,7 @@ export async function briefing({ now = Date.now() } = {}) {
   writeAircraft({ observedAt: result.observedAt ?? result.timestamp, at: result.timestamp, fields: AIRCRAFT_FIELDS, rows: aircraft });
   lastRound = { at: now, result };
   persistQuota();
-  return result;
+  return { result, states: data.states, observedAt: Number.isFinite(data.time) ? data.time * 1000 : now };
 }
 
 if (process.argv[1]?.endsWith('opensky.mjs')) {

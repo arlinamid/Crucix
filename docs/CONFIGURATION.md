@@ -223,6 +223,7 @@ All settings are in `.env` with sensible defaults:
 |----------|---------|-------------|
 | `PORT` | `3117` | Dashboard server port |
 | `REFRESH_INTERVAL_MINUTES` | `15` | Auto-refresh interval |
+| `AIR_WATCH_INTERVAL_MIN` | `5` | The air watch (v2.51): OpenSky's global vector every N minutes in the worker, for the air incidents (rapid descent, new emergency squawk, diversion). Needs the OpenSky account; 5 minutes = 1,152 of the 4,000 daily credits, at least 3 (1,920); its round also serves the sweep, so nothing is asked twice. `0` turns it off |
 | `LLM_PROVIDER` | disabled | `anthropic`, `openai`, `gemini`, `cursor`, `codex`, `openrouter`, `minimax`, `mistral`, `ollama`, `grok`, `openai-compatible` |
 | `LLM_API_KEY` | — | API key (not needed for codex/local Ollama; optional for a local compatible server) |
 | `CURSOR_API_KEY` | — | API key/token for Cursor LLM provider (`LLM_PROVIDER=cursor`) |

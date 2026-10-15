@@ -12,9 +12,9 @@
   //   fetchJson(url)             reads the API (without it the sheet is off: file pages, offline shell)
   //   openEvent(id), openCountry(iso3)   the record inspector and the country sheet (defaults: CrucixIntelligence / CrucixCountry)
   //   now()                      the page clock of the age labels
-  const THREAD=/^thread-[a-f0-9]{16}$/,EVENT_ID=/^event-[0-9a-f]{32}$/,ISO3=/^[A-Z]{3}$/,ENTITY=/^(?:country|chokepoint|site|actor|cve):[A-Za-z0-9_.-]{1,80}$/;
+  const THREAD=/^thread-[a-f0-9]{16}$/,EVENT_ID=/^event-[0-9a-f]{32}$/,ISO3=/^[A-Z]{3}$/,ENTITY=/^(?:country|chokepoint|site|actor|cve|flight|aircraft|airline):[A-Za-z0-9_.-]{1,80}$/;
   const ISO_TIME=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
-  const LEVELS=['critical','high','watch','info'],STATUSES=['emerging','escalating','active','fading'],TYPES=['country','chokepoint','site','actor','cve'],TOP=8,
+  const LEVELS=['critical','high','watch','info'],STATUSES=['emerging','escalating','active','fading'],TYPES=['country','chokepoint','site','actor','cve','flight','aircraft','airline'],TOP=8,
     TOPICS=['conflict','politics','technology','disaster','health','economy'],FILTER_KEY='crucix_threads_topic_v1';
   // The panel's topic filter: 'all' or one of TOPICS, remembered on this browser (a convenience; storage may be blocked).
   let topicFilter=(()=>{try{const saved=window.localStorage?.getItem(FILTER_KEY);return TOPICS.includes(saved)?saved:'all';}catch{return 'all';}})();
@@ -26,7 +26,7 @@
     span:'{first} – {last}',records:'Records',links:'Links',linksSummary:'{story} same-story links · {cooccurs} co-occurrence links',
     linkHelp:'A same-story link joins reports with alike titles from different outlets; a co-occurrence joins records naming the same strait, site, actor or CVE, or observations within 100 km and a day. Syndicated copies of one wire story are one source.',
     entities:'Named in the thread',countries:'Countries',entity:'Entity',entityEvents:'Records in the last 7 days',neighbors:'Named together with',neighborCount:'{count} records',entityThreads:'Threads',
-    entityNone:'No record names this entity in the last 7 days.',back:'Back to the thread',type_country:'Country',type_chokepoint:'Chokepoint',type_site:'Military area',type_actor:'Threat actor',type_cve:'Vulnerability',
+    entityNone:'No record names this entity in the last 7 days.',back:'Back to the thread',type_country:'Country',type_chokepoint:'Chokepoint',type_site:'Military area',type_actor:'Threat actor',type_cve:'Vulnerability',type_flight:'Flight',type_aircraft:'Aircraft',type_airline:'Airline',
     rel_located:'located',rel_near:'nearby','rel_located-in':'located',rel_mentions:'named',rel_involves:'named',untitled:'Title unavailable',open:'Open the thread',
     replayNote:'The thread sheet reads the live graph, so it is off during the replay. The list shown is the replayed sweep’s own.',
     viewLabel:'Current or past threads',viewCurrent:'Current',viewPast:'Past',showAll:'Show all ({count})',showLess:'Show fewer',listLoading:'Loading the threads…',listError:'Could not load the threads. Try again later.',

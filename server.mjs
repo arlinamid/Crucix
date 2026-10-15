@@ -30,6 +30,7 @@ import { Maintenance } from './lib/maintenance.mjs';
 import { installFileLog, SweepTimings } from './lib/logger.mjs';
 import { themeAnalysis } from './lib/intelligence/themes.mjs';
 import { WorkerHost } from './lib/worker/host.mjs';
+import { AirWatch, airWatchRound } from './lib/air/watch.mjs';
 import { riskInputs } from './lib/intelligence/risk-step.mjs';
 import { LinkCache, linkWithModel } from './lib/llm/linker.mjs';
 import { KeywordStore } from './lib/intelligence/keywords.mjs';
@@ -213,6 +214,33 @@ function scheduleThemes(days = 7, scope = 'news') {
 }
 // The history's retention (by days) and its daily backup.
 let lastHistoryBackup = 0;
+
+// The air watch (lib/air/watch.mjs): a round every config.airWatchMinutes in the worker (here when there is none), with an OpenSky account.
+// Its rounds also serve the sweep's OpenSky source (opensky.mjs readWatchRound), so the credits are spent once.
+const airWatch = { local: null, running: false, last: null, timer: null, day: null, rounds: 0 };
+async function airWatchTick() {
+  if (airWatch.running) return;
+  airWatch.running = true;
+  try {
+    const result = await worker.run('air-watch', {}, () => airWatchRound(airWatch.local ??= new AirWatch()), { timeoutMs: 5 * 60000 });
+    const day = new Date().toISOString().slice(0, 10);
+    if (airWatch.day !== day) { airWatch.day = day; airWatch.rounds = 0; }
+    if (result?.ok) airWatch.rounds++;
+    airWatch.last = { at: new Date().toISOString(), ...result };
+    if (result?.disabled) {
+      clearInterval(airWatch.timer);
+      airWatch.timer = null;
+      console.warn(`[AirWatch] Off: ${result.error}`);
+    } else if (!result?.ok) console.warn(`[AirWatch] Round failed: ${result?.error}`);
+    else if (result.found) console.log(`[AirWatch] ${result.found} new incident(s); ${result.incidents} in the last 6 hours`);
+  } catch (error) {
+    airWatch.last = { at: new Date().toISOString(), ok: false, error: String(error?.message || error).slice(0, 300) };
+  } finally { airWatch.running = false; }
+}
+function airWatchStatus() {
+  return { enabled: Boolean(config.airWatchMinutes), running: Boolean(airWatch.timer), intervalMin: config.airWatchMinutes || null,
+    roundsToday: airWatch.rounds, creditsToday: airWatch.rounds * 4, last: airWatch.last };
+}
 async function keepHistory() {
   const removed = await worker.run('history-prune', { runsDir: RUNS_DIR }, () => {
     const count = history.prune();
@@ -508,6 +536,7 @@ app.get('/api/health', (req, res) => {
     riskStatus,
     maintenance: maintenance.status(),
     worker: worker.status(),
+    airWatch: airWatchStatus(),
     sweeps: sweepTimings.summary(),
     log: fileLog ? { recent: fileLog.recent() } : null,
     archiveStatus: sweepArchive.status,
@@ -866,6 +895,12 @@ async function start() {
     setInterval(runSweepCycle, config.refreshIntervalMinutes * 60 * 1000);
     // The worker process for the background jobs (its own failure only means they run here).
     worker.start().then(ok => { if (!ok) console.warn('[Worker] Not available; background jobs run in the server'); });
+    // The air watch's first round once the worker had time to start, then every config.airWatchMinutes.
+    if (config.airWatchMinutes) {
+      airWatch.timer = setInterval(airWatchTick, config.airWatchMinutes * 60000);
+      airWatch.timer.unref?.();
+      setTimeout(airWatchTick, 20000).unref?.();
+    }
     // The background maintenance's start-up work, after the first sweep has had time to finish: the history's retention and backup, the
     // graph backfill from the history (the records of the thread window the graph never saw), the past-thread archive.
     maintenance.schedule('history', keepHistory, { delayMs: 60000 });

@@ -80,6 +80,9 @@ export default {
     embedOrigins: envOrigins('EMBED_ORIGINS'),
   },
   refreshIntervalMinutes: envInteger('REFRESH_INTERVAL_MINUTES', 15, 1, 1440),
+  // The air watch (lib/air/watch.mjs): OpenSky's global vector every N minutes with an account (5: 1,152 of the 4,000 daily credits), for the
+  // air incidents; at least 3 (1,920 credits), 0 turns it off (the sweep then asks every 15 minutes as before).
+  airWatchMinutes: (minutes => minutes && Math.max(3, minutes))(envInteger('AIR_WATCH_INTERVAL_MIN', 5, 0, 120)),
 
   // Small public watchlists. Adapters validate/cap these values; no API keys.
   publicSources: {

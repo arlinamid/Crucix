@@ -209,6 +209,12 @@ See the [release notes](releases/v2.39.0.md) and [v2.39.4](releases/v2.39.4.md).
 - **A smaller history**: compact rows (deflated, without the derived quality) and a gzipped daily backup (on the live data 65 MB → 49 MB, the backup 65 MB → 28 MB).
 - **Theme analysis** (`GET /api/history/themes`, `crucix --themes`): the most frequent words and phrases per topic and kind and the rising ones. The first report ([docs/audit/themes-2026-10.md](audit/themes-2026-10.md)) found that 82% of the news gets no topic. See the [release notes](releases/v2.49.0.md).
 
+## Air incidents before the news (v2.51)
+
+- **The air watch** asks OpenSky for every aircraft every 5 minutes (in the worker; `AIR_WATCH_INTERVAL_MIN`, with the OpenSky account), keeps an hour's track of each and reports an **air incident** when an aircraft falls 2,400 m (~8,000 ft) or more from above FL200 within about ten minutes far from its destination, newly sets an emergency squawk, or lands far from both ends of the route it was flying (or back at its origin). An incident is an aviation record (`Air-Watch`): it opens a story thread, shows on the map as a ringed plane, and names the flight, registration and airline (adsbdb.com), so a report of the same flight joins its thread later.
+- **New entities** in every record: `flight:LH400`, `aircraft:D-AIMA`, `airline:DLH`, from flight numbers, callsigns, registrations and airline names in an aviation context (not F-35, B-52H, N95 or A320). A shared flight or registration links at full strength; an airline only with an incident report.
+- The sweep's OpenSky source serves the watch's latest round: the credits are spent once. `/api/health` → `airWatch`. See the [release notes](releases/v2.51.0.md).
+
 ## A worker process (v2.50)
 
 - The heavy background work (history import, thread archive, compaction and VACUUM, backup and retention, theme analysis, a sweep's entity extraction) runs in a child process (`crucix __worker`, IPC) on another core; the live graph's linking and threads stay in the server. Without a worker the same jobs run in the server. `/api/health` → `worker`. During a heavy catch-up: p95 48 ms instead of 210 ms. See the [release notes](releases/v2.50.0.md).

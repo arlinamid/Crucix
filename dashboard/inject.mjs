@@ -358,6 +358,24 @@ export function airFlowsOf(rows) {
     .filter(row => row.from && row.to && Number.isSafeInteger(row.count) && row.count > 0).slice(0, MAX_AIR_FLOWS);
 }
 
+// The air watch's incidents (lib/air/watch.mjs describe), the last six hours: aviation records for the events, a marker each on the map.
+const MAX_AIR_INCIDENTS = 60;
+const INCIDENT_TYPES = new Set(['descent', 'squawk', 'diversion', 'return']);
+const AIRPORT_CODE = /^[A-Z0-9]{3,4}$/;
+export function airIncidentsOf(rows) {
+  return (Array.isArray(rows) ? rows : []).filter(row => row && INCIDENT_TYPES.has(row.type) && finite(row.lat) && finite(row.lon)
+    && Math.abs(row.lat) <= 90 && Math.abs(row.lon) <= 180 && typeof row.providerId === 'string' && typeof row.title === 'string'
+    && Number.isFinite(Date.parse(row.observedAt))).slice(0, MAX_AIR_INCIDENTS).map(row => ({
+    providerId: clip(row.providerId, 120), kind: 'aviation', type: row.type, source: 'Air-Watch', sourceStatus: 'ok',
+    title: clip(row.title, 300), summary: clip(row.summary, 2000), url: /^https:\/\/globe\.adsb\.lol\/\?icao=[0-9a-f]{6}$/.test(row.url) ? row.url : null,
+    observedAt: new Date(Date.parse(row.observedAt)).toISOString(), lat: row.lat, lon: row.lon, locationMethod: 'provider', locationPrecision: 'exact',
+    severity: ['critical', 'high', 'elevated'].includes(row.severity) ? row.severity : 'elevated',
+    icao24: clip(row.icao24, 6), callsign: clip(row.callsign, 8) || null, flight: clip(row.flight, 8) || null, registration: clip(row.registration, 10) || null,
+    aircraftType: clip(row.aircraftType, 4) || null, airline: clip(row.airline, 80) || null,
+    from: AIRPORT_CODE.test(row.from) ? row.from : null, to: AIRPORT_CODE.test(row.to) ? row.to : null,
+  }));
+}
+
 export function loadOpenSkyFallback(currentTimestamp, runsDir = config.runsDir || join(ROOT, 'runs'), ttlMs = 3600000) {
   if (!existsSync(runsDir)) return null;
 
@@ -550,6 +568,8 @@ export async function synthesize(data, options = {}) {
   const airAlerts = airAlertsOf(airRound.alerts);
   const airNotable = airNotableOf(airRound.notable);
   const airFlows = airFlowsOf(airRound.flows);
+  // Only a live round carries incidents: an old fallback round's would come back as new.
+  const airIncidents = airIncidentsOf(data.sources.OpenSky?.incidents);
   const thermal = (data.sources.FIRMS?.hotspots || []).map(h => ({
     region: h.region, det: h.totalDetections || 0, night: h.nightDetections || 0,
     hc: h.highConfidence || 0,
@@ -880,7 +900,7 @@ export async function synthesize(data, options = {}) {
   const topicNews = options.news ? [] : topicHeadlines();
 
   const V2 = {
-    meta: data.crucix, air, airGrid, airAlerts, airNotable, airFlows, thermal, tSignals, chokepoints, aisVessels, nuke, nukeSignals, liveSources, cyclones,
+    meta: data.crucix, air, airGrid, airAlerts, airNotable, airFlows, airIncidents, thermal, tSignals, chokepoints, aisVessels, nuke, nukeSignals, liveSources, cyclones,
     airMeta: {
       fallback: Boolean(airFallback),
       liveTotal: sumAirHotspots(liveAirHotspots),
