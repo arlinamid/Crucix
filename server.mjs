@@ -166,6 +166,8 @@ async function importSweeps(ctx) {
   if (!result.files) return;
   console.log(`[Maintenance] History import: ${result.files} sweep file(s), ${result.events} event(s), ${result.added} new record(s)`);
   if (!result.added) return;
+  // The daily backup must hold what the import brought in, not wait for tomorrow's.
+  maintenance.schedule('history-backup', async () => { if (await history.backup()) lastHistoryBackup = Date.now(); }, { delayMs: 500 });
   if (threadArchive) threadArchive.invalidate(result.days);
   maintenance.schedule('graph-backfill', backfillThreads, { delayMs: 1000 });
   maintenance.schedule('thread-archive', archiveThreads, { delayMs: 2000 });
@@ -175,7 +177,7 @@ let lastHistoryBackup = 0;
 async function keepHistory() {
   const removed = history.prune();
   if (removed) console.log(`[Maintenance] History: ${removed} record(s) past the retention removed`);
-  if (Date.now() - lastHistoryBackup > 24 * 3600000 && history.backup()) lastHistoryBackup = Date.now();
+  if (Date.now() - lastHistoryBackup > 24 * 3600000 && await history.backup()) lastHistoryBackup = Date.now();
 }
 // RISK_LLM_LINKING=true: the model's answers on borderline report pairs, kept for the life of the server.
 const linkCache = new LinkCache();
@@ -425,6 +427,9 @@ app.get('/api/health', (req, res) => {
     sweepStartedAt,
     sourcesOk: currentData?.meta?.sourcesOk || 0,
     sourcesFailed: currentData?.meta?.sourcesFailed || 0,
+    // Which ones: the source-health rows of the snapshot (n = name).
+    failingSources: (currentData?.health || []).filter(row => row?.err).map(row => row.n).slice(0, 40),
+    staleSources: (currentData?.health || []).filter(row => row?.stale && !row?.err).map(row => row.n).slice(0, 40),
     llmEnabled: !!llmProvider?.isConfigured,
     ideasEveryNSweeps: ideaCadence.everyNSweeps,
     llmProvider: config.llm.provider,

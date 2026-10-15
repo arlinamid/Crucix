@@ -59,6 +59,7 @@ test('queries run in SQL: accent-free text, source, kind, date range, paging and
   const page = history.query({ limit: 1, offset: 1 });
   assert.equal(page.items.length, 1); assert.equal(page.total, 3);
   assert.deepEqual(page.stats.days, [{ date: '2026-10-14', count: 2 }, { date: '2026-10-15', count: 1 }]);
+  assert.deepEqual(page.stats.firstSeenDays, [{ date: '2026-10-14', count: 2 }, { date: '2026-10-15', count: 1 }]);
   assert.deepEqual({ ...page.stats.byKind }, { news: 2, osint: 1 });
   assert.equal(page.stats.totalRecords, 3); assert.equal(page.stats.engine, 'sqlite'); assert.equal(page.stats.retentionDays, 30);
   assert.equal(history.query({ offset: 900000 }).items.length, 0, 'beyond the old 10,000-record cap is a valid offset');
@@ -67,7 +68,7 @@ test('queries run in SQL: accent-free text, source, kind, date range, paging and
   assert.deepEqual([...many.keys()], [id(3), id(1)]);
 });
 
-test('retention is by days, not by a total record count; prune and the backup run for the background maintenance', { skip }, t => {
+test('retention is by days, not by a total record count; prune and the backup run for the background maintenance', { skip }, async t => {
   const clock = { now: NOW };
   const { dir, history } = store(t, clock);
   history.add(Array.from({ length: 12000 }, (_, n) => event(n + 1)));
@@ -78,7 +79,7 @@ test('retention is by days, not by a total record count; prune and the backup ru
   clock.now += 2 * DAY;
   assert.equal(history.query().total, 1, 'records past 30 days are no longer served');
   assert.equal(history.prune(), 12000);
-  assert.equal(history.backup(), true);
+  assert.equal(await history.backup(), true);
   assert.ok(existsSync(join(dir, 'intelligence', 'history.db.bak')));
 });
 
@@ -96,11 +97,11 @@ test('an older history.json moves into the database once and is kept as .migrate
   assert.equal(new HistoryStore(dir, { now: () => NOW }).query().total, 1, 'not migrated twice');
 });
 
-test('a corrupt database is replaced by its backup', { skip }, t => {
+test('a corrupt database is replaced by its backup', { skip }, async t => {
   const clock = { now: NOW };
   const { dir, history } = store(t, clock);
   history.add([event(1)]);
-  history.backup();
+  await history.backup();
   writeFileSync(join(dir, 'intelligence', 'history.db'), 'this is not a database at all, just text that is long enough to be read as a header');
   const restored = new HistoryStore(dir, { now: () => clock.now });
   assert.equal(restored.get(id(1)).title, 'Árvíz Mexikóban 1');
