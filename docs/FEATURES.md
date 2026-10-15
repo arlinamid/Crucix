@@ -209,3 +209,7 @@ See the [release notes](releases/v2.39.0.md) and [v2.39.4](releases/v2.39.4.md).
 - **A smaller history**: compact rows (deflated, without the derived quality) and a gzipped daily backup (on the live data 65 MB → 49 MB, the backup 65 MB → 28 MB).
 - **Theme analysis** (`GET /api/history/themes`, `crucix --themes`): the most frequent words and phrases per topic and kind and the rising ones. The first report ([docs/audit/themes-2026-10.md](audit/themes-2026-10.md)) found that 82% of the news gets no topic. See the [release notes](releases/v2.49.0.md).
 
+## A worker process (v2.50)
+
+- The heavy background work (history import, thread archive, compaction and VACUUM, backup and retention, theme analysis, a sweep's entity extraction) runs in a child process (`crucix __worker`, IPC) on another core; the live graph's linking and threads stay in the server. Without a worker the same jobs run in the server. `/api/health` → `worker`. During a heavy catch-up: p95 48 ms instead of 210 ms. See the [release notes](releases/v2.50.0.md).
+

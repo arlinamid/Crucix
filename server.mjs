@@ -29,6 +29,8 @@ import { createDictionaries } from './lib/intelligence/extract.mjs';
 import { Maintenance } from './lib/maintenance.mjs';
 import { installFileLog, SweepTimings } from './lib/logger.mjs';
 import { themeAnalysis } from './lib/intelligence/themes.mjs';
+import { WorkerHost } from './lib/worker/host.mjs';
+import { riskInputs } from './lib/intelligence/risk-step.mjs';
 import { LinkCache, linkWithModel } from './lib/llm/linker.mjs';
 import { KeywordStore } from './lib/intelligence/keywords.mjs';
 import { ThermalStore } from './lib/intelligence/thermal.mjs';
@@ -102,6 +104,8 @@ let historyStatus = 'ok';
 // The background maintenance (lib/maintenance.mjs): saving the risk stores after a sweep, the history's retention and daily backup, the
 // graph backfill from the history and the past-thread archive. None of it runs in a sweep's critical path or in a request.
 const maintenance = new Maintenance();
+// The worker process (lib/worker): the background jobs' heavy work runs there, on another core; without it they run here as before.
+const worker = new WorkerHost();
 function recordSnapshotEvents(snapshot) {
   if (Array.isArray(snapshot.liveSources)) snapshot.liveSources = stampLiveEventIds(snapshot.liveSources);
   snapshot.events = buildEvents(snapshot);
@@ -151,24 +155,31 @@ async function backfillThreads(ctx) {
 // The finished days' threads, computed once each; then the days past the 30 kept go.
 async function archiveThreads(ctx) {
   if (!threadArchive) return;
-  const dictionaries = createDictionaries({ actors: riskLatest?.inputs?.actors });
-  // The days overlap by 72 hours: each record's entities are extracted once for the whole run.
-  const cache = new Map();
-  for (const day of threadArchive.pendingDays(history)) {
-    const count = await threadArchive.computeDay(day, history, { dictionaries, slice: ctx.slice, cache });
-    console.log(`[Maintenance] Thread archive ${day}: ${count} thread(s)`);
-  }
-  threadArchive.prune();
+  const actors = riskLatest?.inputs?.actors ?? null;
+  const days = await worker.run('thread-archive', { runsDir: RUNS_DIR, actors }, async () => {
+    const dictionaries = createDictionaries({ actors });
+    // The days overlap by 72 hours: each record's entities are extracted once for the whole run.
+    const cache = new Map(), out = [];
+    for (const day of threadArchive.pendingDays(history)) out.push([day, await threadArchive.computeDay(day, history, { dictionaries, slice: ctx.slice, cache })]);
+    threadArchive.prune();
+    return out;
+  });
+  // The worker wrote the files: the server's copy of the archive reads them afresh.
+  threadArchive.cache.clear();
+  for (const [day, count] of days) console.log(`[Maintenance] Thread archive ${day}: ${count} thread(s)`);
 }
 // The archived sweeps' events into the history (the days before 2.46 kept only the newest 10,000 records; every sweep archive kept its
 // events whole). Each file once; the days it adds to are archived again, the live graph is filled again.
 async function importSweeps(ctx) {
-  const result = await importSweepArchives(history, sweepArchiveDirs(RUNS_DIR), { statePath: importStatePath(RUNS_DIR), slice: ctx.slice, log: console });
+  const result = await worker.run('history-import', { runsDir: RUNS_DIR }, async () => {
+    const found = await importSweepArchives(history, sweepArchiveDirs(RUNS_DIR), { statePath: importStatePath(RUNS_DIR), slice: ctx.slice, log: console });
+    return { ...found, days: [...found.days] };
+  });
   if (!result.files) return;
   console.log(`[Maintenance] History import: ${result.files} sweep file(s), ${result.events} event(s), ${result.added} new record(s)`);
   if (!result.added) return;
   // The daily backup must hold what the import brought in, not wait for tomorrow's.
-  maintenance.schedule('history-backup', async () => { if (await history.backup()) lastHistoryBackup = Date.now(); }, { delayMs: 500 });
+  maintenance.schedule('history-backup', async () => { if (await worker.run('history-backup', { runsDir: RUNS_DIR }, () => history.backup())) lastHistoryBackup = Date.now(); }, { delayMs: 500 });
   if (threadArchive) threadArchive.invalidate(result.days);
   maintenance.schedule('graph-backfill', backfillThreads, { delayMs: 1000 });
   maintenance.schedule('thread-archive', archiveThreads, { delayMs: 2000 });
@@ -176,13 +187,16 @@ async function importSweeps(ctx) {
 // Rows stored as JSON text before 2.49 rewritten in the compact form (deflated body without the derived quality), a few hundred at a time.
 async function compactHistory(ctx) {
   if (typeof history.compact !== 'function') return;
-  let total = 0, count;
-  while ((count = history.compact({ limit: 150 })) > 0) { total += count; await ctx.slice(); }
-  if (!total) return;
-  // Once: the file shrinks to its data and switches to incremental vacuuming (the daily trim then gives back free pages a little at a time).
-  const started = Date.now();
-  history.vacuum();
-  console.log(`[Maintenance] History compaction: ${total} record(s) rewritten in the compact form; file vacuumed in ${Date.now() - started} ms`);
+  const { rewritten, vacuumMs } = await worker.run('history-compact', { runsDir: RUNS_DIR }, async () => {
+    let total = 0, count;
+    while ((count = history.compact({ limit: 150 })) > 0) { total += count; await ctx.slice(); }
+    if (!total) return { rewritten: 0, vacuumMs: null };
+    // Once: the file shrinks to its data and switches to incremental vacuuming (the daily trim then gives back free pages a little at a time).
+    const started = Date.now();
+    history.vacuum();
+    return { rewritten: total, vacuumMs: Date.now() - started };
+  });
+  if (rewritten) console.log(`[Maintenance] History compaction: ${rewritten} record(s) rewritten in the compact form; file vacuumed in ${vacuumMs} ms`);
 }
 // The themes of the history (lib/intelligence/themes.mjs) for GET /api/history/themes: computed in the background, at most hourly per
 // window and scope, never in a request. `scope` news = the reports only (news, OSINT), all = every kind.
@@ -192,17 +206,21 @@ function scheduleThemes(days = 7, scope = 'news') {
   const key = `${days}|${scope}`;
   if (Date.now() - (themesCache.get(key)?.at ?? 0) < 3600000) return;
   maintenance.schedule(`themes-${key}`, async ctx => {
-    const result = await themeAnalysis(history, { days, slice: ctx.slice, kinds: scope === 'news' ? ['news', 'osint'] : null });
+    const kinds = scope === 'news' ? ['news', 'osint'] : null;
+    const result = await worker.run('themes', { runsDir: RUNS_DIR, days, kinds }, () => themeAnalysis(history, { days, slice: ctx.slice, kinds }));
     themesCache.set(key, { at: Date.now(), result });
   }, { delayMs: 30000 });
 }
 // The history's retention (by days) and its daily backup.
 let lastHistoryBackup = 0;
 async function keepHistory() {
-  const removed = history.prune();
+  const removed = await worker.run('history-prune', { runsDir: RUNS_DIR }, () => {
+    const count = history.prune();
+    if (typeof history.trim === 'function') history.trim(2000);
+    return count;
+  });
   if (removed) console.log(`[Maintenance] History: ${removed} record(s) past the retention removed`);
-  if (typeof history.trim === 'function') history.trim(2000);
-  if (Date.now() - lastHistoryBackup > 24 * 3600000 && await history.backup()) lastHistoryBackup = Date.now();
+  if (Date.now() - lastHistoryBackup > 24 * 3600000 && await worker.run('history-backup', { runsDir: RUNS_DIR }, () => history.backup())) lastHistoryBackup = Date.now();
 }
 // RISK_LLM_LINKING=true: the model's answers on borderline report pairs, kept for the life of the server.
 const linkCache = new LinkCache();
@@ -212,9 +230,18 @@ riskThermal?.load();
 let riskStatus = config.risk.enabled ? 'unavailable' : 'disabled';
 let riskLatest = null; // the last successful step: {at, scores, inputs}
 // Never throws: on a failure the snapshot goes on without `risk` and /api/health says 'unavailable'.
-function recordRisk(snapshot, raw) {
+// The entity extraction of the sweep's events the graph has not seen yet, in the worker (~0.6 ms an event, off the event loop); null
+// when there is no worker or it failed (the risk step then extracts them itself).
+async function extractInWorker(snapshot, raw) {
+  if (!riskGraph || !worker.available) return null;
+  const fresh = (Array.isArray(snapshot.events) ? snapshot.events : []).filter(event => event && typeof event === 'object' && !riskGraph.knows(event.id));
+  if (!fresh.length) return [];
+  try { return await worker.call('extract', { events: fresh, actors: riskInputs(raw, Date.now()).sources.actors ?? null }, { timeoutMs: 120000 }); }
+  catch (error) { console.warn(`[Worker] Extraction in the server instead (${error?.message || error})`); return null; }
+}
+function recordRisk(snapshot, raw, extracted = null) {
   if (!riskStore) return;
-  const result = runRiskStep({ store: riskStore, journal: riskJournal, keywords: riskKeywords, thermal: riskThermal, graph: riskGraph, threads: riskThreads, snapshot, raw, now: Date.now(), language: currentLanguage, persist: persistStore });
+  const result = runRiskStep({ store: riskStore, journal: riskJournal, keywords: riskKeywords, thermal: riskThermal, graph: riskGraph, threads: riskThreads, snapshot, raw, now: Date.now(), language: currentLanguage, persist: persistStore, extracted });
   riskStatus = result.ok ? 'ok' : 'unavailable';
   if (result.ok) riskLatest = result;
 }
@@ -480,6 +507,7 @@ app.get('/api/health', (req, res) => {
     ideas: { everyNSweeps: ideaCadence.everyNSweeps, running: ideasRunning, last: ideaCadence.lastRun ?? null },
     riskStatus,
     maintenance: maintenance.status(),
+    worker: worker.status(),
     sweeps: sweepTimings.summary(),
     log: fileLog ? { recent: fileLog.recent() } : null,
     archiveStatus: sweepArchive.status,
@@ -680,7 +708,7 @@ async function runSweepCycle() {
     recordSnapshotEvents(synthesized);
     await step('events+history');
     // Country risk: sets synthesized.risk before the alert metrics read it and before the sweep is archived; never throws.
-    recordRisk(synthesized, rawData);
+    recordRisk(synthesized, rawData, await extractInWorker(synthesized, rawData));
     await step('risk+graph+threads');
     // The optional model help for the entity graph runs in the background: its links show in the next sweep's threads.
     if (riskGraph && config.risk.llmLinking && llmProvider?.isConfigured) {
@@ -836,6 +864,8 @@ async function start() {
 
     // Schedule recurring sweeps
     setInterval(runSweepCycle, config.refreshIntervalMinutes * 60 * 1000);
+    // The worker process for the background jobs (its own failure only means they run here).
+    worker.start().then(ok => { if (!ok) console.warn('[Worker] Not available; background jobs run in the server'); });
     // The background maintenance's start-up work, after the first sweep has had time to finish: the history's retention and backup, the
     // graph backfill from the history (the records of the thread window the graph never saw), the past-thread archive.
     maintenance.schedule('history', keepHistory, { delayMs: 60000 });

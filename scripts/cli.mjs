@@ -20,6 +20,7 @@ import { synthesize } from '../dashboard/inject.mjs';
 import { countryByIso2, countryByIso3 } from '../lib/intelligence/countries.mjs';
 import { SqliteHistoryStore, loadSqlite } from '../lib/intelligence/history.mjs';
 import { themeAnalysis } from '../lib/intelligence/themes.mjs';
+import { runWorker } from '../lib/worker/main.mjs';
 import { saveSnapshot } from '../lib/snapshots.mjs';
 import { createSweepPipeline } from '../lib/sweep-pipeline.mjs';
 import { currentLanguage } from '../lib/i18n.mjs';
@@ -1626,6 +1627,8 @@ function showDelta(opts = {}) {
 // === Main CLI Execution ===
 
 async function main() {
+  // The server's worker process (lib/worker/host.mjs starts it with an IPC channel): no CLI around it, no instance lock.
+  if (process.argv.slice(2)[0] === '__worker') { await runWorker({ runsDir }); return; }
   const opts = parseArgs();
   const lang = getCliLanguage(opts);
   opts.lang = lang;
