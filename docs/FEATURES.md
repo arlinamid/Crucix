@@ -192,3 +192,8 @@ See the [release notes](releases/v2.39.0.md) and [v2.39.4](releases/v2.39.4.md).
 - **Threads from the history.** The graph is filled with the history records of the 72-hour window it never saw, and each finished day's threads are archived (`GET /api/threads/archive`, kept 30 days). The threads panel gets **Current / Past** views, topic chips that count every thread, and **Show all** (`GET /api/threads?topic&offset&limit`).
 - **Faster sweeps:** entity extraction runs only for events the graph has not seen (the risk step went from ~1.4 s to ~0.3 s on the main thread). See the [release notes](releases/v2.46.0.md).
 
+## Old sweeps in the history, past threads at once (v2.47)
+
+- **Import of the sweep archives** (background, once per file): the events of `runs/sweeps` and of a `runs-backup-*` copy go into the history with their collection times, so the days the old 10,000-record cap had cut are complete again.
+- **The past-thread archive** computes a day as soon as it has ended; the Past view leaves out every thread with a record still in a current thread, so a story moves from Current to Past when it leaves the 72-hour window. Up to 2,000 current threads (was 200). See the [release notes](releases/v2.47.0.md).
+

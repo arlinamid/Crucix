@@ -10,6 +10,10 @@ import { HistoryStore } from '../lib/intelligence/history.mjs';
 import { GraphStore } from '../lib/intelligence/graph.mjs';
 import { ThreadStore } from '../lib/intelligence/threads.mjs';
 import { ThreadArchive, backfillGraph } from '../lib/intelligence/thread-archive.mjs';
+import { importSweepArchives, sweepArchiveDirs } from '../lib/intelligence/history-import.mjs';
+import { gzipSync } from 'node:zlib';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { sep } from 'node:path';
 import { Maintenance } from '../lib/maintenance.mjs';
 import { installRiskRoutes } from '../lib/intelligence/risk-routes.mjs';
 import { EntityStore } from '../lib/intelligence/entities.mjs';
@@ -112,7 +116,8 @@ test('archive: a finished day\'s threads are computed once, listed newest first 
   assert.equal(archive.list({ liveIds: new Set([list.threads[0].id]) }).total, 1, 'a thread still live is not listed as past');
   assert.equal(archive.list({ topic: 'politics' }).threads.every(row => row.topic === 'politics'), true);
   const later = new ThreadArchive(dir, { now: () => NOW + 40 * DAY });
-  assert.equal(later.prune(), 3, 'the two days with threads and the one without (its empty file keeps it from being computed again)');
+  // Every finished day up to yesterday has a file (an empty one keeps a day from being computed again): 2026-10-14 .. 2026-10-19.
+  assert.equal(later.prune(), 6);
   assert.deepEqual(readdirSync(join(dir, 'intelligence', 'threads-archive')).filter(name => name.endsWith('.json')), []);
 });
 
@@ -158,4 +163,46 @@ test('panel: the topic chips count every thread from the summary, and "Show all"
   assert.match(html, /data-thread-topic="disaster"[^>]*>Disaster <span class="th-n">16<\/span>/);
   assert.match(html, /data-thread-more="all"[^>]*>Show all \(79\)/);
   assert.match(html, /data-thread-view="past"/);
+});
+
+test('archive: a day is computed as soon as it has ended, and a thread still live is left out by its members', async t => {
+  const dir = setup(t);
+  // Yesterday's story: the day is over, so its file is computed now (no 72-hour wait).
+  const history = historyAt(dir, story(NOW - DAY).map(event => [event]));
+  const archive = new ThreadArchive(dir, { now: () => NOW });
+  const yesterday = iso(NOW - DAY).slice(0, 10);
+  assert.ok(archive.pendingDays(history).includes(yesterday));
+  for (const day of archive.pendingDays(history)) await archive.computeDay(day, history);
+  const [thread] = archive.list().threads;
+  assert.equal(thread.day, yesterday);
+  // While the story is in the live window its records belong to a current thread (under any id): not listed as past.
+  const liveMembers = new Map(thread.members.map(id => [id, 'thread-ffffffffffffffff']));
+  assert.equal(archive.list({ liveMembers }).total, 0);
+  assert.equal(archive.list({ liveMembers: new Map() }).total, 1, 'once it left the live window it is a past thread');
+  // A day the history gains records for is computed again.
+  assert.equal(archive.invalidate([yesterday, 'not-a-day']), 1);
+  assert.ok(archive.pendingDays(history).includes(yesterday));
+});
+
+test('history import: the events of archived sweeps (and of a runs-backup copy) come in once, with their old first sighting', async t => {
+  const root = setup(t);
+  const runsDir = join(root, 'runs');
+  const sweeps = join(runsDir, 'sweeps'), backup = join(root, 'runs-backup-2.40.0-x', 'sweeps');
+  mkdirSync(sweeps, { recursive: true }); mkdirSync(backup, { recursive: true });
+  const old = story(NOW - 4 * DAY), recent = report('Later report', 'example.com', NOW - DAY);
+  const at = ms => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  writeFileSync(join(backup, `sweep-${at(NOW - 4 * DAY)}.json.gz`), gzipSync(JSON.stringify({ meta: {}, events: old })));
+  writeFileSync(join(sweeps, `sweep-${at(NOW - DAY)}.json.gz`), gzipSync(JSON.stringify({ meta: {}, events: [recent, { ...old[0], collectedAt: iso(NOW - DAY) }] })));
+  writeFileSync(join(sweeps, 'index.json'), '{}');
+  // The history already saw the first report later, as a JSON store capped it: the import gives it its earlier first sighting.
+  const history = historyAt(join(root, 'h'), [[{ ...old[0], collectedAt: iso(NOW - DAY) }]]);
+  assert.deepEqual(sweepArchiveDirs(runsDir).map(path => path.split(sep).slice(-2).join('/')).sort(), ['runs-backup-2.40.0-x/sweeps', 'runs/sweeps']);
+  const statePath = join(root, 'state.json');
+  const first = await importSweepArchives(history, sweepArchiveDirs(runsDir), { statePath });
+  assert.equal(first.files, 2); assert.equal(first.added, 3, 'two new reports of the old story and the later one');
+  assert.deepEqual([...first.days].sort(), [iso(NOW - 4 * DAY).slice(0, 10), iso(NOW - DAY).slice(0, 10)]);
+  const stored = history.get(old[0].id);
+  assert.equal(stored.firstSeenAt, iso(NOW - 4 * DAY)); assert.equal(stored.lastSeenAt, iso(NOW - DAY));
+  const again = await importSweepArchives(history, sweepArchiveDirs(runsDir), { statePath });
+  assert.equal(again.files, 0, 'each file once');
 });

@@ -23,6 +23,7 @@ import { runRiskStep } from './lib/intelligence/risk-step.mjs';
 import { GraphStore } from './lib/intelligence/graph.mjs';
 import { ThreadStore, summarizeThreads } from './lib/intelligence/threads.mjs';
 import { ThreadArchive, backfillGraph } from './lib/intelligence/thread-archive.mjs';
+import { importStatePath, importSweepArchives, sweepArchiveDirs } from './lib/intelligence/history-import.mjs';
 import { createDictionaries } from './lib/intelligence/extract.mjs';
 import { Maintenance } from './lib/maintenance.mjs';
 import { LinkCache, linkWithModel } from './lib/llm/linker.mjs';
@@ -144,11 +145,24 @@ async function backfillThreads(ctx) {
 async function archiveThreads(ctx) {
   if (!threadArchive) return;
   const dictionaries = createDictionaries({ actors: riskLatest?.inputs?.actors });
+  // The days overlap by 72 hours: each record's entities are extracted once for the whole run.
+  const cache = new Map();
   for (const day of threadArchive.pendingDays(history)) {
-    const count = await threadArchive.computeDay(day, history, { dictionaries, slice: ctx.slice });
+    const count = await threadArchive.computeDay(day, history, { dictionaries, slice: ctx.slice, cache });
     console.log(`[Maintenance] Thread archive ${day}: ${count} thread(s)`);
   }
   threadArchive.prune();
+}
+// The archived sweeps' events into the history (the days before 2.46 kept only the newest 10,000 records; every sweep archive kept its
+// events whole). Each file once; the days it adds to are archived again, the live graph is filled again.
+async function importSweeps(ctx) {
+  const result = await importSweepArchives(history, sweepArchiveDirs(RUNS_DIR), { statePath: importStatePath(RUNS_DIR), slice: ctx.slice, log: console });
+  if (!result.files) return;
+  console.log(`[Maintenance] History import: ${result.files} sweep file(s), ${result.events} event(s), ${result.added} new record(s)`);
+  if (!result.added) return;
+  if (threadArchive) threadArchive.invalidate(result.days);
+  maintenance.schedule('graph-backfill', backfillThreads, { delayMs: 1000 });
+  maintenance.schedule('thread-archive', archiveThreads, { delayMs: 2000 });
 }
 // The history's retention (by days) and its daily backup.
 let lastHistoryBackup = 0;
@@ -742,6 +756,7 @@ async function start() {
     // The background maintenance's start-up work, after the first sweep has had time to finish: the history's retention and backup, the
     // graph backfill from the history (the records of the thread window the graph never saw), the past-thread archive.
     maintenance.schedule('history', keepHistory, { delayMs: 60000 });
+    maintenance.schedule('history-import', importSweeps, { delayMs: 75000 });
     maintenance.schedule('graph-backfill', backfillThreads, { delayMs: 90000 });
     maintenance.schedule('thread-archive', archiveThreads, { delayMs: 120000 });
 

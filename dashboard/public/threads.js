@@ -318,9 +318,19 @@
     const at=fetched.at;
     fetched.loading=which;fetched.error=null;redraw();
     try{
-      const data=await opts.fetchJson(which==='past'?'/api/threads/archive?limit=200':'/api/threads?limit=200');
+      let rows=[];
+      if(which==='past'){const data=await opts.fetchJson('/api/threads/archive?limit=200');rows=(Array.isArray(data?.threads)?data.threads:[]).map(dayRow).filter(Boolean);}
+      else{
+        // 200 a page, until every current thread is in (at most 2,000).
+        for(let offset=0;offset<2000;offset+=200){
+          const data=await opts.fetchJson('/api/threads?limit=200&offset='+offset);
+          if(fetched.at!==at)return;
+          const page=(Array.isArray(data?.threads)?data.threads:[]).map(readRow).filter(Boolean);
+          rows.push(...page);
+          if(page.length<200||rows.length>=count(data?.total))break;
+        }
+      }
       if(fetched.at!==at)return;
-      const rows=(Array.isArray(data?.threads)?data.threads:[]).map(which==='past'?dayRow:readRow).filter(Boolean);
       fetched[which]=rows;
     }catch(error){log(error);if(fetched.at===at)fetched.error=which==='past'?'pastUnavailable':'listError';if(which==='all')expanded=false;}
     if(fetched.at!==at)return;
