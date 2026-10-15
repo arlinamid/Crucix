@@ -12,6 +12,7 @@ import { openBrowser } from './lib/open-browser.mjs';
 import { inlineJson } from './lib/html.mjs';
 import { installApiErrorHandler } from './lib/api-errors.mjs';
 import { installHttpSecurity } from './lib/http-security.mjs';
+import { compressResponses, staticGzip } from './lib/http-compress.mjs';
 import { saveSnapshot } from './lib/snapshots.mjs';
 import { buildEvents, clusterEvents, stampLiveEventIds } from './lib/intelligence/events.mjs';
 import { freshLiveSnapshot } from './lib/intelligence/live-sources.mjs';
@@ -26,6 +27,7 @@ import { ThreadArchive, backfillGraph } from './lib/intelligence/thread-archive.
 import { importStatePath, importSweepArchives, sweepArchiveDirs } from './lib/intelligence/history-import.mjs';
 import { createDictionaries } from './lib/intelligence/extract.mjs';
 import { Maintenance } from './lib/maintenance.mjs';
+import { installFileLog, SweepTimings } from './lib/logger.mjs';
 import { LinkCache, linkWithModel } from './lib/llm/linker.mjs';
 import { KeywordStore } from './lib/intelligence/keywords.mjs';
 import { ThermalStore } from './lib/intelligence/thermal.mjs';
@@ -72,6 +74,10 @@ export function resolveRunsDir(configuredDir = config.runsDir) {
   return resolveUserRunsDir({ root: ROOT, configured: configuredDir });
 }
 const RUNS_DIR = resolveRunsDir();
+// The console also goes to runs/logs/crucix-YYYY-MM-DD.log (14 days, 20 MB a day); the last warnings and errors feed /api/health.
+const fileLog = installFileLog(RUNS_DIR);
+// The post-processing step times of the last 24 hours (/api/health `sweeps`).
+const sweepTimings = new SweepTimings();
 const MEMORY_DIR = join(RUNS_DIR, 'memory');
 
 // Ensure directories exist
@@ -330,6 +336,9 @@ if (config.web.corsOrigins.includes('*') && !config.auth.user) {
 const app = express();
 installHttpSecurity(app, config.auth, config.web);
 const dashboardDir = resolveDashboardPublicDir();
+// gzip: the static files once per version, the handlers' bodies (the ~4 MB snapshot and page) on zlib's thread pool.
+app.use(compressResponses());
+app.use(staticGzip(dashboardDir));
 app.use(express.static(dashboardDir));
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
 app.get('/offline-shell', (_req, res) => {
@@ -424,8 +433,11 @@ app.get('/api/health', (req, res) => {
     language: currentLanguage,
     historyStatus,
     historyEngine: history.engine,
+    ideas: { everyNSweeps: ideaCadence.everyNSweeps, running: ideasRunning, last: ideaCadence.lastRun ?? null },
     riskStatus,
     maintenance: maintenance.status(),
+    sweeps: sweepTimings.summary(),
+    log: fileLog ? { recent: fileLog.recent() } : null,
     archiveStatus: sweepArchive.status,
     archivedSweeps: archivedSweepCount(),
   });
@@ -533,6 +545,8 @@ app.get('/events', (req, res) => {
     'X-Accel-Buffering': 'no',
   });
   res.write('data: {"type":"connected"}\n\n');
+  // ?lean=1: `update` messages without the snapshot (the dashboard fetches /api/data); without it the documented full message.
+  res.crucixLean = req.query?.lean === '1';
   sseClients.add(res);
   const heartbeat = setInterval(() => {
     if (!writeToClient(res, ': heartbeat\n\n')) sseClients.delete(res);
@@ -569,9 +583,11 @@ async function runSweepCycle() {
     // How long each step after the sources holds the server (they run on the main thread): logged at the end of the sweep. Between two
     // steps the sweep yields to the event loop, so a request waits for one step at most, never for the whole post-processing.
     const steps = [];
+    const stepMs = {};
     let stepStart = performance.now();
     const step = async name => {
-      steps.push(`${name} ${Math.round(performance.now() - stepStart)}`);
+      stepMs[name] = Math.round(performance.now() - stepStart);
+      steps.push(`${name} ${stepMs[name]}`);
       await new Promise(resolve => setImmediate(resolve));
       stepStart = performance.now();
     };
@@ -592,14 +608,13 @@ async function runSweepCycle() {
     const delta = computeDelta(synthesized, previous, config.delta.thresholds,
       memory.getRunHistory().map(run => run.data));
     synthesized.delta = delta;
-    Object.assign(synthesized, await ideaCadence.resolve(llmProvider, synthesized, delta,
-      previous?.ideas || [], config.llm.tradeIdeasLang));
+    // Ideas: the snapshot is published with the last model ideas (or the rule ideas) and the model, when due, runs after the broadcast
+    // (startIdeas below), so a slow model never delays the dashboard.
+    const ideasDue = ideaCadence.due() && !!llmProvider?.isConfigured;
+    const previousIdeas = previous?.ideas || [];
+    Object.assign(synthesized, await ideaCadence.current(synthesized, delta, previousIdeas, config.llm.tradeIdeasLang));
     memory.addRun(synthesized, config.delta.thresholds);
     await step('delta+ideas');
-    if (discordAlerter.isConfigured && synthesized.ideasSource === 'llm' && !synthesized.ideasCached) {
-      discordAlerter.sendActionableIdeas(synthesized.ideas).catch(error =>
-        console.error('[Discord] Idea delivery failed:', error.message));
-    }
 
     // 6. Alert evaluation — Telegram + Discord (LLM with rule-based fallback, multi-tier, semantic dedup)
     if (delta?.summary?.totalChanges > 0) {
@@ -645,6 +660,8 @@ async function runSweepCycle() {
     broadcast({ type: 'update', data: currentData });
     await step('broadcast');
     console.log(`[Crucix] Post-processing (ms): ${steps.join(' · ')}`);
+    sweepTimings.add(stepMs);
+    if (ideasDue) startIdeas(synthesized, delta, previousIdeas);
 
     console.log(`[Crucix] Sweep complete — ${currentData.meta.sourcesOk}/${currentData.meta.sourcesQueried} sources OK`);
     console.log(`[Crucix] ${currentData.ideas.length} ideas (${synthesized.ideasSource}) | ${currentData.news.length} news | ${currentData.newsFeed.length} feed items`);
@@ -657,6 +674,27 @@ async function runSweepCycle() {
   } finally {
     sweepInProgress = false;
   }
+}
+
+// The model ideas of a sweep, after it was published: one run at a time; the result replaces the snapshot's ideas, patches the memory
+// run and goes to the dashboards as a small `ideas` message (and to Discord). A run that fails leaves the published ideas in place.
+let ideasRunning = false;
+function startIdeas(snapshot, delta, previousIdeas) {
+  if (ideasRunning) { console.log('[LLM Ideas] Previous run still going; this sweep keeps its ideas'); return; }
+  ideasRunning = true;
+  ideaCadence.generate(llmProvider, snapshot, delta, previousIdeas, config.llm.tradeIdeasLang).then(fresh => {
+    const run = ideaCadence.lastRun;
+    console.log(`[LLM Ideas] ${fresh ? `${fresh.ideas.length} idea(s)` : `no model ideas (${run?.error || run?.source})`} in ${run?.ms ?? '?'} ms (prompt ${run?.promptChars ?? '?'} chars)`);
+    if (!fresh) return;
+    const patch = { ideas: fresh.ideas, ideasSource: fresh.ideasSource, ideasGeneratedAt: fresh.ideasGeneratedAt, ideasCached: false };
+    Object.assign(snapshot, patch);
+    if (currentData && currentData !== snapshot) Object.assign(currentData, patch);
+    memory.patchLastIdeas(fresh.ideas);
+    broadcast({ type: 'ideas', data: patch });
+    if (discordAlerter.isConfigured) {
+      discordAlerter.sendActionableIdeas(fresh.ideas).catch(error => console.error('[Discord] Idea delivery failed:', error.message));
+    }
+  }).catch(error => console.error('[LLM Ideas] Failed:', error?.message || error)).finally(() => { ideasRunning = false; });
 }
 
 // === Startup ===

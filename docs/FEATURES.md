@@ -8,7 +8,7 @@ What each release added to the dashboard, the alert engine, the risk model and t
 
 The source registry grew from 31 adapters at this point (73 since the latest release, see [Data Sources](DATA-SOURCES.md#data-sources-73)) and included this fork's IODA and the keyless USGS significant-day earthquake feed. USGS coverage is significant earthquakes in the past day, not every earthquake above a magnitude threshold. Its tsunami flag does not establish that a warning was issued. Maritime chokepoints are reference locations; no live AIS connection is claimed by the briefing adapter.
 
-`LLM_IDEAS_EVERY_N_SWEEPS=3` generates on the first sweep, then sweeps 3, 6, and so on. Intermediate sweeps reuse ideas with their original timestamp; the cache is per process. The default is 1. Delta alerts still evaluate every sweep, and failed model calls produce fresh rule-based ideas.
+`LLM_IDEAS_EVERY_N_SWEEPS=3` generates on the first sweep, then sweeps 3, 6, and so on. Intermediate sweeps reuse ideas with their original timestamp; the cache is per process. The default is 4 (hourly); since 2.48 the model runs after the sweep is published and the dashboard gets its ideas in a small `ideas` message. Delta alerts still evaluate every sweep, and failed model calls produce fresh rule-based ideas.
 
 Failed, disabled and stale sources have separate states. OpenSky can reuse a successful observation from `runs/` for at most one hour, labelled with its original timestamp; separately, between its credit-limited rounds (15 or 120 minutes) and during an HTTP 429 pause the source itself returns its last good result marked stale. Server sweeps atomically update `latest.json` and keep eight owned raw snapshots; existing user/CLI archives are preserved. News markers use stable inferred headline coordinates, and articles without a location stay in the ticker. GDELT timestamps retain provider time rather than sweep time. OFAC samples at most 64 KiB per export and marks partial/sample counts explicitly.
 
@@ -196,4 +196,10 @@ See the [release notes](releases/v2.39.0.md) and [v2.39.4](releases/v2.39.4.md).
 
 - **Import of the sweep archives** (background, once per file): the events of `runs/sweeps` and of a `runs-backup-*` copy go into the history with their collection times, so the days the old 10,000-record cap had cut are complete again.
 - **The past-thread archive** computes a day as soon as it has ended; the Past view leaves out every thread with a record still in a current thread, so a story moves from Current to Past when it leaves the 72-hour window. Up to 2,000 current threads (was 200). See the [release notes](releases/v2.47.0.md).
+
+## Fast publishing, gzip and a log file (v2.48)
+
+- **The sweep no longer waits for the model ideas.** It publishes at once with the last model ideas (or the rule ideas); the model runs afterwards and its ideas arrive in an `ideas` message. Default cadence: hourly. The ideas now also see the story threads, the country-risk movers, the conflict reports and the air alerts. See the [review](audit/llm-ideas-review.md).
+- **gzip** for the snapshot, the page and the static files (the snapshot ~3.4 MB → ~0.8 MB); the dashboard's live stream (`/events?lean=1`) announces a new snapshot instead of carrying it.
+- **A log file** (`runs/logs/crucix-YYYY-MM-DD.log`, 14 days) and, in `/api/health`, the post-processing step times of the last 24 hours and the last warnings and errors. See the [release notes](releases/v2.48.0.md).
 

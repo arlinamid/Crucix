@@ -62,7 +62,7 @@ Routes with a query string accept only the parameters listed below; an unknown o
 | Endpoint | Returns |
 |----------|---------|
 | `GET /healthz` | `{"status": "ok"}`, no authentication. For uptime monitors and the Docker health check. |
-| `GET /api/health` | `status`, `uptime` (s), `lastSweep`, `nextSweep`, `sweepInProgress`, `sourcesOk`, `sourcesFailed`, `llmEnabled`, `language`, plus `historyStatus`, `riskStatus`, `archiveStatus` (`ok`, `unavailable`, `disabled`) and `archivedSweeps` |
+| `GET /api/health` | `status`, `uptime` (s), `lastSweep`, `nextSweep`, `sweepInProgress`, `sourcesOk`, `sourcesFailed`, `llmEnabled`, `language`, plus `historyStatus`, `riskStatus`, `archiveStatus` (`ok`, `unavailable`, `disabled`) and `archivedSweeps` Since 2.46/2.48 also `historyEngine`, `maintenance` (the background jobs), `ideas` (`everyNSweeps`, `running`, `last`: prompt chars, model time, ideas parsed or the error), `sweeps` (post-processing step times of the last 24 h: `last`, `p50`, `p95`) and `log.recent` (the last warnings and errors; the full log is in `runs/logs/crucix-YYYY-MM-DD.log`, kept 14 days). |
 | `GET /api/locales` | `{current, supported}` interface languages |
 
 ### The current picture
@@ -147,7 +147,7 @@ Same-origin JSON on every change (the setup and alert routes use the same guard)
 | Endpoint | Returns |
 |----------|---------|
 | `GET /api/basemap/daily.jpg` | The daily globe basemap (NASA GIBS true colour of yesterday), JPEG |
-| `GET /events` | Server-sent events: `{"type":"connected"}`, then `sweep_start`, `update` (carries the new snapshot as `data`), `sweep_error` and `alerts` (after an operator action) messages. `MAX_SSE_CLIENTS` caps the connections (503 with `Retry-After`). |
+| `GET /events` | Server-sent events: `{"type":"connected"}`, then `sweep_start`, `update` (carries the new snapshot as `data`), `ideas` (the model ideas when they arrive after a sweep: `{ideas, ideasSource, ideasGeneratedAt, ideasCached}`), `sweep_error` and `alerts` (after an operator action) messages. `GET /events?lean=1` sends `update` as `{"type":"update","lean":true,"at":…}` without the snapshot; the client fetches `/api/data` (gzipped), as the dashboard does. `MAX_SSE_CLIENTS` caps the connections (503 with `Retry-After`). |
 
 ```js
 const stream = new EventSource('/events');           // same origin
@@ -177,3 +177,5 @@ curl -u owner:secret https://crucix.example.com/api/alerts/summary
 - There is no write API for data: Crucix collects public sources itself, so there is nothing to push in.
 - Source data keeps its original licence; see the credits panel in the app and the [data sources](DATA-SOURCES.md) when
   you republish what the API returns.
+
+Responses of at least 4 KB (JSON, HTML, scripts, styles) are gzipped for a client that sends `Accept-Encoding: gzip` (since 2.48): the snapshot goes from ~3.4 MB to ~0.8 MB.

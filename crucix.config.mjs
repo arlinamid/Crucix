@@ -135,7 +135,7 @@ export default {
     askTimeoutMs: envInteger('LLM_ASK_TIMEOUT_MS', 45000, 1000, 360000),
     linkingMaxTokens: envInteger('LLM_LINKING_MAX_TOKENS', 400, 64, 2048), // the optional story linker (getLLMBudget(config, 'linking'))
     linkingTimeoutMs: envInteger('LLM_LINKING_TIMEOUT_MS', 45000, 1000, 360000),
-    everyNSweeps: envInteger('LLM_IDEAS_EVERY_N_SWEEPS', 1, 1, 96),
+    everyNSweeps: envInteger('LLM_IDEAS_EVERY_N_SWEEPS', 4, 1, 96), // hourly at the 15-minute sweep; the model runs after the sweep is published
     tradeIdeasLang: process.env.TRADE_IDEAS_LANG || process.env.CRUCIX_LANG || 'en',
   },
 

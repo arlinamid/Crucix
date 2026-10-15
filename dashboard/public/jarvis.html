@@ -3537,8 +3537,11 @@ async function fetchJsonNoStore(url,init){
 }
 // The page served before the first sweep carries no snapshot; the stream alone cannot be trusted to deliver one.
 function hasSnapshot(){return Number.isFinite(Date.parse(D.meta?.timestamp));}
-async function pollSnapshot(){
-  if(apiRequestRunning||location.protocol==='file:')return;
+// `again`: a new snapshot was announced; if a request is already running, one more follows it, so the announcement is never lost.
+let pollAgain=false;
+async function pollSnapshot(again=false){
+  if(location.protocol==='file:')return;
+  if(apiRequestRunning){if(again)pollAgain=true;return;}
   apiRequestRunning=true;
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
   try{
@@ -3548,16 +3551,19 @@ async function pollSnapshot(){
     const data=await response.json();if(window.CrucixReplay?.offerLive(data)!==false)applySnapshot(data);
     if(!sseConnected)connectionState='polling';
   }catch{if(!sseConnected)connectionState='offline';}
-  finally{clearTimeout(timer);apiRequestRunning=false;updateRuntimeStatus();}
+  finally{clearTimeout(timer);apiRequestRunning=false;updateRuntimeStatus();if(pollAgain){pollAgain=false;pollSnapshot();}}
 }
 function connectSSE(){
   if(location.protocol==='file:'||typeof EventSource==='undefined'||liveEvents)return;
-  liveEvents=new EventSource('/events');
+  // lean=1: an `update` says only that a new snapshot is there; it comes from /api/data, gzipped (the full message was ~4 MB a sweep).
+  liveEvents=new EventSource('/events?lean=1');
   liveEvents.onopen=()=>{sseConnected=true;connectionState='live';updateRuntimeStatus();if(!hasSnapshot())pollSnapshot();};
   liveEvents.onmessage=event=>{
     try{
       const message=JSON.parse(event.data);
-      if(message.type==='update'){if(window.CrucixReplay?.offerLive(message.data)!==false)applySnapshot(message.data);connectionState='live';}
+      if(message.type==='update'){if(message.lean)pollSnapshot(true);else if(window.CrucixReplay?.offerLive(message.data)!==false)applySnapshot(message.data);connectionState='live';}
+      // The model ideas arrive after the sweep was published (server.mjs startIdeas); a replay keeps its own snapshot.
+      else if(message.type==='ideas'){if(message.data&&Array.isArray(message.data.ideas)&&!window.CrucixReplay?.active?.()){Object.assign(D,message.data);rerenderDashboard();}}
       // Alerts stay live during a replay: D.alerts is the live summary then too (applyReplaySnapshot keeps it).
       else if(message.type==='alerts'){if(window.CrucixAlerts?.update(message.data))D.alerts=message.data;}
       else if(message.type==='sweep_start'){const badge=document.querySelector('.alert-badge');if(badge)badge.textContent=t('status.sweeping','SWEEPING…');}

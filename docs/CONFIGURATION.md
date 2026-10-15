@@ -251,7 +251,7 @@ All settings are in `.env` with sensible defaults:
 | `LLM_BASE_URL` | — | Separate OpenAI-compatible endpoint |
 | `ANTHROPIC_BASE_URL` | — | Anthropic Messages endpoint for `LLM_PROVIDER=anthropic` (a self-hosted gateway or router); default `https://api.anthropic.com` |
 | `ANTHROPIC_AUTH_TOKEN` | — | Bearer token for `LLM_PROVIDER=anthropic`, sent as `Authorization: Bearer` instead of `x-api-key`; use it or `LLM_API_KEY`, not both |
-| `LLM_IDEAS_EVERY_N_SWEEPS` | `1` | First sweep, then every Nth sweep; delta alerts run every sweep |
+| `LLM_IDEAS_EVERY_N_SWEEPS` | `4` | First sweep, then every Nth sweep (4 = hourly at the 15-minute sweep); the model runs after the sweep is published, so it never delays the dashboard; delta alerts run every sweep |
 | `LLM_IDEAS_MAX_TOKENS` | `4096` | Output budget of trade ideas (128–16384) |
 | `LLM_IDEAS_TIMEOUT_MS` | `180000` | Ideas generation timeout (1000–360000 ms); the Cursor Agent CLI typically spends ~50 s before the first byte |
 | `TELEGRAM_OSINT_ENABLED` | `false` | Opt-in public preview source |
