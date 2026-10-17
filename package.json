@@ -1,6 +1,6 @@
 {
   "name": "crucix",
-  "version": "2.51.3",
+  "version": "2.52.0",
   "description": "Local intelligence engine - 73 OSINT adapters, live dashboard, bounded requests, optional local or cloud AI.",
   "type": "module",
   "bin": {
