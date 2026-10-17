@@ -1,5 +1,6 @@
 # Changelog / Változásnapló
 
+- [2.51.3 — FMP az ingyenes csomaggal / FMP on the free plan](docs/releases/v2.51.3.md) — 2026-10-17
 - [2.51.2 — Források javítása / Source fixes](docs/releases/v2.51.2.md) — 2026-10-17
 - [2.51.1 — Kevesebb, megbízhatóbb légi incidens / Fewer, more reliable air incidents](docs/releases/v2.51.1.md) — 2026-10-17
 - [2.51.0 — Légi incidensek a hír előtt / Air incidents before the news](docs/releases/v2.51.0.md) — 2026-10-15
