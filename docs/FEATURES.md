@@ -209,6 +209,10 @@ See the [release notes](releases/v2.39.0.md) and [v2.39.4](releases/v2.39.4.md).
 - **A smaller history**: compact rows (deflated, without the derived quality) and a gzipped daily backup (on the live data 65 MB → 49 MB, the backup 65 MB → 28 MB).
 - **Theme analysis** (`GET /api/history/themes`, `crucix --themes`): the most frequent words and phrases per topic and kind and the rising ones. The first report ([docs/audit/themes-2026-10.md](audit/themes-2026-10.md)) found that 82% of the news gets no topic. See the [release notes](releases/v2.49.0.md).
 
+## One story, one thread (v2.52)
+
+- **Story merging** joins the threads of one story told in many headlines: each thread (and each report of the last 36 hours in no thread) gets an IDF-weighted profile of its stemmed title words, names counting more; alike profiles (cosine 0.45, a lone report 0.5) are joined by a same-story text edge, with centroid linkage (no chaining), a 60-member cap and a 36-hour window. On the live data of 2026-10-17: 797 threads → 657; the Russia-sanctions waiver 9 threads → 4, the Starlink restrictions 15 → 8. See the [release notes](releases/v2.52.0.md).
+
 ## Air incidents before the news (v2.51)
 
 - **The air watch** asks OpenSky for every aircraft every 5 minutes (in the worker; `AIR_WATCH_INTERVAL_MIN`, with the OpenSky account), keeps an hour's track of each and reports an **air incident** when an aircraft newly sets an emergency squawk, falls 2,400 m (~8,000 ft) or more from above FL200 at 4,000 ft/min or more away from any airport, or lands within the hour after either (since 2.51.1: about 20 a day instead of the 130 the route-based rules of 2.51.0 gave). An incident is an aviation record (`Air-Watch`): it opens a story thread, shows on the map as a ringed plane, and names the flight, registration and airline (adsbdb.com), so a report of the same flight joins its thread later.
