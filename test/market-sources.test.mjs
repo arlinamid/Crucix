@@ -116,6 +116,14 @@ test('FMP spends two batch calls per sweep, rests a refused endpoint for a day a
   await fmp({ apiKey: 'k3y', now: NOW + 86_400_001, state: refused, fetchImpl: premium });
   assert.equal(calls, 5);
 
+  // Both batch endpoints refused by the plan (FMP's free plan since October 2026): disabled, not an error, then and while they rest.
+  const free = createFmpState();
+  const restricted = async () => ({ error: 'HTTP 402', status: 402 });
+  const off = await fmp({ apiKey: 'k3y', now: NOW, state: free, fetchImpl: restricted });
+  assert.equal(off.status, 'disabled'); assert.equal(off.error, undefined); assert.match(off.message, /Yahoo covers/);
+  const resting = await fmp({ apiKey: 'k3y', now: NOW + 900_000, state: free, fetchImpl: restricted });
+  assert.equal(resting.status, 'disabled');
+
   const budget = createFmpState();
   const both = await fmp({ apiKey: 'k3y', now: NOW, state: budget, dailyLimit: 3, fetchImpl: ok });
   const over = await fmp({ apiKey: 'k3y', now: NOW + 1, state: budget, dailyLimit: 3, fetchImpl: ok });

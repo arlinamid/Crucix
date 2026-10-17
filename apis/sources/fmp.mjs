@@ -1,6 +1,8 @@
 // Financial Modeling Prep (free key, 250 calls/day): the richest free quotes for equities and indexes, and all forex
 // pairs in one call. Two batch calls per sweep (quotes, forex) = 192 calls/day at the 15-minute sweep. A daily budget
 // keeps headroom; an endpoint the plan refuses (402/403) rests for a day instead of spending calls, and Yahoo covers it.
+// Since October 2026 FMP's free plan refuses both batch endpoints (HTTP 402 "Restricted Endpoint"; single-symbol `quote` still works,
+// but 16 symbols a sweep would need ~1,500 calls a day of the 250): with both refused by the plan the source is disabled, not failing.
 
 import { safeFetch } from '../utils/fetch.mjs';
 
@@ -44,7 +46,7 @@ function utcDay(now) {
 
 /** Per-process state: calls spent today, and when each refused endpoint may be tried again. */
 export function createFmpState() {
-  return { day: null, used: 0, restUntil: {} };
+  return { day: null, used: 0, restUntil: {}, refusedByPlan: {} };
 }
 const sharedState = createFmpState();
 
@@ -65,7 +67,7 @@ async function call(endpoint, params, { apiKey, state, now, limit, fetchImpl }) 
   const status = data?.status;
   // 401: wrong key; 402/403: not in this plan; 429: the daily quota is spent. None of them improves within the sweep.
   if (status === 401) state.restUntil[endpoint] = now + DAY_MS / 24;
-  if (status === 402 || status === 403) state.restUntil[endpoint] = now + DAY_MS;
+  if (status === 402 || status === 403) { state.restUntil[endpoint] = now + DAY_MS; (state.refusedByPlan ??= {})[endpoint] = true; }
   if (status === 429) state.restUntil[endpoint] = Date.parse(`${utcDay(now + DAY_MS)}T00:00:00Z`);
   const reason = status === 401 ? 'invalid API key' : status === 402 || status === 403 ? 'not available on this FMP plan'
     : status === 429 ? 'daily FMP quota reached' : data?.error || data?.['Error Message'] || 'unexpected FMP response';
@@ -96,6 +98,12 @@ export async function briefing({
     .map(row => ({ symbol: row.symbol.replace('/', ''), price: row.price, change: num(row.change), previousClose: num(row.previousClose) }));
   const endpoints = { quotes: quotes.error ?? quotes.skipped ?? 'ok', forex: forex.error ?? forex.skipped ?? 'ok' };
   const failures = [quotes.error, forex.error].filter(Boolean);
+  const refused = state.refusedByPlan ?? {};
+  if (refused['batch-quote'] && refused['batch-forex-quotes'] && !Object.keys(byQuote).length && !fx.length) {
+    return { source: 'FMP', status: 'disabled', timestamp: new Date(now).toISOString(), quotes: {}, fx: [], endpoints,
+      budget: { day: state.day, used: state.used, limit: dailyLimit },
+      message: 'The FMP plan of this key refuses the batch quote and forex endpoints (HTTP 402); Yahoo covers these quotes. Optional source, skipped.' };
+  }
   return {
     source: 'FMP',
     timestamp: new Date(now).toISOString(),
