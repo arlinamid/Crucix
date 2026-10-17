@@ -360,7 +360,7 @@ export function airFlowsOf(rows) {
 
 // The air watch's incidents (lib/air/watch.mjs describe), the last six hours: aviation records for the events, a marker each on the map.
 const MAX_AIR_INCIDENTS = 60;
-const INCIDENT_TYPES = new Set(['descent', 'squawk', 'diversion', 'return']);
+const INCIDENT_TYPES = new Set(['descent', 'squawk', 'diversion', 'return', 'landing']);
 const AIRPORT_CODE = /^[A-Z0-9]{3,4}$/;
 export function airIncidentsOf(rows) {
   return (Array.isArray(rows) ? rows : []).filter(row => row && INCIDENT_TYPES.has(row.type) && finite(row.lat) && finite(row.lon)
@@ -369,7 +369,7 @@ export function airIncidentsOf(rows) {
     providerId: clip(row.providerId, 120), kind: 'aviation', type: row.type, source: 'Air-Watch', sourceStatus: 'ok',
     title: clip(row.title, 300), summary: clip(row.summary, 2000), url: /^https:\/\/globe\.adsb\.lol\/\?icao=[0-9a-f]{6}$/.test(row.url) ? row.url : null,
     observedAt: new Date(Date.parse(row.observedAt)).toISOString(), lat: row.lat, lon: row.lon, locationMethod: 'provider', locationPrecision: 'exact',
-    severity: ['critical', 'high', 'elevated'].includes(row.severity) ? row.severity : 'elevated',
+    severity: ['critical', 'high', 'elevated', 'moderate'].includes(row.severity) ? row.severity : 'moderate',
     icao24: clip(row.icao24, 6), callsign: clip(row.callsign, 8) || null, flight: clip(row.flight, 8) || null, registration: clip(row.registration, 10) || null,
     aircraftType: clip(row.aircraftType, 4) || null, airline: clip(row.airline, 80) || null,
     from: AIRPORT_CODE.test(row.from) ? row.from : null, to: AIRPORT_CODE.test(row.to) ? row.to : null,

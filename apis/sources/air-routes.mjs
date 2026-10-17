@@ -97,6 +97,13 @@ export function parseRouteset(body, asked) {
   return out;
 }
 
+/** Every airport of the cached routes ([code, lat, lon], one per code): the airports airline flights use, about 1,800 after a day. */
+export function knownAirports({ options } = {}) {
+  const out = new Map();
+  for (const { route } of load(options).values()) for (const airport of route ? [route.o, route.d] : []) out.set(airport[0], [airport[0], airport[1], airport[2]]);
+  return [...out.values()];
+}
+
 /** The cached route of a callsign ({ o, d } airports as [code, lat, lon, iso2, icao]), or null. */
 export function routeOf(callsign, { now = Date.now(), options } = {}) {
   const entry = load(options).get(callsign);

@@ -106,6 +106,9 @@ test('log: the console goes to a daily file too, the last warnings are kept, old
   const log = installFileLog(dir, { now: () => Date.parse('2026-10-15T10:00:00Z'), target, maxBytesPerDay: 400 });
   target.log('[Crucix] Post-processing (ms): %s', 'save 23');
   target.warn('\u001b[33m[Maintenance] slow\u001b[0m');
+  // The sweep's progress goes to stderr (the CLI's stdout is JSON) but is not an error (2.51.1).
+  target.error('[Crucix] Starting intelligence sweep — 73 sources...');
+  target.error('[Crucix] Sweep complete in 13098ms — 66/73 sources returned data');
   for (let i = 0; i < 20; i++) target.log('filler line number', i);
   assert.equal(lines.length, 22, 'the console still prints');
   assert.deepEqual(log.recent().map(row => row.text), ['[Maintenance] slow']);

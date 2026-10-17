@@ -2049,9 +2049,10 @@ const airGrid=()=>Array.isArray(D.airGrid)?D.airGrid:[];
 const airAlerts=()=>Array.isArray(D.airAlerts)?D.airAlerts:[];
 const airNotable=()=>Array.isArray(D.airNotable)?D.airNotable:[];
 const airFlows=()=>Array.isArray(D.airFlows)?D.airFlows:[];
-// The air watch's incidents of the last six hours (lib/air/watch.mjs): a ringed plane marker each, red for high, orange for elevated.
+// The air watch's incidents of the last six hours (lib/air/watch.mjs): a ringed plane marker each, red for high, orange for elevated,
+// yellow for moderate (a radio failure, a squawk of other traffic).
 const airIncidents=()=>Array.isArray(D.airIncidents)?D.airIncidents:[];
-const AIR_INCIDENT_COLOR={critical:'rgba(255,48,48,1)',high:'rgba(255,48,48,1)',elevated:'rgba(255,140,40,1)'};
+const AIR_INCIDENT_COLOR={critical:'rgba(255,48,48,1)',high:'rgba(255,48,48,1)',elevated:'rgba(255,140,40,1)',moderate:'rgba(255,214,64,1)'};
 const airIncidentColor=i=>AIR_INCIDENT_COLOR[i.severity]||AIR_INCIDENT_COLOR.elevated;
 const airIncidentMeta=i=>t('air.incidentMeta','Air watch incident')+(i.observedAt?' · '+new Date(i.observedAt).toLocaleString():'');
 let airAllMode=readPreference('crucix_air_all')==='true';

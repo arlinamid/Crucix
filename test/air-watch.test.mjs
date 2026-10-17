@@ -23,7 +23,9 @@ const ids = list => list.map(entity => entity.id).sort();
 // An OpenSky state vector: [icao24, callsign, country, time_position, last_contact, lon, lat, baro m, on_ground, velocity, track, vrate, sensors, geo m, squawk].
 const sv = ({ icao, cs, lat, lon, alt, t, vr = 0, sq = '1000', ground = false, geo = alt, speed = 230 }) =>
   [icao, `${cs.padEnd(8)}`, 'Germany', t / 1000, t / 1000, lon, lat, ground ? null : alt, ground, speed, 270, vr, null, ground ? null : geo, sq];
-const watchOf = () => new AirWatch({ routeOf: callsign => ROUTES[callsign] ?? null });
+// The airports airline flights use (the route cache's, in the watch).
+const AIRPORTS = [FRA, JFK, ['SNN', 52.7019, -8.9248], ['DEN', 39.8617, -104.6731], ['ORD', 41.9786, -87.9048]];
+const watchOf = () => new AirWatch({ routeOf: callsign => ROUTES[callsign] ?? null, airports: () => AIRPORTS });
 
 test('aviation entities: flights, registrations and airlines in news text; aircraft types, years and look-alikes are not', () => {
   assert.deepEqual(ids(aviationEntities('United Airlines Flight 1175 makes emergency landing in Honolulu')), ['airline:UAL', 'flight:UA1175']);
@@ -55,39 +57,52 @@ test('identity: adsbdb answers are parsed into strict fields; anything else is d
   assert.equal(route.destination.lat, null, 'a coordinate off the globe is dropped');
 });
 
-test('air watch: a fast fall at cruise far from the destination fires; an approach, a reused flight number, a gentle descent, a jet trainer and an altitude error do not', () => {
+test('air watch: a steep fall at cruise far from any airport fires; an arrival, a normal descent, an altitude error, a jet trainer do not', () => {
   const watch = watchOf();
-  const first = [
-    sv({ icao: '3c4b26', cs: 'DLH400', lat: 53, lon: -15, alt: 11000, t: T0 }),            // mid-Atlantic, FRA -> JFK
-    sv({ icao: '3c4b27', cs: 'DLH401', lat: 50.5, lon: 6, alt: 11000, t: T0 }),              // ~190 km before Frankfurt
-    sv({ icao: 'a1b2c3', cs: 'N123AB', lat: 40, lon: -100, alt: 11000, t: T0 }),             // no route
-    sv({ icao: 'a1b2c4', cs: 'AAL9999', lat: 41, lon: -100, alt: 11000, t: T0 }),            // no route
-    sv({ icao: 'a1b2c6', cs: 'N212UT', lat: 33, lon: -111, alt: 9400, t: T0 }),               // a jet trainer, no airline callsign
-    sv({ icao: '3c4b28', cs: 'DLH402', lat: 54, lon: -20, alt: 11000, t: T0 }),
-    sv({ icao: '3c4b30', cs: 'DLH404', lat: 50.5, lon: 2, alt: 11000, t: T0 }),               // "FRA -> JFK", but flying east: another leg
-    sv({ icao: '3c4b31', cs: 'DLH400', lat: 52, lon: -30, alt: 11000, t: T0 }),               // on the route, an ordinary step down
-    sv({ icao: 'a1b2c5', cs: 'N3242C', lat: 29, lon: -82, alt: 11300, speed: 60, t: T0 }),    // a light aircraft "at FL370": an altitude error
+  // [callsign, icao, first position and altitude, second position and altitude, extra fields of the second]
+  const cases = [
+    ['DLH400', '3c4b26', [53, -15, 11000], [52.9, -16.2, 4000], { vr: -25 }],            // mid-Atlantic, 23 m/s: fires
+    ['AAL9999', 'a1b2c4', [41, -100, 11000], [41, -100.5, 4500], { vr: -30 }],             // ~350 km from Denver, 22 m/s: fires
+    ['UAL100', 'a1b2c7', [40.9, -73.2, 11000], [40.7, -73.6, 4500], { vr: -30 }],          // the same steepness into JFK: an arrival
+    ['DLH401', '3c4b27', [52, -30, 11000], [51.9, -31.2, 7000], { vr: -12 }],              // 4,000 m at 13 m/s: a normal steep descent
+    ['DLH402', '3c4b28', [54, -20, 11000], [54, -21, 8000], { geo: 11000 }],                // barometric and geometric 3 km apart
+    ['DLH403', '3c4b29', [55, -25, 11000], [55, -26, 2000], { vr: -40 }],                  // 9,000 m in 5 min (30 m/s), still at 2,000 m: fires
+    ['DLH404', '3c4b2a', [56, -25, 12000], [56, -26, 1800], {}],                            // 34 m/s (under the 50 m/s error limit), still at 1,800 m: fires
+    ['DLH405', '3c4b2b', [57, -25, 12000], [57, -26, 500], {}],                             // ends below 1,500 m: not a mid-air event
+    ['DLH406', '3c4b2c', [58, -25, 12000], [58, -26, 0], {}],                               // altitude 0: an error
+    ['N212UT', 'a1b2c6', [33, -111, 9400], [33.1, -111.3, 2500], { vr: -30 }],             // a jet trainer, no airline callsign
+    ['RCH871', 'ae1234', [45, -40, 11000], [45, -41, 3000], { vr: -30 }],                  // a military-pattern callsign
   ];
-  assert.deepEqual(watch.update(first, { now: T0 }), [], 'one point is no descent');
+  watch.update(cases.map(([cs, icao, [lat, lon, alt]]) => sv({ icao, cs, lat, lon, alt, t: T0 })), { now: T0 });
   const t = T0 + 5 * MINUTE;
-  const found = watch.update([
-    sv({ icao: '3c4b26', cs: 'DLH400', lat: 52.9, lon: -16.2, alt: 7000, vr: -12, t }),
-    sv({ icao: '3c4b27', cs: 'DLH401', lat: 50.3, lon: 7, alt: 8000, vr: -12, t }),
-    sv({ icao: 'a1b2c3', cs: 'N123AB', lat: 40, lon: -100.5, alt: 8000, vr: -10, t }),
-    sv({ icao: 'a1b2c4', cs: 'AAL9999', lat: 41, lon: -100.5, alt: 4500, vr: -30, t }),
-    sv({ icao: 'a1b2c6', cs: 'N212UT', lat: 33.1, lon: -111.3, alt: 4500, vr: -30, t }),
-    sv({ icao: '3c4b28', cs: 'DLH402', lat: 54, lon: -21, alt: 8000, geo: 11000, vr: 0, t }), // barometric and geometric 3 km apart
-    sv({ icao: '3c4b30', cs: 'DLH404', lat: 50.4, lon: 3.2, alt: 7700, vr: -12, t }),
-    sv({ icao: '3c4b31', cs: 'DLH400', lat: 51.9, lon: -31.2, alt: 8500, vr: -8, t }),         // 2,500 m at 1,600 ft/min
-    sv({ icao: 'a1b2c5', cs: 'N3242C', lat: 29.1, lon: -82.1, alt: 850, speed: 60, t }),
-  ], { now: t });
-  assert.deepEqual(found.map(f => `${f.type}:${f.callsign}`).sort(), ['descent:AAL9999', 'descent:DLH400']);
-  const dlh = found.find(f => f.callsign === 'DLH400');
-  assert.equal(dlh.evidence.from - dlh.evidence.to, 4000);
-  assert.equal(dlh.severity, 'elevated', '13 m/s on average and no steep vertical rate');
-  assert.equal(found.find(f => f.callsign === 'AAL9999').severity, 'high');
+  // A 60 m/s "fall" (18,000 m in 5 min) is an altitude error.
+  watch.update([sv({ icao: 'a1b2c8', cs: 'SWA1', lat: 30, lon: -60, alt: 19000, t: T0 })], { now: T0 });
+  const found = watch.update([...cases.map(([cs, icao, , [lat, lon, alt], extra]) => sv({ icao, cs, lat, lon, alt, t, ...extra })),
+    sv({ icao: 'a1b2c8', cs: 'SWA1', lat: 30, lon: -61, alt: 1000, t })], { now: t });
+  assert.deepEqual(found.map(f => f.callsign).sort(), ['AAL9999', 'DLH400', 'DLH403', 'DLH404']);
+  assert.ok(found.every(f => f.type === 'descent' && f.severity === 'elevated'));
+  assert.equal(found.find(f => f.callsign === 'DLH400').evidence.from - found.find(f => f.callsign === 'DLH400').evidence.to, 7000);
   // Once per aircraft and kind within three hours.
-  assert.deepEqual(watch.update([sv({ icao: '3c4b26', cs: 'DLH400', lat: 52.8, lon: -17, alt: 5000, vr: -12, t: t + 5 * MINUTE })], { now: t + 5 * MINUTE }), []);
+  assert.deepEqual(watch.update([sv({ icao: '3c4b26', cs: 'DLH400', lat: 52.8, lon: -17, alt: 2000, vr: -12, t: t + 5 * MINUTE })], { now: t + 5 * MINUTE }), []);
+  // No airport known yet (an empty route cache): nothing counts as remote, so nothing fires.
+  const blind = new AirWatch({ routeOf: () => null, airports: () => [] });
+  blind.update([sv({ icao: '3c4b26', cs: 'DLH400', lat: 53, lon: -15, alt: 11000, t: T0 })], { now: T0 });
+  assert.deepEqual(blind.update([sv({ icao: '3c4b26', cs: 'DLH400', lat: 52.9, lon: -16.2, alt: 4000, t })], { now: t }), []);
+});
+
+test('air watch: a position older than its contact (a coverage gap) is not a new point', () => {
+  const watch = watchOf();
+  watch.update([sv({ icao: '3c4b26', cs: 'DLH400', lat: 53, lon: -15, alt: 11000, t: T0 })], { now: T0 });
+  // The contact is 5 minutes later but the position (and its altitude) is from 4 minutes before it.
+  const stale = sv({ icao: '3c4b26', cs: 'DLH400', lat: 52.9, lon: -16.2, alt: 4000, t: T0 + 5 * MINUTE });
+  stale[3] = (T0 + MINUTE) / 1000;
+  assert.deepEqual(watch.update([stale], { now: T0 + 5 * MINUTE }), []);
+  assert.equal(watch.tracks.get('3c4b26').p.length, 1);
+  // A new aircraft whose only position is stale is not followed yet (no empty track).
+  const fresh = sv({ icao: '3c4b99', cs: 'DLH499', lat: 50, lon: 0, alt: 11000, t: T0 + 10 * MINUTE });
+  fresh[3] = (T0 + MINUTE) / 1000;
+  assert.deepEqual(watch.update([fresh], { now: T0 + 10 * MINUTE }), []);
+  assert.equal(watch.tracks.has('3c4b99'), false);
 });
 
 test('air watch: an emergency squawk fires when newly set and still set at the next contact; not when on from the start or gone at once', () => {
@@ -99,48 +114,58 @@ test('air watch: an emergency squawk fires when newly set and still set at the n
   const found = round(T0 + 10 * MINUTE, { 2: '7700', 3: '7700', 4: '7600', 5: '1200' });
   assert.deepEqual(found.map(f => `${f.callsign}:${f.evidence.squawk}`).sort(), ['THY2:7700', 'THY4:7600']);
   assert.equal(found.find(f => f.callsign === 'THY2').evidence.previous, '2200');
+  assert.equal(found.find(f => f.callsign === 'THY2').severity, 'high', 'an airliner in an emergency');
+  assert.equal(found.find(f => f.callsign === 'THY4').severity, 'moderate', 'a radio failure');
+  // Other traffic: a training flight's 7500 is moderate.
+  const ga = watchOf();
+  for (const [i, sq] of ['1200', '7500', '7500'].entries()) var gaFound = ga.update([sv({ icao: 'a99347', cs: 'N99347', lat: 30.6, lon: -87.4 - i / 10, alt: 900, t: T0 + i * 5 * MINUTE, sq })], { now: T0 + i * 5 * MINUTE });
+  assert.equal(gaFound[0].severity, 'moderate');
 });
 
-test('air watch: turning off the route and landing far from both ends is a diversion; landing back at the origin a return; landing on the course is not', () => {
+test('air watch: a landing within the hour after an emergency is an incident (a diversion, a return, or a landing); a landing alone is not', () => {
   const watch = watchOf();
-  // Positions every 5 minutes: [lat, lon, altitude m | 'ground', vertical rate].
+  // Positions every 5 minutes: [lat, lon, altitude m | 'ground', vertical rate, squawk].
   const tracks = {
-    // FRA -> JFK out over the Atlantic, then back east and a gradual descent (~1,000 ft/min) to Shannon.
-    '3c4b28': ['DLH402', [[53.5, -14, 11000], [53.3, -20, 11000], [53.2, -16, 10000, -3], [53.0, -13, 8500, -5], [52.9, -11, 7000, -5], [52.8, -9.8, 5000, -6],
-      [52.7, -9.3, 3000, -6], [52.68, -9.0, 1200, -4]]],
-    // FRA -> JFK over Ireland and down to Shannon on the course to New York: the wrong leg of a flight number looks just like this.
+    // FRA -> JFK out over the Atlantic, 7700, back east and down to Shannon: a diversion.
+    '3c4b28': ['DLH402', [[53.5, -14, 11000], [53.3, -20, 11000, 0, '7700'], [53.2, -16, 10000, -3, '7700'], [53.0, -13, 8500, -5, '7700'], [52.9, -11, 7000, -5, '7700'],
+      [52.8, -9.8, 5000, -6, '7700'], [52.7, -9.3, 3000, -6, '7700'], [52.68, -9.0, 1200, -4, '7700']]],
+    // FRA -> JFK, 7700 over Belgium, turned back to Frankfurt: a return.
+    '3c4b29': ['DLH403', [[50.5, 6.0, 9000], [51.0, 3.0, 11000, 0, '7700'], [50.8, 5.0, 9000, -5, '7700'], [50.5, 6.5, 7000, -6, '7700'], [50.3, 7.4, 5000, -6, '7700'],
+      [50.2, 8.0, 3500, -5, '7700'], [50.1, 8.4, 1400, -5, '7700'], [50.05, 8.6, 'ground']]],
+    // No route: a squawk, then a landing near Denver.
+    'a1b2d1': ['SWA5', [[40.5, -103.0, 9000], [40.3, -103.6, 8000, -3, '7700'], [40.1, -104.0, 6000, -6, '7700'], [40.0, -104.3, 4000, -6, '7700'],
+      [39.9, -104.6, 1400, -5, '7700'], [39.86, -104.67, 'ground']]],
+    // FRA -> JFK down to Shannon with no emergency: the wrong leg of a flight number looks just like this, and is nothing.
     '3c4b2b': ['DLH404', [[52.0, -2.0, 11000], [52.3, -6.0, 11000], [52.4, -7.0, 9000, -5], [52.5, -7.6, 7500, -5], [52.55, -8.0, 6000, -5], [52.6, -8.3, 4500, -5],
       [52.62, -8.5, 3000, -5], [52.65, -8.7, 1200, -4]]],
-    // FRA -> JFK, turned back to Frankfurt.
-    '3c4b29': ['DLH403', [[50.5, 6.0, 9000], [51.0, 3.0, 11000], [50.8, 5.0, 9000, -5], [50.5, 6.5, 7000, -6], [50.3, 7.4, 5000, -6], [50.2, 8.0, 3500, -5],
-      [50.1, 8.4, 1400, -5], [50.05, 8.6, 'ground']]],
-    // "On the ground" at cruise: an error, not a landing.
-    '3c4b2a': ['DLH402', [[50.0, 0.0, 11000], [50.3, -3.0, 11000], [50.5, -6.0, 'ground']]],
   };
   let found = [];
   for (let i = 0; i < 8; i++) {
     const t = T0 + i * 5 * MINUTE;
     const states = Object.entries(tracks).filter(([, [, points]]) => points[i]).map(([icao, [cs, points]]) => {
-      const [lat, lon, alt, vr = 0] = points[i];
-      return alt === 'ground' ? sv({ icao, cs, lat, lon, ground: true, t }) : sv({ icao, cs, lat, lon, alt, vr, t });
+      const [lat, lon, alt, vr = 0, sq = '1000'] = points[i];
+      return alt === 'ground' ? sv({ icao, cs, lat, lon, ground: true, t, sq }) : sv({ icao, cs, lat, lon, alt, vr, t, sq });
     });
     found = found.concat(watch.update(states, { now: t }));
   }
-  // The diversion fires on approach (low and descending), the return on the ground after a low contact; the false landing never.
-  assert.deepEqual(found.map(f => `${f.type}:${f.callsign}`).sort(), ['diversion:DLH402', 'return:DLH403']);
-  // An aircraft first seen on the ground is not followed at all.
-  assert.deepEqual(watchOf().update([sv({ icao: 'bbb001', cs: 'DLH402', lat: 52.70, lon: -8.92, ground: true, t: T0 })], { now: T0 }), []);
+  const landings = found.filter(f => f.type !== 'squawk');
+  assert.deepEqual(landings.map(f => `${f.type}:${f.callsign}`).sort(), ['diversion:DLH402', 'landing:SWA5', 'return:DLH403']);
+  assert.ok(landings.every(f => f.severity === 'high' && f.evidence.after === 'squawk 7700'));
+  assert.equal(landings.find(f => f.callsign === 'SWA5').evidence.airport, 'DEN');
+  const text = describe(landings.find(f => f.callsign === 'DLH402'));
+  assert.match(text.title, /^Diversion after squawk 7700: Lufthansa LH402 is landing near SNN, [\d,]+ km from JFK/);
+  assert.match(describe(landings.find(f => f.callsign === 'SWA5')).title, /^Landing after squawk 7700: .* near DEN/);
 });
 
 test('air watch: an incident names its flight, aircraft and airline, becomes an aviation event, and a report of the same flight links to it', t => {
   const watch = watchOf();
   watch.update([sv({ icao: '3c4b26', cs: 'DLH400', lat: 53, lon: -15, alt: 11000, t: T0 })], { now: T0 });
-  const [finding] = watch.update([sv({ icao: '3c4b26', cs: 'DLH400', lat: 52.9, lon: -16.2, alt: 7000, vr: -12, t: T0 + 5 * MINUTE })], { now: T0 + 5 * MINUTE });
+  const [finding] = watch.update([sv({ icao: '3c4b26', cs: 'DLH400', lat: 52.9, lon: -16.2, alt: 4000, vr: -25, t: T0 + 5 * MINUTE })], { now: T0 + 5 * MINUTE });
   const incident = describe(finding, {
     aircraft: { registration: 'D-ABYF', icaoType: 'B748', manufacturer: 'Boeing', type: '747 830' },
     route: { flight: 'LH400', airline: { name: 'Lufthansa' }, origin: { iata: 'FRA', city: 'Frankfurt am Main' }, destination: { iata: 'JFK', city: 'New York' } },
   });
-  assert.match(incident.title, /^Rapid descent: Lufthansa LH400 \(D-ABYF, B748\) lost 13,100 ft in 5 min/);
+  assert.match(incident.title, /^Rapid descent: Lufthansa LH400 \(D-ABYF, B748\) lost 23,000 ft in 5 min/);
   assert.match(incident.summary, /Route Frankfurt am Main \(FRA\) → New York \(JFK\)\./);
   assert.match(incident.summary, /not a confirmed event/);
   assert.equal(incident.severity, 'elevated');
