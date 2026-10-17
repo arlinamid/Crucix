@@ -172,3 +172,30 @@ test('rows stored by an older version are read as they were and rewritten compac
   const restored = new HistoryStore(dir, { now: () => clock.now });
   assert.equal(restored.query({ q: 'arviz' }).total, 2);
 });
+
+test('URL keys carry no NUL (Node 22 cuts a bound string there); the background migration rewrites the keys of an older database (2.52.1)', { skip }, t => {
+  const clock = { now: NOW };
+  const { dir, history } = store(t, clock);
+  history.add([event(2), event(4)]);
+  const db = new (loadSqlite().DatabaseSync)(join(dir, 'intelligence', 'history.db'));
+  const key = db.prepare('SELECT url_key FROM records WHERE id = ?').get(id(2)).url_key;
+  assert.equal(key, 'news https://news.example/articles/2');
+  assert.ok(!key.includes('\0'));
+  // A database written before 2.52.1: the key as kind NUL url (Node 24), or cut to the kind (Node 22); no migration mark yet.
+  db.prepare('UPDATE records SET url_key = ? WHERE id = ?').run('news\0https://news.example/articles/2', id(2));
+  db.prepare('UPDATE records SET url_key = ? WHERE id = ?').run('news', id(4));
+  db.prepare("DELETE FROM meta WHERE key = 'urlkey'").run();
+  db.close();
+  clock.now += 15 * MINUTE;
+  const reopened = new HistoryStore(dir, { now: () => clock.now });
+  assert.equal(reopened.migrateUrlKeys({ limit: 1 }), 1, 'in batches');
+  assert.equal(reopened.migrateUrlKeys(), 1);
+  assert.equal(reopened.migrateUrlKeys(), 0, 'done, and marked');
+  const check = new (loadSqlite().DatabaseSync)(join(dir, 'intelligence', 'history.db'), { readOnly: true });
+  assert.deepEqual(check.prepare('SELECT url_key FROM records ORDER BY id').all().map(row => row.url_key),
+    ['news https://news.example/articles/2', 'news https://news.example/articles/4']);
+  check.close();
+  reopened.add([event(3, { source: { name: 'Example News', url: 'https://news.example/articles/2', status: 'ok' }, title: 'Updated title', collectedAt: iso(clock.now) })]);
+  assert.equal(reopened.get(id(3)), null, 'merged into the earlier record by its migrated URL key');
+  assert.equal(reopened.get(id(2)).title, 'Updated title');
+});

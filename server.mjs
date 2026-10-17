@@ -188,15 +188,19 @@ async function importSweeps(ctx) {
 // Rows stored as JSON text before 2.49 rewritten in the compact form (deflated body without the derived quality), a few hundred at a time.
 async function compactHistory(ctx) {
   if (typeof history.compact !== 'function') return;
-  const { rewritten, vacuumMs } = await worker.run('history-compact', { runsDir: RUNS_DIR }, async () => {
+  const { rewritten, vacuumMs, urlKeys = 0 } = await worker.run('history-compact', { runsDir: RUNS_DIR }, async () => {
+    // The URL keys of the format before 2.52.1 first (history.mjs migrateUrlKeys), in batches between other work.
+    let keys = 0, batch;
+    while ((batch = history.migrateUrlKeys({ limit: 500 })) > 0) { keys += batch; await ctx.slice(); }
     let total = 0, count;
     while ((count = history.compact({ limit: 150 })) > 0) { total += count; await ctx.slice(); }
-    if (!total) return { rewritten: 0, vacuumMs: null };
+    if (!total) return { rewritten: 0, vacuumMs: null, urlKeys: keys };
     // Once: the file shrinks to its data and switches to incremental vacuuming (the daily trim then gives back free pages a little at a time).
     const started = Date.now();
     history.vacuum();
-    return { rewritten: total, vacuumMs: Date.now() - started };
+    return { rewritten: total, vacuumMs: Date.now() - started, urlKeys: keys };
   });
+  if (urlKeys) console.log(`[Maintenance] History: ${urlKeys} URL key(s) rewritten in the 2.52.1 format`);
   if (rewritten) console.log(`[Maintenance] History compaction: ${rewritten} record(s) rewritten in the compact form; file vacuumed in ${vacuumMs} ms`);
 }
 // The themes of the history (lib/intelligence/themes.mjs) for GET /api/history/themes: computed in the background, at most hourly per
