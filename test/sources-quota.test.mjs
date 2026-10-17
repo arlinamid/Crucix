@@ -30,11 +30,12 @@ test('BLS serves a 12-hour cache instead of spending another daily query', async
   assert.equal(first.error, undefined);
   assert.equal(hits, 1);
   const cached = await bls(undefined, { now: NOW + 6 * 3600000 });
-  assert.equal(cached.stale, true);
+  assert.equal(cached.cached, true);
+  assert.equal(cached.stale, undefined, 'within the planned interval the cached result is current, not stale');
   assert.equal(hits, 1);
   resetBls({ disk: false });
   const afterRestart = await bls(undefined, { now: NOW + 7 * 3600000 });
-  assert.equal(afterRestart.stale, true);
+  assert.equal(afterRestart.cached, true);
   assert.equal(hits, 1, 'disk cache survives a memory reset');
 });
 
@@ -227,7 +228,8 @@ test('CelesTrak caches a good briefing for two hours and never pulls Starlink', 
   assert.ok(calls.every(url => !url.includes('starlink') && !url.includes('oneweb')));
   const before = calls.length;
   const cached = await space({ now: NOW + 30 * 60 * 1000 });
-  assert.equal(cached.stale, true);
+  assert.equal(cached.cached, true);
+  assert.equal(cached.stale, undefined, 'within the planned interval the cached result is current, not stale');
   assert.equal(calls.length, before);
 });
 
@@ -248,4 +250,37 @@ test('OpenSky 429 pause is remembered after a memory reset', async t => {
   const blocked = await opensky({ now: NOW + 30 * 60 * 1000 });
   assert.equal(calls.length, 1, 'no request after restart while blocked');
   assert.match(blocked.error, /credit limit reached/i);
+});
+
+test('ACLED: an expired ACLED_ACCESS_TOKEN is dropped after its 401 and never sent again; the password grant takes over (2.51.1)', async t => {
+  resetAcled();
+  t.after(() => resetAcled());
+  const saved = { ACLED_EMAIL: process.env.ACLED_EMAIL, ACLED_PASSWORD: process.env.ACLED_PASSWORD, ACLED_ACCESS_TOKEN: process.env.ACLED_ACCESS_TOKEN, ACLED_REFRESH_TOKEN: process.env.ACLED_REFRESH_TOKEN };
+  process.env.ACLED_EMAIL = 'user@example.com';
+  process.env.ACLED_PASSWORD = 'secret';
+  process.env.ACLED_ACCESS_TOKEN = 'expired-env-token';
+  delete process.env.ACLED_REFRESH_TOKEN;
+  t.after(() => { for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
+  const bearers = [];
+  useFetch(t, async (url, init = {}) => {
+    if (String(url).includes('/oauth/token')) {
+      return new Response(JSON.stringify({ access_token: 'fresh-token', refresh_token: 'fresh-refresh', expires_in: 86400 }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    const bearer = new Headers(init.headers).get('authorization');
+    bearers.push(bearer);
+    if (bearer === 'Bearer expired-env-token') {
+      return new Response(JSON.stringify({ message: 'The resource owner or authorization server denied the request.' }), { status: 401, headers: { 'content-type': 'application/json' } });
+    }
+    // An Open-tier account: authenticated, but no API access.
+    return new Response(JSON.stringify({ message: 'Access denied' }), { status: 403, headers: { 'content-type': 'application/json' } });
+  });
+  const first = await acled();
+  assert.deepEqual(bearers, ['Bearer expired-env-token', 'Bearer fresh-token'], 'retried once without the expired token');
+  assert.equal(first.status, 'disabled', 'the account has no API access: disabled, not an error');
+  assert.equal(first.error, undefined);
+  // After a restart the expired token is still known: it is not sent again.
+  resetAcled({ disk: false });
+  bearers.length = 0;
+  await acled({ now: Date.now() + 2 * 86400000 });
+  assert.ok(!bearers.includes('Bearer expired-env-token'));
 });

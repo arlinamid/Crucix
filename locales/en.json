@@ -1707,6 +1707,7 @@
     "notAvailable": "n/a",
     "news": "{source} NEWS",
     "epaMonitor": "EPA Radiation Monitor",
+    "radnetMedian": "30-day median",
     "state": "State",
     "stationApprox": "Space Station (approx.)",
     "orbitalEstimate": "Orbital position estimate",

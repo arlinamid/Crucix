@@ -1707,6 +1707,7 @@
     "notAvailable": "n.d.",
     "news": "ACTU {source}",
     "epaMonitor": "Moniteur de rayonnement EPA",
+    "radnetMedian": "médiane sur 30 jours",
     "state": "État",
     "stationApprox": "Station spatiale (approx.)",
     "orbitalEstimate": "Position orbitale estimée",

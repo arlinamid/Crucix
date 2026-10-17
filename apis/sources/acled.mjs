@@ -12,6 +12,7 @@ import { readBoundedText } from '../utils/fetch.mjs';
 // Set ACLED_EMAIL + ACLED_PASSWORD, and optionally ACLED_ACCESS_TOKEN /
 // ACLED_REFRESH_TOKEN. Data: GET https://acleddata.com/api/acled/read
 
+import { createHash } from 'node:crypto';
 import { daysAgo } from '../utils/fetch.mjs';
 import { readQuota, writeQuota, clearQuota } from '../utils/quota-cache.mjs';
 import '../utils/env.mjs';
@@ -22,6 +23,10 @@ const API_BASE  = 'https://acleddata.com/api/acled/read';
 const AUTH_CACHE = 'acled-auth';
 const BRIEFING_CACHE = 'acled';
 const DENIED_CACHE = 'acled-denied';
+// The ACLED_ACCESS_TOKEN of .env lives ~24 hours. Once the API rejects it (HTTP 401) it is remembered here by its hash and skipped,
+// so the refresh token and the password grant take over; before 2.51.1 an expired one was sent again every sweep, for good.
+const REJECTED_ENV_CACHE = 'acled-env-rejected';
+const tokenHash = token => createHash('sha256').update(token).digest('hex').slice(0, 32);
 const DENIED_MS = 24 * 60 * 60 * 1000;
 
 /** @typedef {'auth_blocked'|'permission_denied'|'invalid_grant'|'rate_limited'|'upstream_unavailable'|'no_credentials'} AcledFailureCode */
@@ -88,6 +93,7 @@ export function resetState({ disk = true } = {}) {
     clearQuota(BRIEFING_CACHE);
     clearQuota(AUTH_CACHE);
     clearQuota(DENIED_CACHE);
+    clearQuota(REJECTED_ENV_CACHE);
   }
 }
 
@@ -297,8 +303,9 @@ async function loginCookie(email, password) {
 
 function envBearerSession() {
   const token = process.env.ACLED_ACCESS_TOKEN?.trim();
-  if (!token) return null;
+  if (!token || readQuota(REJECTED_ENV_CACHE)?.hash === tokenHash(token)) return null;
   return {
+    fromEnv: true,
     cookies: null,
     token,
     refreshToken: process.env.ACLED_REFRESH_TOKEN?.trim() || sessionCache.refreshToken || null,
@@ -409,7 +416,7 @@ export const EVENT_TYPES = [
   'Strategic developments',
 ];
 
-export async function getEvents(opts = {}) {
+export async function getEvents(opts = {}, { retried = false } = {}) {
   const {
     limit = 500,
     eventDateStart,
@@ -446,8 +453,15 @@ export async function getEvents(opts = {}) {
 
     if (!res.ok) {
       const failure = classifyHttpFailure(res.status, res.headers, text, { phase: 'data' });
+      // The .env access token has expired: never send it again, and try once more with the refresh token or the password.
+      if (res.status === 401 && session.fromEnv && !retried) {
+        writeQuota(REJECTED_ENV_CACHE, { hash: tokenHash(session.token), at: Date.now() });
+        clearAuthSession();
+        if (debug) console.error('[ACLED DEBUG] ACLED_ACCESS_TOKEN rejected (expired); retrying without it');
+        return getEvents(opts, { retried: true });
+      }
       if (res.status === 401 || failure.code === 'auth_blocked' || failure.code === 'permission_denied') {
-        clearAuthSession({ clearDiskTokens: res.status === 401 });
+        clearAuthSession({ clearDiskTokens: res.status === 401 && !session.fromEnv });
       }
       return { error: failure.error, code: failure.code };
     }

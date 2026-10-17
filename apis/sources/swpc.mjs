@@ -23,6 +23,9 @@ export function parseSWPC(data, { now = Date.now() } = {}) {
   const observations = [];
   for (const [code, key, title] of SCALES) {
     const raw = current[code]?.Scale;
+    // A missing value (null: NOAA writes the file in steps, about once a day a scale is briefly empty) leaves that scale out; a value
+    // outside 0-5 is a broken feed.
+    if (raw === null || raw === '' || raw === undefined) continue;
     if (!(typeof raw === 'string' && /^[0-5]$/.test(raw)) && !(Number.isInteger(raw) && raw >= 0 && raw <= 5)) {
       return unavailableResult(SOURCE, 'Invalid NOAA scale: expected a level from 0 to 5', {...META,metrics:{}}, now);
     }
@@ -35,7 +38,8 @@ export function parseSWPC(data, { now = Date.now() } = {}) {
       severity:SEVERITIES[scale], lat:null, lon:null, locationMethod:'global', locationPrecision:'unknown',
     });
   }
-  const summary = `Current NOAA scales: ${SCALES.map(([code,key,title])=>`${code}${metrics[key].scale} ${title} (${metrics[key].label})`).join('; ')}. These are current conditions, separate from NOAA forecasts.`;
+  if (!Object.keys(metrics).length) return unavailableResult(SOURCE, 'Invalid NOAA scales: no current scale value', {...META,metrics:{}}, now);
+  const summary = `Current NOAA scales: ${SCALES.filter(([,key])=>metrics[key]).map(([code,key,title])=>`${code}${metrics[key].scale} ${title} (${metrics[key].label})`).join('; ')}. These are current conditions, separate from NOAA forecasts.`;
   const out = freshResult(SOURCE, observedAt, observations, {...META,metrics,summary}, now);
   if (out.stale) { out.metrics = {}; out.summary = 'Current NOAA space-weather scales are unavailable within the one-hour freshness window.'; }
   return out;

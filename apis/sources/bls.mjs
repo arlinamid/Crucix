@@ -27,8 +27,10 @@ export function resetState({ disk = true } = {}) {
   if (disk) clearQuota('bls');
 }
 
-function cached(message) {
-  return { ...lastGood.result, stale: true, message };
+// A result served from the cache within its planned interval is current (BLS publishes monthly): `cached`, not stale. The last good
+// result served after a failed request is stale.
+function cached(message, { stale = true } = {}) {
+  return { ...lastGood.result, ...(stale ? { stale: true } : { cached: true }), message };
 }
 
 // Key economic series
@@ -118,7 +120,7 @@ function momChange(seriesData) {
 export async function briefing(apiKey, { now = Date.now() } = {}) {
   hydrateQuota();
   if (lastGood.result && now >= lastGood.at && now - lastGood.at < CACHE_MS) {
-    return cached(`Cached BLS result; next request after ${new Date(lastGood.at + CACHE_MS).toISOString()}`);
+    return cached(`Cached BLS result; next request after ${new Date(lastGood.at + CACHE_MS).toISOString()}`, { stale: false });
   }
 
   const seriesIds = Object.keys(SERIES);

@@ -47,6 +47,12 @@ test('SWPC rejects missing, malformed, stale and future provider time and invali
   }
   const data = structuredClone(scales); data['0'].S.Scale = '6';
   assert.equal(parser(swpc.parseSWPC)(data,{now}).status, 'error');
+  // 2.51.1: one scale briefly empty (null) leaves only that scale out; all of them empty is an error.
+  const partial = structuredClone(scales); partial['0'].S.Scale = null;
+  const kept = parser(swpc.parseSWPC)(partial,{now});
+  assert.equal(kept.status, 'ok'); assert.equal(kept.metrics.solarRadiationStorms, undefined); assert.ok(kept.metrics.geomagneticStorms);
+  const empty = structuredClone(scales); for (const code of ['R','S','G']) empty['0'][code].Scale = null;
+  assert.equal(parser(swpc.parseSWPC)(empty,{now}).status, 'error');
   assert.equal(parser(swpc.parseSWPC)({'1':scales['1']},{now}).status, 'error');
 });
 

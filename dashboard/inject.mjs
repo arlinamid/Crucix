@@ -790,7 +790,10 @@ export async function synthesize(data, options = {}) {
     const key = `${r.lat},${r.lon}`;
     if (seenEpa.has(key)) continue;
     seenEpa.add(key);
-    epaStations.push({ location: r.location, state: r.state, lat: r.lat, lon: r.lon, analyte: r.analyte, result: r.result, unit: r.unit });
+    epaStations.push({ location: r.location, state: r.state, lat: r.lat, lon: r.lon, analyte: r.analyte, result: r.result, unit: r.unit,
+      // RadNet monitors (2.51.1): the 30-day median background and the latest / median ratio.
+      ...(Number.isFinite(r.baseline) ? { baseline: r.baseline } : {}), ...(Number.isFinite(r.ratio) ? { ratio: r.ratio } : {}),
+      ...(typeof r.status === 'string' ? { status: r.status.slice(0, 10) } : {}), ...(typeof r.collectDate === 'string' ? { at: r.collectDate.slice(0, 30) } : {}) });
   }
   const epa = { totalReadings: epaData.totalReadings || 0, stations: epaStations.slice(0, 10) };
 

@@ -42,7 +42,7 @@ Every source, grouped by tier, with its key requirement, licence note and what i
 | Source | What It Tracks | Auth |
 |--------|---------------|------|
 | **NOAA/NWS** | Active US weather alerts | None |
-| **EPA RadNet** | US government radiation monitoring. EPA's WAF returns 403; Crucix does not retry for 6 hours and keeps the last good reading | None (often blocked) |
+| **EPA RadNet** | US government radiation monitoring (since 2.51.1 from RadNet's own data service, radnet.epa.gov): the hourly gamma dose rate (nSv/h; the gamma count rate where a monitor reports no dose rate) of ten fixed monitors against each monitor's own 30-day median; 1.5x or more is a signal (rain raises it for a few hours). Cached 3 hours (~600 KB a monitor). The Envirofacts lab results used before are blocked by EPA's firewall (HTTP 403) | None |
 | **USPTO Patents** | Patent filings in 7 strategic tech areas | None |
 | **Bluesky** | Social sentiment on geopolitical/market topics | None |
 | **Reddit** | Social sentiment from key subreddits | OAuth |

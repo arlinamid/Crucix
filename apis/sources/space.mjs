@@ -159,7 +159,8 @@ function generateSignals(data) {
 export async function briefing({ now = Date.now() } = {}) {
   hydrateQuota();
   if (lastGood.result && now >= lastGood.at && now - lastGood.at < CACHE_MS) {
-    return { ...lastGood.result, stale: true, message: `Cached CelesTrak result; next request after ${new Date(lastGood.at + CACHE_MS).toISOString()}` };
+    // Within its planned interval the cached result is current (`cached`); only a fallback after a failure is stale.
+    return { ...lastGood.result, cached: true, message: `Cached CelesTrak result; next request after ${new Date(lastGood.at + CACHE_MS).toISOString()}` };
   }
   try {
     const [launches, stations, military] = await Promise.all([

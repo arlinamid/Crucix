@@ -2280,7 +2280,7 @@ function plotMarkers(){
       lat:s.lat, lng:s.lon, size:0.18, alt:0.006,
       color:'rgba(205,220,57,0.7)', type:'radiation', priority:3,
       popHead:'RadNet: '+s.location, popMeta:tFill('popup.epaMonitor','EPA Radiation Monitor'),
-      popText:`${s.analyte||'--'}: ${s.result||'--'} ${s.unit||''}<br>${tFill('popup.state','State')}: ${s.state}`
+      popText:`${esc(s.analyte||'--')}: ${esc(String(s.result??'--'))} ${esc(s.unit||'')}${Number.isFinite(s.ratio)?` (${s.ratio}× ${esc(t('popup.radnetMedian','30-day median'))})`:''}<br>${tFill('popup.state','State')}: ${esc(s.state||'')}`
     });
   });
 
@@ -2738,7 +2738,7 @@ function plotFlatMarkers(){
   (D.noaa?.alerts||[]).forEach(a=>{addPt(a.lat,a.lon,4,'rgba(255,152,0,0.7)','rgba(255,152,0,0.3)',ev=>showPopup(ev,a.event,a.headline||'','NOAA/NWS'),2)});
   // EPA RadNet
   flatMarkerType='radiation';
-  (D.epa?.stations||[]).forEach(s=>{addPt(s.lat,s.lon,3,'rgba(205,220,57,0.6)','rgba(205,220,57,0.2)',ev=>showPopup(ev,'RadNet: '+s.location,`${s.analyte||'--'}: ${s.result||'--'} ${s.unit||''}`,'EPA'),3)});
+  (D.epa?.stations||[]).forEach(s=>{addPt(s.lat,s.lon,3,'rgba(205,220,57,0.6)','rgba(205,220,57,0.2)',ev=>showPopup(ev,'RadNet: '+s.location,`${esc(s.analyte||'--')}: ${esc(String(s.result??'--'))} ${esc(s.unit||'')}${Number.isFinite(s.ratio)?` (${s.ratio}× ${esc(t('popup.radnetMedian','30-day median'))})`:''}`,'EPA'),3)});
   // Space stations
   flatMarkerType='space';
   (D.space?.stationPositions||[]).forEach(s=>{
