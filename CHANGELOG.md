@@ -1,5 +1,6 @@
 # Changelog / Változásnapló
 
+- [2.52.2 — Mentés tele lemeznél / Backup on a full disk](docs/releases/v2.52.2.md) — 2026-10-17
 - [2.52.1 — URL-összevonás Node 22-n / Merging by URL on Node 22](docs/releases/v2.52.1.md) — 2026-10-17
 - [2.52.0 — Egy sztori, egy szál / One story, one thread](docs/releases/v2.52.0.md) — 2026-10-17
 - [2.51.3 — FMP az ingyenes csomaggal / FMP on the free plan](docs/releases/v2.51.3.md) — 2026-10-17
