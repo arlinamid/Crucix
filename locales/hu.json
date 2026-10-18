@@ -310,7 +310,12 @@
     "totalTracked": "Összes követett",
     "byCountry": "ORSZÁGONKÉNT",
     "constellations": "KONSTELLÁCIÓK",
-    "launches": "indítás"
+    "launches": "indítás",
+    "newObjects30d": "Új objektumok (30 n.)",
+    "militarySats": "Katonai műholdak",
+    "militarySatsUnit": "kat. műhold",
+    "issAltitude": "ISS magasság",
+    "ownerUnknown": "Ismeretlen tulajdonos"
   },
   "europe": {
     "noAlerts": "NINCS AKTÍV RIASZTÁS",

@@ -26,6 +26,7 @@ import { generateRuleBasedIdeas, resolveIdeas } from '../lib/llm/rule-ideas.mjs'
 import { buildEvents, stampLiveEventIds } from '../lib/intelligence/events.mjs';
 import { normalizeLiveSources } from '../lib/intelligence/live-sources.mjs';
 import { annotateNews } from '../lib/news/annotate.mjs';
+import { feedTimestamp, sourceTimestamp } from '../lib/news/feed-time.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -825,7 +826,7 @@ export async function synthesize(data, options = {}) {
     issPosition: issPos,
     stationPositions: spaceStations.slice(0, 5),
     recentLaunches: (spaceData.recentLaunches || []).slice(0, 10).map(l => ({
-      name: l.name, country: l.country, epoch: l.epoch,
+      name: l.name, country: l.country, launchDate: l.launchDate,
       apogee: l.apogee, perigee: l.perigee, type: l.objectType
     })),
     launchByCountry: spaceData.launchByCountry || {},
@@ -939,19 +940,7 @@ export async function synthesize(data, options = {}) {
 }
 
 // === Unified News Feed for Ticker ===
-export function sourceTimestamp(raw) {
-  if (!raw) return null;
-  const compact = String(raw).match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
-  if (compact && (Number(compact[4]) > 23 || Number(compact[5]) > 59 || Number(compact[6]) > 59)) return null;
-  const value = compact ? `${compact[1]}-${compact[2]}-${compact[3]}T${compact[4]}:${compact[5]}:${compact[6]}Z` : raw;
-  const calendar = String(value).match(/^(\d{4}-\d{2}-\d{2})/);
-  if (calendar) {
-    const day = new Date(`${calendar[1]}T00:00:00Z`);
-    if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== calendar[1]) return null;
-  }
-  const ms = Date.parse(value);
-  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
-}
+export { sourceTimestamp };
 
 export function buildNewsFeed(rssNews, gdeltData, tgUrgent, tgTop) {
   const feed = [];
@@ -960,7 +949,7 @@ export function buildNewsFeed(rssNews, gdeltData, tgUrgent, tgTop) {
   for (const n of rssNews) {
     feed.push({
       headline: n.title, ...(n.summary ? { summary: n.summary } : {}), source: n.source, type: 'rss',
-      timestamp: sourceTimestamp(n.date), publishedAt: sourceTimestamp(n.date), region: n.region, urgent: false, url: sanitizeExternalUrl(n.url),
+      timestamp: feedTimestamp(n.date), publishedAt: feedTimestamp(n.date), region: n.region, urgent: false, url: sanitizeExternalUrl(n.url),
       ...(n.tier ? { tier: n.tier } : {}), ...(n.lang ? { lang: n.lang } : {}), ...(n.state ? { state: true } : {}),
       ...(n.country ? { country: n.country } : {}),
       lat: n.lat, lon: n.lon, locationMethod: n.locationMethod || 'unknown', locationPrecision: n.locationPrecision || 'unknown'
@@ -973,7 +962,7 @@ export function buildNewsFeed(rssNews, gdeltData, tgUrgent, tgTop) {
       const geo = geoTagText(a.title);
       feed.push({
         headline: a.title.substring(0, 2000), source: 'GDELT', type: 'gdelt',
-        timestamp: sourceTimestamp(a.seendate || a.date), observedAt: sourceTimestamp(a.seendate), publishedAt: sourceTimestamp(a.date),
+        timestamp: feedTimestamp(a.seendate || a.date), observedAt: feedTimestamp(a.seendate), publishedAt: feedTimestamp(a.date),
         region: geo?.region || 'Global', urgent: false, url: sanitizeExternalUrl(a.url),
         lat: geo?.lat, lon: geo?.lon, locationMethod: geo ? 'headline-keyword' : 'unknown', locationPrecision: geo ? 'approximate' : 'unknown'
       });
@@ -984,8 +973,8 @@ export function buildNewsFeed(rssNews, gdeltData, tgUrgent, tgTop) {
   for (const p of tgUrgent.slice(0, 10)) {
     const text = (p.text || '').replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '').trim();
     feed.push({
-      id: p.id, headline: text.substring(0, 2000), source: p.channel?.toUpperCase() || 'TELEGRAM', publishedAt: sourceTimestamp(p.date),
-      type: 'telegram', timestamp: sourceTimestamp(p.date), region: 'OSINT', urgent: true, url: sanitizeExternalUrl(p.url)
+      id: p.id, headline: text.substring(0, 2000), source: p.channel?.toUpperCase() || 'TELEGRAM', publishedAt: feedTimestamp(p.date),
+      type: 'telegram', timestamp: feedTimestamp(p.date), region: 'OSINT', urgent: true, url: sanitizeExternalUrl(p.url)
     });
   }
 
@@ -993,8 +982,8 @@ export function buildNewsFeed(rssNews, gdeltData, tgUrgent, tgTop) {
   for (const p of tgTop.slice(0, 5)) {
     const text = (p.text || '').replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '').trim();
     feed.push({
-      id: p.id, headline: text.substring(0, 2000), source: p.channel?.toUpperCase() || 'TELEGRAM', publishedAt: sourceTimestamp(p.date),
-      type: 'telegram', timestamp: sourceTimestamp(p.date), region: 'OSINT', urgent: false, url: sanitizeExternalUrl(p.url)
+      id: p.id, headline: text.substring(0, 2000), source: p.channel?.toUpperCase() || 'TELEGRAM', publishedAt: feedTimestamp(p.date),
+      type: 'telegram', timestamp: feedTimestamp(p.date), region: 'OSINT', urgent: false, url: sanitizeExternalUrl(p.url)
     });
   }
 

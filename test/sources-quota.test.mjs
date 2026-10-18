@@ -215,22 +215,57 @@ test('ACLED refresh token avoids password grant and permission_denied stays dist
   assert.equal(calls.length, before, 'no new request while the denial is remembered (24 h)');
 });
 
-test('CelesTrak caches a good briefing for two hours and never pulls Starlink', async t => {
+test('CelesTrak caches a good briefing for two hours and counts Starlink at most once a day', async t => {
   resetSpace();
   t.after(() => resetSpace());
   const calls = [];
   useFetch(t, async url => {
     calls.push(String(url));
-    return new Response(JSON.stringify([{ OBJECT_NAME: 'ISS (ZARYA)', NORAD_CAT_ID: 25544, EPOCH: '2026-10-11T04:00:00' }]));
+    if (String(url).includes('GROUP=starlink')) return new Response(JSON.stringify([{ OBJECT_NAME: 'STARLINK-1' }, { OBJECT_NAME: 'STARLINK-2' }, { OBJECT_NAME: 'STARLINK-3', DECAY_DATE: '2026-10-01' }]));
+    if (String(url).includes('GROUP=oneweb')) return new Response(JSON.stringify([{ OBJECT_NAME: 'ONEWEB-1' }]));
+    return new Response(JSON.stringify([{ OBJECT_NAME: 'ISS (ZARYA)', NORAD_CAT_ID: 25544, EPOCH: '2026-10-11T04:00:00', OWNER: 'ISS' }]));
   });
+  const megaLists = () => calls.filter(url => url.includes('starlink') || url.includes('oneweb')).length;
   const first = await space({ now: NOW });
   assert.equal(first.status, 'active');
-  assert.ok(calls.every(url => !url.includes('starlink') && !url.includes('oneweb')));
+  assert.equal(megaLists(), 2, 'one catalogue read per constellation');
+  assert.deepEqual([first.constellations.starlink, first.constellations.oneweb], [2, 1], 'decayed objects are not counted');
+  assert.ok(calls.filter(url => url.includes('starlink')).every(url => url.includes('/satcat/')), 'the catalogue, not the GP mega-list');
   const before = calls.length;
   const cached = await space({ now: NOW + 30 * 60 * 1000 });
   assert.equal(cached.cached, true);
   assert.equal(cached.stale, undefined, 'within the planned interval the cached result is current, not stale');
   assert.equal(calls.length, before);
+  resetSpace({ disk: false });
+  const later = await space({ now: NOW + 3 * 3600000 });
+  assert.equal(megaLists(), 2, 'the next 2-hour briefing reuses the day-old count');
+  assert.equal(later.constellations.starlink, 2);
+  resetSpace({ disk: false });
+  await space({ now: NOW + 25 * 3600000 });
+  assert.equal(megaLists(), 4, 'a day later the constellations are counted again');
+});
+
+test('CelesTrak space data: owners from the catalogue, ISS altitude from the mean motion, no false constellation zero', async t => {
+  resetSpace();
+  t.after(() => resetSpace());
+  useFetch(t, async url => {
+    const u = String(url);
+    if (u.includes('/satcat/') && u.includes('GROUP=military')) return new Response(JSON.stringify([{ OBJECT_NAME: 'USA 1', OWNER: 'US' }, { OBJECT_NAME: 'YAOGAN 1', OWNER: 'PRC' }, { OBJECT_NAME: 'X', OWNER: '' }]));
+    if (u.includes('/satcat/') && u.includes('GROUP=last-30-days')) return new Response(JSON.stringify([
+      { OBJECT_NAME: 'OLDER', NORAD_CAT_ID: 1, OWNER: 'PRC', LAUNCH_DATE: '2026-09-20', APOGEE: 500, PERIGEE: 490, PERIOD: 94.6, INCLINATION: 97 },
+      { OBJECT_NAME: 'NEWER', NORAD_CAT_ID: 2, OWNER: 'US', LAUNCH_DATE: '2026-10-09', APOGEE: 560, PERIGEE: 550, PERIOD: 95.6, INCLINATION: 53 },
+    ]));
+    if (u.includes('GROUP=stations')) return new Response(JSON.stringify([{ OBJECT_NAME: 'ISS (ZARYA)', NORAD_CAT_ID: 25544, EPOCH: '2026-10-11T04:00:00', INCLINATION: 51.63, MEAN_MOTION: 15.4975, ECCENTRICITY: 0.0007 }]));
+    return new Response('rate limited', { status: 403 });
+  });
+  const data = await space({ now: NOW });
+  assert.deepEqual(data.militaryByCountry, { US: 1, PRC: 1, TBD: 1 });
+  assert.deepEqual(data.launchByCountry, { US: 1, PRC: 1 });
+  assert.deepEqual(data.recentLaunches.map(l => [l.name, l.country, l.apogee]), [['NEWER', 'US', 560], ['OLDER', 'PRC', 500]]);
+  assert.ok(data.iss.apogee > 410 && data.iss.apogee < 430, `ISS apogee ${data.iss.apogee}`);
+  assert.ok(data.iss.perigee > 400 && data.iss.perigee < 420, `ISS perigee ${data.iss.perigee}`);
+  assert.ok(Math.abs(data.iss.period - 92.92) < 0.05, `ISS period ${data.iss.period}`);
+  assert.deepEqual([data.constellations.starlink, data.constellations.oneweb], [null, null], 'a failed first count is unknown, not zero');
 });
 
 test('OpenSky 429 pause is remembered after a memory reset', async t => {

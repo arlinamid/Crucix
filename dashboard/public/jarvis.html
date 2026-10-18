@@ -1306,16 +1306,21 @@ function buildRiskGaugesPanel(){
   </div>`;
 }
 
+// A constellation count that was never made is null (apis/sources/space.mjs), shown as "--" rather than a false zero.
+function spaceCount(value){return Number.isFinite(value)&&value>0?Number(value).toLocaleString():'--'}
+// Mean altitude of the ISS from its apogee and perigee; null when the source carries neither (older snapshots).
+function issAltitude(iss){const a=Number(iss?.apogee),p=Number(iss?.perigee);return iss&&Number.isFinite(a)&&Number.isFinite(p)&&iss.apogee!==null&&iss.perigee!==null?Math.round((a+p)/2):null}
+
 function buildSpaceWatchPanel(){
   return `<div class="g-panel">
     <div class="sec-head"><h3>${t('panels.spaceWatch','Space Watch')}</h3><span class="badge">${t('badges.orbital','CELESTRAK')}</span></div>
     ${D.space ? `
-      <div class="econ-row"><span class="elabel">New Objects (30d)</span><span class="eval" style="color:var(--accent2)">${D.space.totalNewObjects||0}</span></div>
-      <div class="econ-row"><span class="elabel">Military Sats</span><span class="eval">${D.space.militarySats||0}</span></div>
-      <div class="econ-row"><span class="elabel">${t('metrics.starlink','Starlink')}</span><span class="eval">${D.space.constellations?.starlink||0}</span></div>
-      <div class="econ-row"><span class="elabel">OneWeb</span><span class="eval">${D.space.constellations?.oneweb||0}</span></div>
-      ${D.space.iss ? `<div class="econ-row"><span class="elabel">ISS</span><span class="eval" style="color:var(--accent)">ALT ${((D.space.iss.apogee+D.space.iss.perigee)/2).toFixed(0)} km</span></div>` : ''}
-      ${Object.entries(D.space.militaryByCountry||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([c,n])=>`<div class="econ-row"><span class="elabel" style="padding-left:8px">${esc(c)}</span><span class="eval" style="font-size:10px">${esc(n)} mil sats</span></div>`).join('')}
+      <div class="econ-row"><span class="elabel">${t('space.newObjects30d','New objects (30d)')}</span><span class="eval" style="color:var(--accent2)">${D.space.totalNewObjects||0}</span></div>
+      <div class="econ-row"><span class="elabel">${t('space.militarySats','Military sats')}</span><span class="eval">${D.space.militarySats||0}</span></div>
+      <div class="econ-row"><span class="elabel">${t('metrics.starlink','Starlink')}</span><span class="eval">${spaceCount(D.space.constellations?.starlink)}</span></div>
+      <div class="econ-row"><span class="elabel">OneWeb</span><span class="eval">${spaceCount(D.space.constellations?.oneweb)}</span></div>
+      ${issAltitude(D.space.iss)!==null ? `<div class="econ-row"><span class="elabel">${t('space.issAltitude','ISS altitude')}</span><span class="eval" style="color:var(--accent)">${issAltitude(D.space.iss)} km</span></div>` : ''}
+      ${Object.entries(D.space.militaryByCountry||{}).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([c,n])=>`<div class="econ-row"><span class="elabel" style="padding-left:8px">${c==='TBD'||c==='UNK'?esc(t('space.ownerUnknown','Owner unknown')):esc(c)}</span><span class="eval" style="font-size:10px">${esc(n)} ${esc(t('space.militarySatsUnit','mil. sats'))}</span></div>`).join('')}
       ${(D.space.signals||[]).length ? `<div style="margin-top:6px;padding:6px 8px;border:1px solid rgba(68,204,255,0.2);background:rgba(68,204,255,0.04);font-family:var(--mono);font-size:9px;color:var(--accent2);line-height:1.5">${D.space.signals.slice(0,2).map(esc).join('<br>')}</div>` : ''}
     ` : '<div style="font-family:var(--mono);font-size:10px;color:var(--dim)">NO SPACE DATA</div>'}
   </div>`;
@@ -1445,7 +1450,18 @@ function newsItemMatchesRegion(n, reg){
   return false;
 }
 
+// The tier order below applies within the live window only: a headline older than NEWS_LIVE_HOURS follows every live one, and a
+// headline without a provider time follows those, so an undated or day-old tier-1/2 item cannot sit above the latest news.
+const NEWS_LIVE_HOURS = 12;
+function newsAgeBucket(item){
+  const ts = item.timestamp ? Date.parse(item.timestamp) : NaN;
+  if (!Number.isFinite(ts)) return 2;
+  return clockNow() - ts > NEWS_LIVE_HOURS * 3600000 ? 1 : 0;
+}
+
 function rankNewsItem(a, b, reg){
+  const aBucket = newsAgeBucket(a), bBucket = newsAgeBucket(b);
+  if (aBucket !== bBucket) return aBucket - bBucket;
   // In WORLD mode, prioritize Tier 1 first (official/wires), then Tier 2, Tier 3, Tier 4
   if (!reg || reg === 'world') {
     const aTier = Number.isInteger(a.tier) && a.tier >= 1 ? a.tier : (a.urgent ? 1 : 3);
@@ -1464,6 +1480,25 @@ function rankNewsItem(a, b, reg){
   return bTime - aTime;
 }
 
+// Keeps the ranked order but lets each publisher country hold at most `max` of the first places; the rest follow in order.
+// An item without a country (Telegram, GDELT) counts against its own source, so urgent posts are not capped as one pool.
+function diversifyByCountry(ranked, max){
+  const counts = new Map();
+  const diverse = [];
+  const overflow = [];
+  for (const item of ranked) {
+    const c = item.country || 'source:' + (item.source || '');
+    const count = counts.get(c) || 0;
+    if (count < max) {
+      diverse.push(item);
+      counts.set(c, count + 1);
+    } else {
+      overflow.push(item);
+    }
+  }
+  return [...diverse, ...overflow];
+}
+
 function buildNewsTickerPanel(){
   const isSpecificRegion = currentRegion && currentRegion !== 'world';
   let feed;
@@ -1478,26 +1513,12 @@ function buildNewsTickerPanel(){
   } else if(isSpecificRegion){
     const matching = (D.newsFeed || []).filter(n => newsInScope(n) && newsInLens(n));
     matching.sort((a, b) => rankNewsItem(a, b, currentRegion));
-    // Diverse country representation: max 3 headlines per country so one country cannot crowd out the region
-    const countryCounts = new Map();
-    const diverse = [];
-    const overflow = [];
-    const MAX_PER_COUNTRY = 3;
-    for (const item of matching) {
-      const c = item.country || 'OTHER';
-      const count = countryCounts.get(c) || 0;
-      if (count < MAX_PER_COUNTRY) {
-        diverse.push(item);
-        countryCounts.set(c, count + 1);
-      } else {
-        overflow.push(item);
-      }
-    }
-    feed = [...diverse, ...overflow].slice(0, 50);
+    feed = diversifyByCountry(matching, 3).slice(0, 50);
   } else {
-    feed = (D.newsFeed || []).slice();
-    feed.sort((a, b) => rankNewsItem(a, b, 'world'));
-    feed = feed.slice(0, 50);
+    const ranked = (D.newsFeed || []).slice();
+    ranked.sort((a, b) => rankNewsItem(a, b, 'world'));
+    // Countries with many fast-moving tier-2 outlets (seven Hungarian portals) would otherwise fill the newest tier-2 places.
+    feed = diversifyByCountry(ranked, 4).slice(0, 50);
   }
   const srcClass = s => {
     if (!s) return 'other';

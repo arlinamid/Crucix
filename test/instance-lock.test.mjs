@@ -87,3 +87,17 @@ test('a second server on the same runs/ exits instead of starting another sweep'
   assert.equal(code, 1);
   assert.match(secondLogs, /already running|már fut/);
 });
+
+test('the CLI guard keeps a command running after the benign parser close and still exits on any other error', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const guard = new URL('../lib/http-parser-error.mjs', import.meta.url).href;
+  const run = body => spawnSync(process.execPath, ['--input-type=module', '-e', `import { guardBenignHttpParserClose } from ${JSON.stringify(guard)}; guardBenignHttpParserClose(); ${body}`], { encoding: 'utf8' });
+  const benign = run(`setImmediate(() => { const e = new Error(['The expression evaluated to a falsy value:', '', '  assert(!this.paused)'].join(String.fromCharCode(10))); e.name = 'AssertionError'; e.stack = 'AssertionError at Parser.finish (node:_http_common)'; throw e; }); setTimeout(() => console.log('still running'), 50);`);
+  assert.equal(benign.status, 0, benign.stderr);
+  assert.match(benign.stdout, /still running/);
+  assert.match(benign.stderr, /paused TLS socket/);
+  const fatal = run(`setImmediate(() => { throw new Error('real failure'); }); setTimeout(() => console.log('should not print'), 50);`);
+  assert.equal(fatal.status, 1);
+  assert.doesNotMatch(fatal.stdout, /should not print/);
+  assert.match(fatal.stderr, /real failure/);
+});

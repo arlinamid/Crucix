@@ -30,6 +30,9 @@ import { installUserProfile } from '../lib/profile-install.mjs';
 import { resolveRunsDir as resolveUserRunsDir } from '../lib/user-paths.mjs';
 import { packageVersion, versionLine } from '../lib/version.mjs';
 import { alreadyRunningMessage, holdInstanceLock } from '../lib/instance-lock.mjs';
+import { guardBenignHttpParserClose } from '../lib/http-parser-error.mjs';
+import { feedTimestamp } from '../lib/news/feed-time.mjs';
+import { rankTicker } from '../lib/news/ticker-rank.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -1686,6 +1689,9 @@ async function main() {
     }
   }
 
+  // Every command but the server (which installs its own handler) survives the benign RSS-abort parser close (2.39.4).
+  if (!opts.server && !opts.serve) guardBenignHttpParserClose();
+
   // 0a. Start server (either Web Dashboard mode or Headless collector mode)
   if (opts.server || opts.serve) {
     const isHeadless = Boolean(opts.headless);
@@ -2136,19 +2142,22 @@ async function main() {
     let items = (liveData?.newsFeed || liveData?.news || []);
     if (!items.length) {
       loadWorldRssCache();
-      // The cache is grouped per feed, so slice only after sorting by publish time (undated items last).
-      const ts = c => { const t = Date.parse(c.date); return Number.isNaN(t) ? -Infinity : t; };
-      const cached = getWorldNews(Infinity).sort((a, b) => ts(b) - ts(a));
-      if (cached && cached.length) {
-        items = cached.map(c => ({
-          source: c.source,
-          headline: c.title,
-          timestamp: c.date,
-          url: c.url,
-          country: c.country,
-        }));
-      }
+      // The world-RSS cache (runs/latest.json holds raw sources, no news feed). Its dates are checked as the server checks
+      // them (lib/news/feed-time.mjs): an unreadable or future date (a feed's time zone error) leaves the headline undated.
+      const now = Date.now();
+      items = (getWorldNews(Infinity) || []).map(c => ({
+        source: c.source,
+        headline: c.title,
+        timestamp: feedTimestamp(c.date, now),
+        url: c.url,
+        country: c.country,
+        ...(c.tier ? { tier: c.tier } : {}),
+        ...(c.lang && c.lang !== 'en' ? { lang: c.lang } : {}),
+        ...(c.state ? { state: true } : {}),
+      }));
     }
+    // The dashboard's world order: live headlines by tier, then older and undated ones; at most four per country up front.
+    items = rankTicker(items);
 
     if (!items.length) {
       console.error(lang === 'hu' ? '❌ Nincs elérhető aktuális hír. (Futott már le sweep vagy RSS gyűjtés?)' : '❌ No current news available (has a sweep or RSS collection run?)');
@@ -2169,8 +2178,9 @@ async function main() {
       const time = item.timestamp ? formatAge(item.timestamp, lang) : '';
       const headline = item.headline || item.title || '';
       const c = item.country ? `[${item.country}] ` : '';
+      const tags = `${Number.isInteger(item.tier) ? `[T${item.tier}] ` : ''}${item.state === true ? '[STATE] ' : ''}`;
       const url = item.url ? ` (${item.url})` : '';
-      console.log(`${idx + 1}. ${c}[${src}] ${headline}  ${time}${url}`);
+      console.log(`${idx + 1}. ${c}${tags}[${src}] ${headline}  ${time}${url}`);
     });
     console.log('');
     return;

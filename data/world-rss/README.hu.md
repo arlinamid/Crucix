@@ -36,6 +36,8 @@ Ha a jelenlegi konfigurációba másolod, a `return [...]` belsejében lévő h�
 
 Az eredeti numerikus értékeket és `state: true` jelzéseket megőriztük. Az új feedek **3-as értéke ideiglenes alapérték**, mert a 1–4 skála jelentését nem adtad meg. Nem végeztünk hitelességi rangsorolást. Új `state` értéket nem találgattunk; a jelzés hiánya nem állítás a tulajdonosi viszonyokról. Állami, közszolgálati és magánkiadók is előfordulnak.
 
+**Felülvizsgálat (2026-10-18):** a generált fájl változatlan, a futáskor érvényes tier és `state` érték az `apis/utils/news-feeds.mjs` `WORLD_REVIEW` táblájából jön. A nemzetközi elérésű lapok tier 2-t kaptak, a hírügynökségek (Kyodo, Yonhap) tier 1-et. A `state` jelzés a kormány által birtokolt vagy finanszírozott kiadókat jelöli, a közszolgálati műsorszolgáltatókkal együtt. A core listával közös nevű feed a core bejegyzés értékét veszi át.
+
 ## Ellenőrzési módszer
 
 GET kérés, HTTP eredmény, XML parse, RSS/Atom/RDF gyökérelem és legalább egy cikk. A kiválasztott feed legújabb dátuma legfeljebb 30 napos; ha nincs értelmezhető dátum, a frissesség `unknown`, és a feed technikailag engedélyezett. A jelentősen jövőbeli dátumokat kizártuk. Ez pillanatnyi, ebből a környezetből végzett elérési próba, nem tartós rendelkezésre állási garancia és nem böngészős CORS-teszt. Fizetőfalas cikkek feedje is működhet. Egy 403 vagy timeout nem bizonyítja, hogy az URL megszűnt.

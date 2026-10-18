@@ -3,7 +3,9 @@ import { createWorldFeeds } from '../../data/world-rss/world-feeds.js';
 // The news feed registry. `tier` follows the public reading of source reliability that World Monitor (koala73/worldmonitor,
 // AGPL-3.0) uses: 1 = official bodies and wire services, 2 = major outlets, 3 = specialist, regional and think-tank sources,
 // 4 = aggregators and blogs. A tier ranks a source, it does not say a headline is true. `state` marks an outlet that a
-// government owns or funds, `lang` the language of its headlines (shown as a tag, headlines are never translated).
+// government owns or funds, public service broadcasters included, `lang` the language of its headlines (shown as a tag,
+// headlines are never translated). Domestic-language national press is tier 3 in every country; of the Hungarian outlets
+// Telex, HVG and Portfolio stay tier 2 (operator's choice in the 2026-10-18 review, see WORLD_REVIEW below).
 // Reachability of every URL was measured from Hungary on 2026-10-08 (HTTP 200).
 // `topic` (lib/intelligence/topics.mjs: conflict, politics, technology, health, economy) marks a specialist feed: its headlines count as that
 // topic even when a title has none of the topic's words, and they reach the event layer through their own quota (dashboard/inject.mjs topicNews).
@@ -11,46 +13,46 @@ const feed = (source, url, tier, extra = {}) => Object.freeze({ source, url, tie
 
 export const NEWS_FEEDS = Object.freeze([
   // Global and wires
-  feed('BBC', 'https://feeds.bbci.co.uk/news/world/rss.xml', 2, { country: 'GB' }),
+  feed('BBC', 'https://feeds.bbci.co.uk/news/world/rss.xml', 2, { state: true, country: 'GB' }),
   feed('NYT', 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', 2, { country: 'US' }),
   feed('Al Jazeera', 'https://www.aljazeera.com/xml/rss/all.xml', 2, { state: true, country: 'QA' }),
   feed('Guardian', 'https://www.theguardian.com/world/rss', 2, { country: 'GB' }),
   feed('UN News', 'https://news.un.org/feed/subscribe/en/news/all/rss.xml', 1, { country: 'US' }),
   // USA
   feed('NPR', 'https://feeds.npr.org/1001/rss.xml', 2, { country: 'US' }),
-  feed('BBC Tech', 'https://feeds.bbci.co.uk/news/technology/rss.xml', 2, { country: 'GB' }),
-  feed('BBC Science', 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml', 2, { country: 'GB' }),
+  feed('BBC Tech', 'https://feeds.bbci.co.uk/news/technology/rss.xml', 2, { state: true, country: 'GB' }),
+  feed('BBC Science', 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml', 2, { state: true, country: 'GB' }),
   feed('NYT Americas', 'https://rss.nytimes.com/services/xml/rss/nyt/Americas.xml', 2, { country: 'US' }),
   // Europe
-  feed('DW', 'https://rss.dw.com/rdf/rss-en-all', 2, { country: 'DE' }),
-  feed('France 24', 'https://www.france24.com/en/rss', 2, { country: 'FR' }),
+  feed('DW', 'https://rss.dw.com/rdf/rss-en-all', 2, { state: true, country: 'DE' }),
+  feed('France 24', 'https://www.france24.com/en/rss', 2, { state: true, country: 'FR' }),
   feed('Euronews', 'https://www.euronews.com/rss?format=mrss', 2, { country: 'FR' }),
   feed('Balkan Insight', 'https://balkaninsight.com/feed/', 3),
   feed('Meduza', 'https://meduza.io/rss/en/all', 2, { country: 'LV' }),
   feed('Moscow Times', 'https://www.themoscowtimes.com/rss/news', 2, { country: 'NL' }),
-  feed('ERR News', 'https://news.err.ee/rss', 2, { country: 'EE' }),
+  feed('ERR News', 'https://news.err.ee/rss', 2, { state: true, country: 'EE' }),
   // Hungary
   feed('Telex', 'https://telex.hu/rss', 2, { lang: 'hu', country: 'HU' }),
-  feed('Index.hu', 'https://index.hu/24ora/rss', 2, { lang: 'hu', country: 'HU' }),
+  feed('Index.hu', 'https://index.hu/24ora/rss', 3, { lang: 'hu', country: 'HU' }),
   feed('HVG', 'https://hvg.hu/rss', 2, { lang: 'hu', country: 'HU' }),
-  feed('444.hu', 'https://444.hu/feed', 2, { lang: 'hu', country: 'HU' }),
-  feed('24.hu', 'https://24.hu/feed/', 2, { lang: 'hu', country: 'HU' }),
+  feed('444.hu', 'https://444.hu/feed', 3, { lang: 'hu', country: 'HU' }),
+  feed('24.hu', 'https://24.hu/feed/', 3, { lang: 'hu', country: 'HU' }),
   feed('Portfolio.hu', 'https://portfolio.hu/rss/all.xml', 2, { lang: 'hu', country: 'HU' }),
-  feed('ATV', 'https://www.atv.hu/rss', 2, { lang: 'hu', country: 'HU' }),
+  feed('ATV', 'https://www.atv.hu/rss', 3, { lang: 'hu', country: 'HU' }),
   // Middle East and Turkey
   feed('Jerusalem Post', 'https://www.jpost.com/rss/rssfeedsheadlines.aspx', 2, { country: 'IL' }),
   feed('The National', 'https://www.thenationalnews.com/arc/outboundfeeds/rss/?outputType=xml', 2, { country: 'AE' }),
   feed('Daily Sabah', 'https://www.dailysabah.com/rss/home-page', 3, { state: true, country: 'TR' }),
   // Africa
-  feed('DW Africa', 'https://rss.dw.com/rdf/rss-en-africa', 2, { country: 'DE' }),
-  feed('RFI', 'https://www.rfi.fr/en/rss', 2, { country: 'FR' }),
+  feed('DW Africa', 'https://rss.dw.com/rdf/rss-en-africa', 2, { state: true, country: 'DE' }),
+  feed('RFI', 'https://www.rfi.fr/en/rss', 2, { state: true, country: 'FR' }),
   feed('Africa News', 'https://www.africanews.com/feed/rss', 3, { country: 'CG' }),
   feed('NYT Africa', 'https://rss.nytimes.com/services/xml/rss/nyt/Africa.xml', 2, { country: 'US' }),
   // Asia-Pacific
   feed('NYT Asia', 'https://rss.nytimes.com/services/xml/rss/nyt/AsiaPacific.xml', 2, { country: 'US' }),
-  feed('SBS Australia', 'https://www.sbs.com.au/news/topic/australia/feed', 2, { country: 'AU' }),
-  feed('ABC Australia', 'https://www.abc.net.au/news/feed/2942460/rss.xml', 2, { country: 'AU' }),
-  feed('CNA', 'https://www.channelnewsasia.com/rssfeeds/8395986', 2, { country: 'SG' }),
+  feed('SBS Australia', 'https://www.sbs.com.au/news/topic/australia/feed', 2, { state: true, country: 'AU' }),
+  feed('ABC Australia', 'https://www.abc.net.au/news/feed/2942460/rss.xml', 2, { state: true, country: 'AU' }),
+  feed('CNA', 'https://www.channelnewsasia.com/rssfeeds/8395986', 2, { state: true, country: 'SG' }),
   feed('The Diplomat', 'https://thediplomat.com/feed/', 3, { country: 'US' }),
   feed('Dawn', 'https://www.dawn.com/feeds/home/', 2, { country: 'PK' }),
   feed('Indian Express', 'https://indianexpress.com/section/india/feed/', 2, { country: 'IN' }),
@@ -102,7 +104,7 @@ export const NEWS_FEEDS = Object.freeze([
   feed('Financial Times', 'https://www.ft.com/rss/home', 2, { country: 'GB', topic: 'economy' }),
   feed('CNBC', 'https://www.cnbc.com/id/100003114/device/rss/rss.html', 2, { country: 'US', topic: 'economy' }),
   feed('MarketWatch', 'https://feeds.marketwatch.com/marketwatch/topstories/', 2, { country: 'US', topic: 'economy' }),
-  feed('BBC Business', 'https://feeds.bbci.co.uk/news/business/rss.xml', 2, { country: 'GB', topic: 'economy' }),
+  feed('BBC Business', 'https://feeds.bbci.co.uk/news/business/rss.xml', 2, { state: true, country: 'GB', topic: 'economy' }),
   feed('Guardian Business', 'https://www.theguardian.com/business/rss', 2, { country: 'GB', topic: 'economy' }),
   feed('NYT Business', 'https://rss.nytimes.com/services/xml/rss/nyt/Business.xml', 2, { country: 'US', topic: 'economy' }),
   feed('The Economist', 'https://www.economist.com/business/rss.xml', 2, { country: 'GB', topic: 'economy' }),
@@ -110,7 +112,7 @@ export const NEWS_FEEDS = Object.freeze([
   feed('Business Insider', 'https://feeds.businessinsider.com/custom/all', 3, { country: 'US', topic: 'economy' }),
   feed('Forbes Business', 'https://www.forbes.com/business/feed/', 3, { country: 'US', topic: 'economy' }),
   feed('Handelsblatt', 'https://www.handelsblatt.com/contentexport/feed/top-themen', 2, { lang: 'de', country: 'DE', topic: 'economy' }),
-  feed('Világgazdaság', 'https://www.vg.hu/feed', 2, { lang: 'hu', country: 'HU', topic: 'economy' }),
+  feed('Világgazdaság', 'https://www.vg.hu/feed', 3, { lang: 'hu', country: 'HU', topic: 'economy' }),
 ]);
 
 /** The topics a specialist feed may carry (topics.mjs TOPICS without disaster). */
@@ -125,8 +127,52 @@ export const feedBySource = name => BY_SOURCE.get(name);
 export const HUNGARIAN_SOURCES = Object.freeze(NEWS_FEEDS.filter(item => item.lang === 'hu').map(item => item.source));
 export const OFFICIAL_SOURCES = Object.freeze(NEWS_FEEDS.filter(item => item.tier === 1).map(item => item.source));
 
-/** The complete world news catalog covering 191+ countries (539 feeds). */
-export const WORLD_FEEDS = Object.freeze(createWorldFeeds(feed));
+// The tier review of 2026-10-18 for the world catalog, whose generated tier 3 is provisional (data/world-rss/world-feeds.js).
+// A name also in NEWS_FEEDS takes that entry's tier and state; these are the rest. A `country` limits an entry to the feed
+// of that country (two catalog feeds share a name).
+const INTERNATIONAL = { tier: 2 };
+const STATE = { state: true };
+const WORLD_REVIEW = new Map(Object.entries({
+  // Outlets of international reach that the catalog had left at tier 3
+  'BBC Africa': { tier: 2, state: true }, 'BBC Asia': { tier: 2, state: true }, 'BBC Europe': { tier: 2, state: true },
+  'BBC Latin America': { tier: 2, state: true }, 'BBC Middle East': { tier: 2, state: true }, 'BBC US and Canada': { tier: 2, state: true },
+  'The Guardian International': INTERNATIONAL, 'Washington Post World': INTERNATIONAL, 'Le Monde English': INTERNATIONAL,
+  'Le Monde English International': INTERNATIONAL, 'Der Spiegel English': INTERNATIONAL, 'El País English': INTERNATIONAL,
+  'Nikkei Asia': INTERNATIONAL, 'The Japan Times': INTERNATIONAL, 'Hindustan Times': INTERNATIONAL, 'Times of Israel': INTERNATIONAL,
+  'The Kyiv Independent': INTERNATIONAL,
+  // Wire services
+  'Japan Wire by Kyodo News': { tier: 1 }, 'Yonhap News': { tier: 1, state: true },
+  // Owned or funded by a government: agencies, party and government media, public broadcasters
+  CGTN: STATE, TASS: STATE, 'RT International': STATE, 'Mehr News Agency': STATE, 'Tehran Times': STATE, 'Al-Masirah TV': STATE,
+  'Choson Sinbo': STATE, 'Juventud Rebelde': STATE, 'Radio Rebelde': STATE, Escambray: STATE, Bohemia: STATE,
+  'Bakhtar News Agency': STATE, 'Uzbekistan National News Agency (UzA)': STATE, 'Vietnam News': STATE, 'RTHK News': STATE,
+  'Agence Gabonaise de Presse (AGP)': STATE, 'Agência de Notícias da Guiné (ANG)': STATE, 'Agence Nigérienne de Presse (ANP)': STATE,
+  'Agence de Presse Senegalaise (APS)': STATE, "AMI (Agence Mauritanienne d'Information)": STATE, 'Agencia Boliviana de Información': STATE,
+  'Agencia Guatemalteca de Noticias': STATE, 'National News Agency (NNA)': STATE, 'STP-Press': STATE,
+  'Office National des Médias Audiovisuels (ONAMA)': STATE, RTNC: STATE, 'Radiodiffusion Télévision Ivoirienne (RTI)': STATE,
+  'Radiodiffusion Télévision de Djibouti (RTD)': STATE, 'Eswatini Broadcasting and Information Services (EBIS)': STATE,
+  'Bhutan Broadcasting Service': STATE, 'The Rising Nepal': STATE, 'Ghanaian Times': STATE, 'Daily News': { state: true, country: 'TZ' },
+  'New Era': STATE, 'Guyana Chronicle': STATE, 'Le Soleil': STATE, 'Fraternité': STATE, 'Togo‑Presse': STATE, 'La Presse de Tunisie': STATE,
+  'PSM News': STATE, 'KBC (Kenya Broadcasting Corporation)': STATE, 'Malawi Broadcasting Corporation': STATE,
+  'Rádio Nacional de Angola (RNA)': STATE, 'Qatar Department of Foreign Media Affairs': STATE,
+  'Caribbean Broadcasting Corporation (CBC)': STATE, 'ZIZ Broadcasting Corporation': STATE, 'NBC Radio': STATE, 'Vatican News': STATE,
+  'Emirates 24/7': STATE, 'Radio Free Asia (RFA) - Myanmar Service': STATE, 'Belsat TV': STATE, 'Yleisradio (Yle)': STATE,
+  'ERT News': STATE, 'RTV Slovenija': STATE, 'San Marino RTV': STATE, 'LSM Latvia': STATE, 'SABC News': STATE,
+}));
+
+function reviewed(entry) {
+  const core = BY_SOURCE.get(entry.source);
+  if (core) return core.tier === entry.tier && core.state === entry.state ? entry : Object.freeze({ ...entry, tier: core.tier, state: core.state });
+  const review = WORLD_REVIEW.get(entry.source);
+  if (!review || (review.country && review.country !== entry.country)) return entry;
+  const { country: _country, ...patch } = review;
+  return Object.freeze({ ...entry, ...patch });
+}
+
+/** The complete world news catalog covering 191+ countries (539 feeds), with the tier review applied. */
+export const WORLD_FEEDS = Object.freeze(createWorldFeeds(feed).map(reviewed));
+/** Review entries whose name the catalog does not hold (a renamed feed would silently lose its review). */
+export const unmatchedWorldReview = () => [...WORLD_REVIEW.keys()].filter(name => !WORLD_FEEDS.some(item => item.source === name));
 
 /** Return feeds published by or focusing on a specific ISO 3166-1 alpha-2 country (e.g. 'FR', 'DE', 'JP', 'HU'). */
 export function getFeedsByCountry(countryCode) {

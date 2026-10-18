@@ -310,7 +310,12 @@
     "totalTracked": "Total Suivi",
     "byCountry": "PAR PAYS",
     "constellations": "CONSTELLATIONS",
-    "launches": "lancements"
+    "launches": "lancements",
+    "newObjects30d": "Nouveaux objets (30j)",
+    "militarySats": "Satellites militaires",
+    "militarySatsUnit": "sats mil.",
+    "issAltitude": "Altitude ISS",
+    "ownerUnknown": "Propriétaire inconnu"
   },
   "europe": {
     "noAlerts": "PAS D'ALERTES ACTIVES",
