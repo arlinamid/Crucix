@@ -4,15 +4,44 @@
 
 import { safeFetch } from '../utils/fetch.mjs';
 import { YAHOO_FX } from '../../lib/markets/fx.mjs';
+import { loadSeries, mergeSeries, saveSeries, seriesStats } from '../../lib/markets/series.mjs';
 
 const BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
 const CONCURRENCY = 8;
+// A three-month chart per symbol (one request, as the five-day chart was): its bars feed the stored daily series (lib/markets/series.mjs)
+// and the trend figures; the quote keeps only the last HISTORY_DAYS bars for the dashboard.
+const RANGE = '3mo';
+const HISTORY_DAYS = 5;
 
 const GROUPS = {
   indexes: { '^GSPC': 'S&P 500', '^IXIC': 'Nasdaq Composite', '^DJI': 'Dow Jones', '^RUT': 'Russell 2000' },
-  worldIndexes: { '^GDAXI': 'DAX', '^FTSE': 'FTSE 100', '^N225': 'Nikkei 225', '^HSI': 'Hang Seng', '^BUX.BD': 'BUX' },
-  rates: { TLT: '20Y+ Treasury', HYG: 'High Yield Corp', LQD: 'IG Corporate' },
-  commodities: { 'GC=F': 'Gold', 'SI=F': 'Silver', 'CL=F': 'WTI Crude', 'BZ=F': 'Brent Crude', 'NG=F': 'Natural Gas' },
+  worldIndexes: {
+    '^GDAXI': 'DAX', '^FTSE': 'FTSE 100', '^N225': 'Nikkei 225', '^HSI': 'Hang Seng', '^BUX.BD': 'BUX',
+    // Europe (since 2.52.4)
+    '^STOXX50E': 'Euro Stoxx 50', '^STOXX': 'STOXX Europe 600', '^FCHI': 'CAC 40', 'FTSEMIB.MI': 'FTSE MIB', '^IBEX': 'IBEX 35',
+    '^AEX': 'AEX', '^SSMI': 'SMI',
+    // Americas and Asia-Pacific (since 2.52.4)
+    '^GSPTSE': 'S&P/TSX', '^BVSP': 'Bovespa', '^MXX': 'IPC Mexico', '^AXJO': 'ASX 200', '^KS11': 'KOSPI', '^TWII': 'Taiwan Weighted',
+    '000001.SS': 'Shanghai Composite', '^BSESN': 'BSE Sensex',
+  },
+  // Sector and regional ETFs (since 2.52.4): instruments an idea can name and the idea journal can follow.
+  sectors: {
+    XLE: 'Energy (XLE)', XLF: 'Financials (XLF)', XLK: 'Technology (XLK)', XLI: 'Industrials (XLI)', XLU: 'Utilities (XLU)',
+    XLV: 'Health Care (XLV)', ITA: 'US Aerospace & Defense (ITA)', SMH: 'Semiconductors (SMH)', KRE: 'Regional Banks (KRE)',
+    VGK: 'Europe (VGK)', EZU: 'Eurozone (EZU)', EUFN: 'Europe Financials (EUFN)', EEM: 'Emerging Markets (EEM)',
+  },
+  rates: {
+    TLT: '20Y+ Treasury', HYG: 'High Yield Corp', LQD: 'IG Corporate',
+    // The US curve in percent and the dollar index (since 2.52.4)
+    '^IRX': 'US 13W yield %', '^FVX': 'US 5Y yield %', '^TNX': 'US 10Y yield %', '^TYX': 'US 30Y yield %',
+    IEF: '7-10Y Treasury', SHY: '1-3Y Treasury', 'DX-Y.NYB': 'US Dollar Index (DXY)',
+  },
+  commodities: {
+    'GC=F': 'Gold', 'SI=F': 'Silver', 'CL=F': 'WTI Crude', 'BZ=F': 'Brent Crude', 'NG=F': 'Natural Gas',
+    // Since 2.52.4
+    'HG=F': 'Copper', 'ZW=F': 'Wheat', 'ZC=F': 'Corn', URA: 'Uranium (URA)', BDRY: 'Dry Bulk Shipping (BDRY)', GDX: 'Gold Miners (GDX)',
+    XOP: 'Oil & Gas E&P (XOP)',
+  },
   crypto: { 'BTC-USD': 'Bitcoin', 'ETH-USD': 'Ethereum' },
   volatility: { '^VIX': 'VIX' },
   // Defense, energy and semiconductors: the sectors the OSINT signals move first.
@@ -31,7 +60,7 @@ const round = (value, decimals) => (Number.isFinite(value) ? Number(value.toFixe
 
 /**
  * The quote from one Yahoo chart response. The previous close is the daily bar before the latest one: with
- * range=5d, meta.chartPreviousClose is the close before the five-day window, which turned a five-day move into
+ * a multi-day range, meta.chartPreviousClose is the close before the window, which turned a five-day move into
  * the "daily" change.
  */
 export function parseChart(symbol, data) {
@@ -72,7 +101,7 @@ export function parseChart(symbol, data) {
 
 export async function fetchQuote(symbol) {
   try {
-    const url = `${BASE}/${encodeURIComponent(symbol)}?range=5d&interval=1d&includePrePost=false`;
+    const url = `${BASE}/${encodeURIComponent(symbol)}?range=${RANGE}&interval=1d&includePrePost=false`;
     const data = await safeFetch(url, {
       timeout: 8000,
       headers: {
@@ -103,9 +132,12 @@ async function mapLimited(items, limit, fn) {
   return out;
 }
 
-export async function collect({ fetch: fetchOne = fetchQuote } = {}) {
+// `series`: the stored daily series ({load, save}, lib/markets/series.mjs by default; null leaves it out, as in a test without a profile).
+export async function collect({ fetch: fetchOne = fetchQuote, series = { load: loadSeries, save: saveSeries } } = {}) {
   const symbols = Object.keys(SYMBOLS);
   const results = await mapLimited(symbols, CONCURRENCY, fetchOne);
+  let store = null;
+  try { store = series ? series.load() : null; } catch { store = null; }
 
   const quotes = {};
   let ok = 0;
@@ -114,7 +146,11 @@ export async function collect({ fetch: fetchOne = fetchQuote } = {}) {
   for (const [index, r] of results.entries()) {
     const q = r.status === 'fulfilled' ? r.value : null;
     if (q && !q.error) {
-      quotes[q.symbol] = q;
+      // The full chart extends the stored series; the trend figures come from the series; the quote keeps the last days only.
+      const bars = Array.isArray(q.history) ? q.history : [];
+      const stored = store ? mergeSeries(store, q.symbol, bars) : null;
+      const stats = seriesStats(stored ? stored.c : bars.map(bar => bar.close), { price: q.price, yearHigh: q.yearHigh, yearLow: q.yearLow });
+      quotes[q.symbol] = { ...q, history: bars.slice(-HISTORY_DAYS), ...(stats ? { stats } : {}) };
       ok++;
     } else {
       failed++;
@@ -122,6 +158,8 @@ export async function collect({ fetch: fetchOne = fetchQuote } = {}) {
       quotes[sym] = q || { symbol: sym, name: SYMBOLS[sym] || sym, error: 'fetch failed' };
     }
   }
+
+  if (store && ok) { try { series.save(store); } catch { /* the series is a convenience: a failed save never fails the sweep */ } }
 
   // Categorize for easy dashboard consumption
   return {

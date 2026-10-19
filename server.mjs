@@ -49,6 +49,7 @@ import { synthesize, generateIdeas } from './dashboard/inject.mjs';
 import { MemoryManager, computeDelta } from './lib/delta/index.mjs';
 import { createLLMProvider } from './lib/llm/index.mjs';
 import { IdeaCadence } from './lib/llm/cadence.mjs';
+import { IdeaJournal } from './lib/llm/idea-journal.mjs';
 import { TelegramAlerter } from './lib/alerts/telegram.mjs';
 import { DiscordAlerter } from './lib/alerts/discord.mjs';
 import { answerQuestion, countryRiskText, createAskLimiter } from './lib/alerts/ask.mjs';
@@ -100,6 +101,8 @@ const sseClients = new Set();
 // === Delta/Memory ===
 const memory = new MemoryManager(RUNS_DIR);
 const ideaCadence = new IdeaCadence({ everyNSweeps: config.llm.everyNSweeps });
+// The model ideas with their entry prices; the next prompt sees how they have done (lib/llm/idea-journal.mjs).
+const ideaJournal = new IdeaJournal(RUNS_DIR).load();
 const history = new HistoryStore(RUNS_DIR);
 let historyStatus = 'ok';
 // The background maintenance (lib/maintenance.mjs): saving the risk stores after a sweep, the history's retention and daily backup, the
@@ -788,10 +791,16 @@ let ideasRunning = false;
 function startIdeas(snapshot, delta, previousIdeas) {
   if (ideasRunning) { console.log('[LLM Ideas] Previous run still going; this sweep keeps its ideas'); return; }
   ideasRunning = true;
-  ideaCadence.generate(llmProvider, snapshot, delta, previousIdeas, config.llm.tradeIdeasLang).then(fresh => {
+  // The track record goes to the prompt only (a copy of the snapshot), not to the published data.
+  let ideaTrack = null;
+  try { ideaTrack = ideaJournal.track(snapshot.markets); } catch (error) { console.warn('[LLM Ideas] Track record unavailable:', error?.message || error); }
+  ideaCadence.generate(llmProvider, { ...snapshot, ideaTrack }, delta, previousIdeas, config.llm.tradeIdeasLang).then(fresh => {
     const run = ideaCadence.lastRun;
     console.log(`[LLM Ideas] ${fresh ? `${fresh.ideas.length} idea(s)` : `no model ideas (${run?.error || run?.source})`} in ${run?.ms ?? '?'} ms (prompt ${run?.promptChars ?? '?'} chars)`);
     if (!fresh) return;
+    if (fresh.ideas.length) {
+      try { if (ideaJournal.record(fresh.ideas, snapshot.markets)) ideaJournal.save(); } catch (error) { console.warn('[LLM Ideas] Journal not saved:', error?.message || error); }
+    }
     const patch = { ideas: fresh.ideas, ideasSource: fresh.ideasSource, ideasGeneratedAt: fresh.ideasGeneratedAt, ideasCached: false };
     Object.assign(snapshot, patch);
     if (currentData && currentData !== snapshot) Object.assign(currentData, patch);

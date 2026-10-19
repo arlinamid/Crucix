@@ -221,7 +221,7 @@ test('every locale prompt shows the ideas output as an array, not a single objec
   for (const lang of ['en', 'fr', 'hu']) assert.match(ideasSystemPrompt(lang), /\n\[\n  \{\n[\s\S]*\n  \}\n\]/);
 });
 
-test('prompt uses real delta fields, source health schema, and treasury object', () => {
+test('prompt uses real delta fields and the source health schema; the federal debt level is left out (2.52.4)', () => {
   const data = { ...fixture(), health: [{ n: 'ok' }, { n: 'error', err: true }, { n: 'disabled', disabled: true }, { n: 'old', stale: true }], treasury: { totalDebt: '38900000000000' } };
   const context = compactSweepForLLM(data, { summary: { direction: 'escalation', totalChanges: 2, criticalChanges: 1 }, signals: {
     escalated: [{ label: 'WTI', from: 80, to: 88, pctChange: 10 }],
@@ -230,7 +230,7 @@ test('prompt uses real delta fields, source health schema, and treasury object',
   assert.match(context, /SOURCE_HEALTH: 4 sources, 1 available/);
   assert.match(context, /WTI: 80→88 \(\+10.0%\)/);
   assert.match(context, /VIX: 30→24 \(-20.0%\)/);
-  assert.match(context, /totalDebtUSD=38900000000000/);
+  assert.doesNotMatch(context, /totalDebt|38900000000000/, 'a debt level without a baseline is no trade signal');
   assert.doesNotMatch(context, /undefined|\[object Object\]/);
   for (const language of ['en', 'fr', 'hu']) {
     assert.match(ideasSystemPrompt(language, data), /4 (sources|forrásból)/);

@@ -37,7 +37,9 @@ test('Yahoo tracks world indexes (BUX as ^BUX.BD), the sector equities and the U
   } });
   assert.ok(peak <= 8);
   assert.equal(data.summary.failed, 1);
-  assert.deepEqual(data.worldIndexes.map(q => q.symbol), ['^GDAXI', '^FTSE', '^N225', '^HSI', '^BUX.BD']);
+  assert.deepEqual(data.worldIndexes.map(q => q.symbol).slice(0, 5), ['^GDAXI', '^FTSE', '^N225', '^HSI', '^BUX.BD']);
+  for (const symbol of ['^STOXX50E', '^STOXX', '^FCHI', '^GSPTSE', '^KS11']) assert.ok(data.worldIndexes.some(q => q.symbol === symbol), symbol);
+  assert.deepEqual(data.sectors.map(q => q.symbol).slice(0, 3), ['XLE', 'XLF', 'XLK']);
   assert.equal(data.fx.length, 8);
   assert.equal(data.equities.length, 9);
 });

@@ -41,8 +41,8 @@ test('ideas: the model sees the story threads, the country risk movers, the conf
     airAlerts: [{ squawk: '7700', callsign: 'BRO179P', country: 'United Kingdom' }], airNotable: [{ kind: 'military' }, { kind: 'high' }],
   });
   assert.match(text, /STORY_THREADS[\s\S]*\[escalating\/conflict\] Houthis strike Aramco \(9 records, 6 sources, SAU\/YEM\)[\s\S]*\[active\/economy\] Oil rises/, 'escalating first');
-  assert.match(text, /THREAD_TOPICS: conflict=3/);
-  assert.match(text, /COUNTRY_RISK_MOVERS_24H: Saudi Arabia 61 \(\+7\)/); assert.doesNotMatch(text, /Peru/);
+  assert.doesNotMatch(text, /THREAD_TOPICS/, 'topic counts are no market signal (2.52.4)');
+  assert.match(text, /COUNTRY_RISK_MOVERS_24H \(an attention score[^)]*not a market signal\): Saudi Arabia 61 \(\+7\)/); assert.doesNotMatch(text, /Peru/);
   assert.match(text, /ARMED_CONFLICT_REPORTS: Yemen: 12 stories today vs 4 usual, escalation 2\.5/);
   assert.match(text, /AIR_ALERTS: 1 emergency squawks \(7700 BRO179P United Kingdom\); 1 military-pattern callsigns airborne/);
 });
