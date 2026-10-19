@@ -235,3 +235,68 @@ test('linkers: the topic rule links a report and an observation through a rare n
   assert.ok(!linked(kev, coup), '"exploited" is the topic, not a name');
   assert.ok(!busy.some(item => linked(market, item)), 'a name in many reports of the window links nothing alone');
 }));
+
+// Live on 2026-10-18: an ATV item on the 1956 commemorations ("light painting on the Bosphorus Bridge in Istanbul"), a thunderstorm SIGMET
+// over Istanbul and a diverted flight became one 74-record thread through the hourly AIS vessel counts of the Bosphorus.
+test('linkers v5: hourly AIS counts link nothing, and a weather notice near a strait is not at the strait', t => withGraph(t, graph => {
+  assert.equal(LINK_RULES_VERSION, 5);
+  const counts = [0, 1, 2, 3].map(hour => observation('maritime', `Bosphorus: ${70 + hour} vessels in the last hour (25 moving, 20 tankers)`, 41.12, 29.07,
+    { at: NOW - hour * HOUR, source: 'Maritime', severity: 'info' }));
+  // As the live rows: source "Maritime" with no hostname (graph source key "maritime").
+  for (const count of counts) count.source.hostname = '';
+  const sigmet = observation('weather', 'SIGMET Thunderstorm LTBB ISTANBUL', 41.0, 28.9, { at: NOW - 2 * HOUR, source: 'Aviation-SIGMET' });
+  const commemoration = news('Brazíliától Csehországig világszerte megemlékeznek az 1956-os forradalomról',
+    { host: 'atv.hu', event: { summary: 'Fényfestés lesz látható az isztambuli Boszporusz-hídon.' } });
+  const edges = build(graph, [...counts, sigmet, commemoration]);
+  const touches = event => edges.filter(edge => edge.a === event.id || edge.b === event.id);
+  for (const count of counts) assert.deepEqual(touches(count), [], 'a routine count is neither a source nor a target of links');
+  assert.deepEqual(touches(commemoration), [], 'the commemoration shares nothing with a thunderstorm over the city');
+}));
+
+test('linkers v5: an unusual maritime row, a PortWatch day and GNSS interference near a strait still link to a report on it', t => withGraph(t, graph => {
+  const alarm = observation('maritime', 'Bosphorus: 3 vessels in the last hour (0 moving, 0 tankers)', 41.12, 29.07, { source: 'Maritime', severity: 'high' });
+  alarm.source.hostname = '';
+  const portwatch = observation('maritime', 'Bosporus Strait: 12 transits', 41.12, 29.07, { source: 'IMF-PortWatch', host: 'portwatch.imf.org', severity: 'info' });
+  const jamming = observation('interference', 'GNSS interference over the Bosphorus area', 41.1, 29.0, { source: 'GPSJam' });
+  const closure = news('Turkey closes the Bosphorus to tanker traffic', { host: 'wire.example' });
+  const edges = build(graph, [alarm, portwatch, jamming, closure]);
+  const between = (p, q) => edges.find(edge => [edge.a, edge.b].sort().join('+') === [p.id, q.id].sort().join('+'));
+  assert.equal(between(alarm, closure)?.type, 'co-occurs');
+  assert.equal(between(portwatch, closure)?.type, 'co-occurs');
+  assert.equal(between(jamming, closure)?.type, 'co-occurs');
+}));
+
+test('a relink from rules v4 drops only the co-occurs rule edges: the same-story edges of the incremental sweeps stay', t => withGraph(t, (graph, dir) => {
+  const a = news('Ivanti flaw exploited in attacks on Norway ministries', { host: 'a.example' });
+  const b = news('Norway ministries hit through Ivanti flaw', { host: 'b.example' });
+  const c = news('Football results', { host: 'c.example' });
+  graph.ingest(graphRecordsOf([a, b, c]), { now: NOW });
+  graph.ingest([{ id: c.id, kind: 'news', entities: [{ id: 'country:NOR', rel: 'mentions', s: 0.5 }] }], { now: NOW });
+  // A same-story edge buildEvents' related reports gave (a relink has no related list) and a stale co-occurs edge.
+  graph.link([{ a: a.id, b: c.id, type: 'same-story', s: 0.6, m: 'rule' }, { a: b.id, b: c.id, type: 'co-occurs', s: 0.9, m: 'rule' }], { now: NOW });
+  graph.rules = 4;
+  runRiskStep({ store: new EntityStore(dir, { now: () => NOW }), graph, snapshot: { events: [] }, raw: null, now: NOW, log: { warn() {}, error() {} } });
+  const types = id => graph.edgesOf(id).map(edge => edge.type).sort();
+  assert.ok(types(c.id).includes('same-story'), 'the same-story edge survives');
+  assert.ok(!graph.edgesOf(b.id).some(edge => edge.id === c.id && edge.type === 'co-occurs'), 'the stale co-occurs edge is gone');
+  assert.equal(graph.rules, LINK_RULES_VERSION);
+}));
+
+test('relinkTypes: only co-occurs from v4, everything from an older or unknown version', async () => {
+  const { relinkTypes } = await import('../lib/intelligence/linkers.mjs');
+  assert.deepEqual(relinkTypes(4), ['co-occurs']);
+  assert.equal(relinkTypes(3), null);
+  assert.equal(relinkTypes(0), null);
+  assert.equal(relinkTypes(undefined), null);
+  assert.deepEqual(relinkTypes(LINK_RULES_VERSION), []);
+});
+
+// Live on 2026-10-19 the 1956 commemoration item still joined a GNSS interference cell over Istanbul through "Boszporusz-hídon".
+test('extractEntities: a strait named only in a bridge name is a weak mention; naming the strait itself is not', () => {
+  const strength = (title, summary = '') => extractEntities({ kind: 'news', title, summary, location: {} }).find(entity => entity.id === 'chokepoint:bosporus')?.s;
+  assert.equal(strength('Világszerte megemlékeznek az 1956-os forradalomról', 'Fényfestés lesz látható az isztambuli Boszporusz-hídon.'), 0.5);
+  assert.equal(strength('Bosphorus Bridge lit up for the anniversary'), 0.5);
+  assert.equal(strength('Turkey closes the Bosphorus to tankers'), 0.8);
+  assert.equal(strength('Tankerek várakoznak a Boszporuszon'), 0.8);
+  assert.equal(strength('Bosphorus Bridge closed as tankers queue in the Bosphorus'), 0.8, 'the strait named on its own as well');
+});
