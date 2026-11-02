@@ -1,5 +1,6 @@
 # Changelog / Változásnapló
 
+- [2.52.5 — Nincs felugró cmd-ablak Cursorral / No pop-up cmd windows with Cursor](docs/releases/v2.52.5.md) — 2026-11-02
 - [2.52.4 — Piacvezérelt ötletek és tisztább szálak / Market-led ideas and cleaner threads](docs/releases/v2.52.4.md) — 2026-10-19
 - [2.52.3 — Hírsáv, forrásbesorolás és űrfigyelő / News ticker, source tiers and space watch](docs/releases/v2.52.3.md) — 2026-10-18
 - [2.52.2 — Mentés tele lemeznél / Backup on a full disk](docs/releases/v2.52.2.md) — 2026-10-17
